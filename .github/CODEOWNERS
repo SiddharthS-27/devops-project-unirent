@@ -1,0 +1,21 @@
+# Each folder's owner must approve PRs that touch it. Later rules win.
+
+# Root files: set up by Parv, changed afterwards only with team review
+*                       @parv-18
+
+/frontend/              @tnspra
+/backend/               @rammohan2006
+/payments/              @SiddharthS-27
+/security/              @SiddharthS-27
+/workers/               @sasvat007
+/ci/                    @sasvat007
+/.github/workflows/     @sasvat007
+/monitoring/            @sasvat007
+/infra/                 @parv-18
+/tests/                 @parv-18
+/Makefile               @parv-18
+
+# Shared: the producer edits, any consumer reviews
+/contracts/             @rammohan2006 @SiddharthS-27 @sasvat007 @tnspra @parv-18
+/docs/                  @rammohan2006 @SiddharthS-27 @sasvat007 @tnspra @parv-18
+/.github/CODEOWNERS     @rammohan2006 @SiddharthS-27 @sasvat007 @tnspra @parv-18
