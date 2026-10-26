@@ -47,3 +47,25 @@ jobs:
           echo "python=$python" >> "$GITHUB_OUTPUT"
           echo "frontend=$frontend" >> "$GITHUB_OUTPUT"
           echo "Python folders: $python, frontend: $frontend"
+
+  # Stage 2: lint.
+  lint-python:
+    name: lint (${{ matrix.folder }})
+    needs: changes
+    if: needs.changes.outputs.python != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        folder: ${{ fromJSON(needs.changes.outputs.python) }}
+    defaults:
+      run:
+        working-directory: ${{ matrix.folder }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff==0.17.2
+      - run: ruff check .
+      - run: ruff format --check .
