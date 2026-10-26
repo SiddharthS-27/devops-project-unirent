@@ -69,3 +69,22 @@ jobs:
       - run: pip install ruff==0.17.2
       - run: ruff check .
       - run: ruff format --check .
+
+  lint-flutter:
+    name: lint (frontend)
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.3"
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: dart format --output=none --set-exit-if-changed .
+      - run: flutter analyze
