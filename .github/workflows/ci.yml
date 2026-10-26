@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    # master until the default branch is renamed to main
+    branches: [main, master]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  # Stage 1: work out which folders changed so later jobs run only where needed.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      python: ${{ steps.select.outputs.python }}
+      frontend: ${{ steps.select.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend: backend/**
+            payments: payments/**
+            security: security/**
+            workers: workers/**
+            frontend: frontend/**
+            workflow: .github/workflows/**
+      - name: Select folders to check
+        id: select
+        # A change to the workflow itself re-checks every folder that exists.
+        run: |
+          if [ "${{ steps.filter.outputs.workflow }}" = "true" ]; then
+            python=$(for d in backend payments security workers; do if [ -d "$d" ]; then echo "$d"; fi; done | jq -R . | jq -sc .)
+            frontend=true
+          else
+            python=$(echo '${{ steps.filter.outputs.changes }}' | jq -c '[.[] | select(IN("backend", "payments", "security", "workers"))]')
+            frontend=${{ steps.filter.outputs.frontend }}
+          fi
+          echo "python=$python" >> "$GITHUB_OUTPUT"
+          echo "frontend=$frontend" >> "$GITHUB_OUTPUT"
+          echo "Python folders: $python, frontend: $frontend"
