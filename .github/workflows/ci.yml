@@ -115,3 +115,21 @@ jobs:
       - name: Run pytest
         # Exit code 5 means no tests were collected; allowed until the folder has tests.
         run: pytest -q || [ $? -eq 5 ]
+
+  unit-flutter:
+    name: unit (frontend)
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.3"
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter test
