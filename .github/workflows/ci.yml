@@ -133,3 +133,16 @@ jobs:
           cache: true
       - run: flutter pub get
       - run: flutter test
+
+  # Branch protection requires only this job. The jobs above are skipped when their
+  # folders didn't change, so they can't be required checks themselves.
+  ci-ok:
+    name: ci-ok
+    if: always()
+    needs: [changes, lint-python, lint-flutter, unit-python, unit-flutter]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any job failed or was cancelled
+        run: |
+          echo '${{ toJSON(needs) }}' | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          echo '${{ toJSON(needs) }}' | jq -e 'all(.[]; .result == "success" or .result == "skipped")' > /dev/null
