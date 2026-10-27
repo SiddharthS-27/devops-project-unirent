@@ -17,5 +17,9 @@
 
 # Shared: the producer edits, any consumer reviews
 /contracts/             @rammohan2006 @SiddharthS-27 @sasvat007 @tnspra @parv-18
+/contracts/openapi.json @rammohan2006 @tnspra
 /docs/                  @rammohan2006 @SiddharthS-27 @sasvat007 @tnspra @parv-18
+/docs/plans/            @parv-18
+/docs/research/         @parv-18
+/docs/runbooks/         @sasvat007
 /.github/CODEOWNERS     @rammohan2006 @SiddharthS-27 @sasvat007 @tnspra @parv-18
