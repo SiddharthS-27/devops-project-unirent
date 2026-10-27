@@ -2,8 +2,9 @@
 plus pg_trgm word similarity for type-ahead."""
 
 import re
+from datetime import datetime
 
-from sqlalchemy import Select, func, literal, or_, select
+from sqlalchemy import Select, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from unirent_security import AccountContext
 
@@ -13,6 +14,9 @@ from app.modules.listings.models import Listing
 from app.modules.listings.schemas import ListingCard
 from app.modules.listings.service import cards
 from app.modules.search.schemas import Suggestion
+from app.modules.trust.models import TrustScore
+
+DEFAULT_MEDIAN = 50
 
 SUGGEST_LIMIT = 8
 SUGGEST_THRESHOLD = 0.3
@@ -49,6 +53,40 @@ def price_expr():
     )
 
 
+async def available_between(stmt: Select, start: datetime | None, end: datetime | None) -> Select:
+    """Rent listings with no approved booking in [start, end). Filled in by bookings."""
+    return stmt
+
+
+async def campus_median(session: AsyncSession) -> float:
+    """The median lender trust; owners still New rank as if they had it."""
+    median = await session.scalar(
+        select(func.percentile_cont(0.5).within_group(TrustScore.lender_score.asc())).where(
+            TrustScore.lender_score.is_not(None)
+        )
+    )
+    return float(median) if median is not None else DEFAULT_MEDIAN
+
+
+def apply_filters(
+    stmt: Select,
+    *,
+    category: str | None = None,
+    kind: str | None = None,
+    min_price_paise: int | None = None,
+    max_price_paise: int | None = None,
+) -> Select:
+    if category:
+        stmt = stmt.where(Listing.category == category)
+    if kind:
+        stmt = stmt.where(Listing.kind == kind)
+    if min_price_paise is not None:
+        stmt = stmt.where(price_expr() >= min_price_paise)
+    if max_price_paise is not None:
+        stmt = stmt.where(price_expr() <= max_price_paise)
+    return stmt
+
+
 async def search(
     session: AsyncSession,
     viewer: AccountContext,
@@ -57,17 +95,37 @@ async def search(
     sort: str,
     cursor: str | None,
     limit: int,
+    category: str | None = None,
+    kind: str | None = None,
+    min_price_paise: int | None = None,
+    max_price_paise: int | None = None,
+    available_from: datetime | None = None,
+    available_to: datetime | None = None,
 ) -> Page[ListingCard]:
     stmt = select(Listing).where(Listing.status == "active")
+    if available_from or available_to:
+        stmt = await available_between(stmt, available_from, available_to)
+    stmt = apply_filters(
+        stmt,
+        category=category,
+        kind=kind,
+        min_price_paise=min_price_paise,
+        max_price_paise=max_price_paise,
+    )
     stmt, relevance = text_match(stmt, q)
-    order = {
-        "newest": [Listing.created_at.desc()],
-        "price_asc": [price_expr().asc(), Listing.created_at.desc()],
-        "price_desc": [price_expr().desc(), Listing.created_at.desc()],
-    }.get(sort)
-    if order is None:  # trust, until trust scores exist: best match first
-        order = [(relevance if relevance is not None else literal(0)).desc()]
+    if sort == "trust":
+        stmt = stmt.outerjoin(TrustScore, TrustScore.account_id == Listing.owner_id)
+        trust = func.coalesce(TrustScore.lender_score, await campus_median(session))
+        order = [trust.desc()]
+        if relevance is not None:
+            order.append(relevance.desc())
         order.append(Listing.created_at.desc())
+    else:
+        order = {
+            "newest": [Listing.created_at.desc()],
+            "price_asc": [price_expr().asc(), Listing.created_at.desc()],
+            "price_desc": [price_expr().desc(), Listing.created_at.desc()],
+        }[sort]
     offset = decode_offset(cursor)
     rows = list(
         await session.scalars(stmt.order_by(*order, Listing.id).offset(offset).limit(limit + 1))

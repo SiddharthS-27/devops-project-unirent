@@ -38,7 +38,22 @@ async def search(
 ):
     """Active listings. Sorted by the owner's lender trust by default; New owners
     rank at the campus median."""
-    return await service.search(session, account, q=q, sort=sort, cursor=cursor, limit=limit)
+    if available_from or available_to:
+        kind = "rent"
+    return await service.search(
+        session,
+        account,
+        q=q,
+        sort=sort,
+        cursor=cursor,
+        limit=limit,
+        category=category,
+        kind=kind,
+        min_price_paise=min_price_paise,
+        max_price_paise=max_price_paise,
+        available_from=available_from,
+        available_to=available_to,
+    )
 
 
 @router.get("/search/suggest", response_model=list[Suggestion])

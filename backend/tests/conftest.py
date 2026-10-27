@@ -6,6 +6,7 @@ import unirent_payments.db
 import unirent_security.db
 from sqlalchemy import text
 from unirent_security.config import get_settings as security_settings
+from unirent_security.rate_limit import LIMITS, Limit
 
 from app.core.db import dispose_engine, get_engine
 from app.core.redis import close_redis
@@ -42,6 +43,8 @@ async def api(client, db_ready, monkeypatch):
     monkeypatch.setattr(settings, "ms_auth_mode", "mock")
     monkeypatch.setattr(settings, "phone_auth_mode", "mock")
     monkeypatch.setattr(settings, "environment", "test")
+    # Every test student signs in from the same address.
+    monkeypatch.setitem(LIMITS, "student_signin", Limit(10_000, 60))
     await unirent_security.db.redis().flushdb()
     return client
 
