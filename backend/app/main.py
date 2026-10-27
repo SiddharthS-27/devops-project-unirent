@@ -8,6 +8,7 @@ from app.core.errors import register_error_handlers
 from app.core.logging import configure_logging
 from app.core.middleware import RequestContextMiddleware
 from app.core.redis import close_redis
+from app.modules.health.router import router as health_router
 
 
 @asynccontextmanager
@@ -23,6 +24,7 @@ def create_app() -> FastAPI:
     app = FastAPI(title="UniRent API", version="0.1.0", lifespan=lifespan)
     app.add_middleware(RequestContextMiddleware)
     register_error_handlers(app)
+    app.include_router(health_router)
     return app
 
 
