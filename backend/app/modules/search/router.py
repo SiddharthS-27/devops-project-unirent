@@ -9,6 +9,7 @@ from app.core.deps import SessionDep
 from app.core.errors import not_implemented
 from app.core.schemas import Page
 from app.modules.listings.schemas import Category, ListingCard, ListingKind
+from app.modules.search import service
 from app.modules.search.schemas import (
     HomeOut,
     SavedSearchIn,
@@ -37,7 +38,7 @@ async def search(
 ):
     """Active listings. Sorted by the owner's lender trust by default; New owners
     rank at the campus median."""
-    raise not_implemented()
+    return await service.search(session, account, q=q, sort=sort, cursor=cursor, limit=limit)
 
 
 @router.get("/search/suggest", response_model=list[Suggestion])
@@ -47,7 +48,7 @@ async def suggest(
     q: Annotated[str, Query(min_length=1, max_length=100)],
 ):
     """Type-ahead suggestions as the user types."""
-    raise not_implemented()
+    return await service.suggest(session, q)
 
 
 @router.get("/home", response_model=HomeOut)
