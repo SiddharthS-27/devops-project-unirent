@@ -62,3 +62,21 @@ class StaffAccountOut(BaseModel):
     status: str
     created_at: datetime
     last_login_at: datetime | None
+
+
+class PhoneVerify(BaseModel):
+    firebase_id_token: str = Field(min_length=10)
+
+
+class PhoneMockTokenRequest(BaseModel):
+    phone: str = Field(pattern=r"^\+[1-9]\d{7,14}$", examples=["+919876543210"])
+    code: str = Field(min_length=6, max_length=6)
+
+
+class PhoneMockTokenOut(BaseModel):
+    firebase_id_token: str
+
+
+class PhoneOut(BaseModel):
+    phone: str
+    phone_verified_at: datetime

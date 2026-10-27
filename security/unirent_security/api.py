@@ -6,19 +6,23 @@ from fastapi import APIRouter, Depends, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from unirent_security import microsoft, rate_limit, staff_auth, tokens
+from unirent_security import microsoft, phone_otp, rate_limit, staff_auth, tokens
 from unirent_security.accounts import find_or_create_student, set_account_status
 from unirent_security.config import get_settings
 from unirent_security.db import SessionDep
 from unirent_security.errors import ApiError, not_found
 from unirent_security.models import Account
-from unirent_security.roles import AdminAccount
+from unirent_security.roles import AdminAccount, CurrentAccount
 from unirent_security.schemas import (
     AccountOut,
     MicrosoftSignIn,
     MockTokenOut,
     MockTokenRequest,
     ModeratorCreate,
+    PhoneMockTokenOut,
+    PhoneMockTokenRequest,
+    PhoneOut,
+    PhoneVerify,
     RefreshRequest,
     StaffAccountOut,
     StaffLogin,
@@ -110,6 +114,26 @@ async def staff_change_password(body: StaffPasswordChange, session: SessionDep) 
     pair = await token_pair(session, account)
     await session.commit()
     return pair
+
+
+@auth_router.post("/phone", response_model=PhoneOut)
+async def verify_phone(body: PhoneVerify, account: CurrentAccount, session: SessionDep) -> PhoneOut:
+    """Save the phone number from a verified Firebase phone ID token."""
+    phone = await phone_otp.verify_firebase_token(body.firebase_id_token)
+    saved = await phone_otp.save_verified_phone(session, account.id, phone)
+    await session.commit()
+    return PhoneOut(phone=saved.phone, phone_verified_at=saved.phone_verified_at)
+
+
+@auth_router.post(
+    "/phone/mock-token", dependencies=[signin_limit], response_model=PhoneMockTokenOut
+)
+async def mock_phone_token(body: PhoneMockTokenRequest) -> PhoneMockTokenOut:
+    """Development only: stands in for Firebase. The code is always 123456."""
+    settings = get_settings()
+    if settings.phone_auth_mode != "mock" or not settings.mock_allowed():
+        raise ApiError(404, "NOT_FOUND", "Not found")
+    return PhoneMockTokenOut(firebase_id_token=phone_otp.mock_firebase_token(body.phone, body.code))
 
 
 def _staff_out(account: Account) -> StaffAccountOut:
