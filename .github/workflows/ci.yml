@@ -99,22 +99,44 @@ jobs:
       fail-fast: false
       matrix:
         folder: ${{ fromJSON(needs.changes.outputs.python) }}
-    defaults:
-      run:
-        working-directory: ${{ matrix.folder }}
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: unirent
+          POSTGRES_USER: unirent
+          POSTGRES_PASSWORD: unirent
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U unirent" --health-interval 5s --health-retries 10
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-retries 10
+    env:
+      PGHOST: localhost
+      PGUSER: unirent
+      PGPASSWORD: unirent
+      PGDATABASE: unirent
+      UNIRENT_DATABASE_URL: postgresql+asyncpg://unirent:unirent@localhost:5432/unirent
+      UNIRENT_REDIS_URL: redis://localhost:6379/0
+      UNIRENT_ENVIRONMENT: test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install dependencies
-        run: |
-          pip install pytest
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          if [ -f pyproject.toml ]; then pip install -e .; fi
-      - name: Run pytest
-        # Exit code 5 means no tests were collected; allowed until the folder has tests.
-        run: pytest -q || [ $? -eq 5 ]
+          cache: pip
+      - name: Run unit tests
+        run: ci/scripts/python-unit.sh ${{ matrix.folder }}
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.folder }}
+          path: test-results-${{ matrix.folder }}.xml
+          if-no-files-found: ignore
 
   unit-flutter:
     name: unit (frontend)
