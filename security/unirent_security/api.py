@@ -1,14 +1,16 @@
 """HTTP routes owned by the security package. The backend mounts these under /api/v1."""
 
+import uuid
+
 from fastapi import APIRouter, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from unirent_security import microsoft, staff_auth, tokens
-from unirent_security.accounts import find_or_create_student
+from unirent_security.accounts import find_or_create_student, set_account_status
 from unirent_security.config import get_settings
 from unirent_security.db import SessionDep
-from unirent_security.errors import ApiError
+from unirent_security.errors import ApiError, not_found
 from unirent_security.models import Account
 from unirent_security.roles import AdminAccount
 from unirent_security.schemas import (
@@ -135,6 +137,19 @@ async def create_moderator(
     account = await staff_auth.create_staff_account(
         session, str(body.email), body.name, body.temporary_password
     )
+    await session.commit()
+    await session.refresh(account)
+    return _staff_out(account)
+
+
+@admin_router.post("/{account_id}/deactivate", response_model=StaffAccountOut)
+async def deactivate_moderator(
+    account_id: uuid.UUID, admin: AdminAccount, session: SessionDep
+) -> StaffAccountOut:
+    account = await session.get(Account, account_id)
+    if account is None or account.role != "moderator":
+        raise not_found("Moderator")
+    await set_account_status(account_id, "deactivated", admin.id, "deactivated by admin", session)
     await session.commit()
     await session.refresh(account)
     return _staff_out(account)

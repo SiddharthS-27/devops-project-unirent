@@ -30,11 +30,23 @@ class AccountContext:
         return self.role == "admin"
 
 
+async def _current_status(account_id: uuid.UUID) -> str | None:
+    # Imported here: accounts imports tokens, which this module also uses.
+    from unirent_security.accounts import status_override
+
+    try:
+        return await status_override(account_id)
+    except OSError:
+        return None  # Redis down: fall back to the token's claim
+
+
 async def _context_from_token(token: str) -> AccountContext:
     claims = decode_access_token(token)
     if claims.get("pwd_change"):
         raise forbidden("PASSWORD_CHANGE_REQUIRED", "Set a new password first")
-    ctx = AccountContext(id=uuid.UUID(claims["sub"]), role=claims["role"], status=claims["status"])
+    account_id = uuid.UUID(claims["sub"])
+    status = await _current_status(account_id) or claims["status"]
+    ctx = AccountContext(id=account_id, role=claims["role"], status=status)
     if ctx.status in ("banned", "deactivated"):
         raise unauthenticated("ACCOUNT_DISABLED", "This account can't sign in")
     return ctx
