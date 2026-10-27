@@ -2,11 +2,11 @@
 
 import uuid
 
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Depends, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from unirent_security import microsoft, staff_auth, tokens
+from unirent_security import microsoft, rate_limit, staff_auth, tokens
 from unirent_security.accounts import find_or_create_student, set_account_status
 from unirent_security.config import get_settings
 from unirent_security.db import SessionDep
@@ -27,6 +27,7 @@ from unirent_security.schemas import (
 )
 
 auth_router = APIRouter(prefix="/auth", tags=["auth"])
+signin_limit = Depends(rate_limit.rate_limit("student_signin", by="ip"))
 admin_router = APIRouter(prefix="/admin/moderators", tags=["admin"])
 
 
@@ -52,7 +53,7 @@ async def token_pair(
     )
 
 
-@auth_router.post("/microsoft", response_model=TokenPair)
+@auth_router.post("/microsoft", dependencies=[signin_limit], response_model=TokenPair)
 async def sign_in_with_microsoft(body: MicrosoftSignIn, session: SessionDep) -> TokenPair:
     """Exchange a Microsoft ID token for UniRent tokens. Creates the account on first sign-in."""
     identity = await microsoft.verify_id_token(body.id_token)
@@ -62,7 +63,7 @@ async def sign_in_with_microsoft(body: MicrosoftSignIn, session: SessionDep) -> 
     return pair
 
 
-@auth_router.post("/microsoft/mock-token", response_model=MockTokenOut)
+@auth_router.post("/microsoft/mock-token", dependencies=[signin_limit], response_model=MockTokenOut)
 async def mock_microsoft_token(body: MockTokenRequest) -> MockTokenOut:
     """Development only: a signed stand-in for a Microsoft ID token."""
     settings = get_settings()
@@ -71,7 +72,7 @@ async def mock_microsoft_token(body: MockTokenRequest) -> MockTokenOut:
     return MockTokenOut(id_token=microsoft.mock_id_token(str(body.email), body.name))
 
 
-@auth_router.post("/refresh", response_model=TokenPair)
+@auth_router.post("/refresh", dependencies=[signin_limit], response_model=TokenPair)
 async def refresh(body: RefreshRequest, session: SessionDep) -> TokenPair:
     """Rotate a refresh token. Using one twice signs out every device of that sign-in."""
     account, new_refresh = await tokens.rotate_refresh_token(session, body.refresh_token)
@@ -91,6 +92,7 @@ async def logout(body: RefreshRequest, session: SessionDep) -> Response:
 async def staff_login(body: StaffLogin, session: SessionDep) -> TokenPair:
     """Moderator and admin login. While `must_change_password` is true, the token
     only works for /auth/staff/password."""
+    await rate_limit.hit("staff_login", f"email:{str(body.email).lower()}")
     account, credential = await staff_auth.authenticate(session, str(body.email), body.password)
     pair = await token_pair(session, account, must_change_password=credential.must_change_password)
     await session.commit()
@@ -100,6 +102,7 @@ async def staff_login(body: StaffLogin, session: SessionDep) -> TokenPair:
 @auth_router.post("/staff/password", response_model=TokenPair)
 async def staff_change_password(body: StaffPasswordChange, session: SessionDep) -> TokenPair:
     """Set a new password; also how a new moderator replaces the temporary one."""
+    await rate_limit.hit("staff_login", f"email:{str(body.email).lower()}")
     account, _ = await staff_auth.change_password(
         session, str(body.email), body.current_password, body.new_password
     )

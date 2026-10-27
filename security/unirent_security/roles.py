@@ -6,8 +6,10 @@ from typing import Annotated
 
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from redis.exceptions import RedisError
 
 from unirent_security.errors import ApiError, forbidden, unauthenticated
+from unirent_security.metrics import AUTH_FAILURES
 from unirent_security.tokens import decode_access_token
 
 STAFF_ROLES = frozenset({"moderator", "admin"})
@@ -36,7 +38,7 @@ async def _current_status(account_id: uuid.UUID) -> str | None:
 
     try:
         return await status_override(account_id)
-    except OSError:
+    except (OSError, RedisError):
         return None  # Redis down: fall back to the token's claim
 
 
@@ -59,7 +61,11 @@ async def current_account(
     """The signed-in account. 401 without a valid access token."""
     if credentials is None or credentials.scheme.lower() != "bearer":
         raise unauthenticated()
-    ctx = await _context_from_token(credentials.credentials)
+    try:
+        ctx = await _context_from_token(credentials.credentials)
+    except ApiError as exc:
+        AUTH_FAILURES.labels(reason=exc.code).inc()
+        raise
     request.state.account = ctx
     return ctx
 

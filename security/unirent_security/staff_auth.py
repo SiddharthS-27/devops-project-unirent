@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from unirent_security.accounts import ensure_can_sign_in
 from unirent_security.config import get_settings
 from unirent_security.errors import ApiError
+from unirent_security.metrics import AUTH_FAILURES
 from unirent_security.models import Account, StaffCredential
 from unirent_security.passwords import hash_secret, needs_rehash, verify_secret
 
@@ -21,6 +22,7 @@ def _now() -> datetime:
 
 
 def _invalid() -> ApiError:
+    AUTH_FAILURES.labels(reason="INVALID_CREDENTIALS").inc()
     return ApiError(401, "INVALID_CREDENTIALS", "Wrong email or password")
 
 

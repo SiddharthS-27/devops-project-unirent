@@ -11,5 +11,5 @@ async def session():
         async with db.sessionmaker()() as s:
             await s.execute(text("SELECT 1 FROM security.accounts LIMIT 1"))
             yield s
-    except OSError as exc:
+    except Exception as exc:  # noqa: BLE001 - unreachable, refused or unmigrated
         pytest.skip(f"database unavailable: {exc}")
