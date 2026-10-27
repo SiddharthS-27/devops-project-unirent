@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from unirent_security import microsoft, tokens
+from unirent_security import microsoft, staff_auth, tokens
 from unirent_security.accounts import find_or_create_student
 from unirent_security.config import get_settings
 from unirent_security.db import SessionDep
@@ -15,6 +15,8 @@ from unirent_security.schemas import (
     MockTokenOut,
     MockTokenRequest,
     RefreshRequest,
+    StaffLogin,
+    StaffPasswordChange,
     TokenPair,
 )
 
@@ -76,3 +78,25 @@ async def logout(body: RefreshRequest, session: SessionDep) -> Response:
     await tokens.revoke_refresh_token(session, body.refresh_token)
     await session.commit()
     return Response(status_code=204)
+
+
+@auth_router.post("/staff/login", response_model=TokenPair)
+async def staff_login(body: StaffLogin, session: SessionDep) -> TokenPair:
+    """Moderator and admin login. While `must_change_password` is true, the token
+    only works for /auth/staff/password."""
+    account, credential = await staff_auth.authenticate(session, str(body.email), body.password)
+    pair = await token_pair(session, account, must_change_password=credential.must_change_password)
+    await session.commit()
+    return pair
+
+
+@auth_router.post("/staff/password", response_model=TokenPair)
+async def staff_change_password(body: StaffPasswordChange, session: SessionDep) -> TokenPair:
+    """Set a new password; also how a new moderator replaces the temporary one."""
+    account, _ = await staff_auth.change_password(
+        session, str(body.email), body.current_password, body.new_password
+    )
+    await tokens.revoke_all(session, account.id)
+    pair = await token_pair(session, account)
+    await session.commit()
+    return pair

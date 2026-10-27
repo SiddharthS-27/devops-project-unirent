@@ -34,3 +34,14 @@ class MockTokenOut(BaseModel):
 
 class RefreshRequest(BaseModel):
     refresh_token: str = Field(min_length=10)
+
+
+class StaffLogin(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=1, max_length=200)
+
+
+class StaffPasswordChange(BaseModel):
+    email: EmailStr
+    current_password: str = Field(min_length=1, max_length=200)
+    new_password: str = Field(min_length=1, max_length=200)
