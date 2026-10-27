@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../ui/ui.dart';
+
 /// Root widget of the UniRent app.
 class UniRentApp extends StatelessWidget {
   const UniRentApp({super.key});
@@ -9,8 +11,9 @@ class UniRentApp extends StatelessWidget {
     return MaterialApp(
       title: 'UniRent',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(colorSchemeSeed: Colors.indigo),
-      home: const Scaffold(body: Center(child: Text('UniRent'))),
+      theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
+      home: const Scaffold(body: EmptyState(title: 'UniRent')),
     );
   }
 }
