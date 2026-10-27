@@ -22,6 +22,7 @@ jobs:
       python: ${{ steps.select.outputs.python }}
       frontend: ${{ steps.select.outputs.frontend }}
       stack: ${{ steps.filter.outputs.stack }}
+      contract: ${{ steps.filter.outputs.contract }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -42,6 +43,13 @@ jobs:
               - infra/**
               - tests/**
               - ci/**
+            # The spec is generated from the backend and owned with it. Routes added
+            # in payments/ or security/ reach it with the backend's next change.
+            contract:
+              - backend/**
+              - contracts/**
+              - frontend/tool/**
+              - frontend/lib/api/**
       - name: Select folders to check
         id: select
         # A change to the workflow itself re-checks every folder that exists.
@@ -182,12 +190,76 @@ jobs:
           path: integration-api.log
           if-no-files-found: ignore
 
+  # Stage 6: the committed spec and the generated app client are current.
+  contract:
+    needs: changes
+    if: needs.changes.outputs.contract == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.3"
+          channel: stable
+          cache: true
+      - name: Install the api packages
+        run: |
+          for pkg in security payments backend; do
+            if [ -f "$pkg/pyproject.toml" ]; then pip install -e "./$pkg"; fi
+          done
+      - name: Fetch app packages
+        working-directory: frontend
+        run: flutter pub get
+      - name: Compare spec and client with the code
+        run: ci/scripts/contract-check.sh
+
+  # Stage 7: build the api and workers images, tagged with the commit SHA.
+  # Pushed to GHCR only from master.
+  images:
+    needs: [changes, unit-python, contract]
+    if: always() && needs.changes.outputs.stack == 'true' && !contains(needs.*.result, 'failure')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        image: [api, workers]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Skip images whose Dockerfile doesn't exist yet
+        id: exists
+        run: |
+          if [ -f infra/docker/${{ matrix.image }}.Dockerfile ]; then echo "build=true" >> "$GITHUB_OUTPUT"; fi
+      - uses: docker/setup-buildx-action@v3
+        if: steps.exists.outputs.build == 'true'
+      - uses: docker/login-action@v3
+        if: steps.exists.outputs.build == 'true' && github.ref == 'refs/heads/master'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        if: steps.exists.outputs.build == 'true'
+        with:
+          context: .
+          file: infra/docker/${{ matrix.image }}.Dockerfile
+          push: ${{ github.ref == 'refs/heads/master' }}
+          load: ${{ github.ref != 'refs/heads/master' }}
+          tags: ghcr.io/${{ github.repository_owner }}/unirent-${{ matrix.image }}:${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
   # Branch protection requires only this job. The jobs above are skipped when their
   # folders didn't change, so they can't be required checks themselves.
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [changes, lint-python, lint-flutter, unit-python, unit-flutter, integration]
+    needs: [changes, lint-python, lint-flutter, unit-python, unit-flutter, integration, contract, images]
     runs-on: ubuntu-latest
     steps:
       - name: Fail if any job failed or was cancelled
