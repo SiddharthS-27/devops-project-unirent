@@ -16,6 +16,7 @@ dependencies = [
     "pydantic-settings>=2.3",
     "redis>=5.0",
     "unirent-security",
+    "unirent-payments",
 ]
 
 [project.optional-dependencies]

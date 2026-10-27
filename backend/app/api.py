@@ -1,6 +1,7 @@
 """Every router, mounted under /api/v1."""
 
 from fastapi import APIRouter, Depends
+from unirent_payments.api import router as payments_router
 from unirent_security.api import admin_router as moderators_router
 from unirent_security.api import auth_router
 
@@ -36,6 +37,7 @@ for router in (
     staff_admin_router,
     admin_router,
     moderators_router,
+    payments_router,
 ):
     limited.include_router(router)
 

@@ -2,6 +2,7 @@ import uuid
 
 import httpx
 import pytest
+import unirent_payments.db
 import unirent_security.db
 from sqlalchemy import text
 from unirent_security.config import get_settings as security_settings
@@ -20,6 +21,7 @@ async def client():
     await close_redis()
     await dispose_engine()
     await unirent_security.db.reset()
+    await unirent_payments.db.reset()
 
 
 @pytest.fixture

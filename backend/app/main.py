@@ -1,7 +1,9 @@
 from contextlib import asynccontextmanager
 
+import unirent_payments.db
 import unirent_security.db
 from fastapi import FastAPI
+from unirent_payments.idempotency import IdempotencyMiddleware
 
 from app.api import api_router
 from app.core.config import get_settings
@@ -25,13 +27,16 @@ def create_app() -> FastAPI:
     settings = get_settings()
     configure_logging(settings.log_level)
     app = FastAPI(title="UniRent API", version="0.1.0", lifespan=lifespan)
+    app.add_middleware(IdempotencyMiddleware)
+    # Added last, so it runs first: every request gets its ID before anything else.
     app.add_middleware(RequestContextMiddleware)
     register_error_handlers(app)
     app.include_router(health_router)
     app.include_router(api_router)
     app.include_router(internal_router)
-    # The security package shares the api's connection pool and Redis client.
+    # The installed packages share the api's connection pool and Redis client.
     unirent_security.db.setup(get_sessionmaker(), get_redis())
+    unirent_payments.db.setup(get_sessionmaker(), get_redis())
     return app
 
 

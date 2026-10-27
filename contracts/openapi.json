@@ -3031,6 +3031,103 @@
         "title": "PaymentStartIn",
         "type": "object"
       },
+      "PayoutAccountIn": {
+        "description": "Sent to Razorpay to create the linked account; never stored by UniRent.",
+        "properties": {
+          "account_number": {
+            "pattern": "^\\d{9,18}$",
+            "title": "Account Number",
+            "type": "string"
+          },
+          "beneficiary_name": {
+            "maxLength": 120,
+            "minLength": 2,
+            "title": "Beneficiary Name",
+            "type": "string"
+          },
+          "email": {
+            "format": "email",
+            "title": "Email",
+            "type": "string"
+          },
+          "ifsc": {
+            "pattern": "^[A-Z]{4}0[A-Z0-9]{6}$",
+            "title": "Ifsc",
+            "type": "string"
+          },
+          "legal_name": {
+            "maxLength": 120,
+            "minLength": 2,
+            "title": "Legal Name",
+            "type": "string"
+          },
+          "phone": {
+            "pattern": "^\\+91[6-9]\\d{9}$",
+            "title": "Phone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "legal_name",
+          "email",
+          "phone",
+          "account_number",
+          "ifsc",
+          "beneficiary_name"
+        ],
+        "title": "PayoutAccountIn",
+        "type": "object"
+      },
+      "PayoutAccountOut": {
+        "properties": {
+          "razorpay_account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Razorpay Account Id"
+          },
+          "ready": {
+            "description": "True when listings can be posted",
+            "title": "Ready",
+            "type": "boolean"
+          },
+          "status": {
+            "enum": [
+              "none",
+              "created",
+              "under_review",
+              "needs_clarification",
+              "activated",
+              "suspended"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "required": [
+          "status",
+          "ready"
+        ],
+        "title": "PayoutAccountOut",
+        "type": "object"
+      },
       "PenaltyIn": {
         "properties": {
           "points": {
@@ -8923,6 +9020,104 @@
         "summary": "Accept Terms",
         "tags": [
           "profiles"
+        ]
+      }
+    },
+    "/api/v1/payouts/account": {
+      "get": {
+        "operationId": "get_payout_account_api_v1_payouts_account_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutAccountOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Payout Account",
+        "tags": [
+          "payments"
+        ]
+      },
+      "post": {
+        "description": "Link a Razorpay account to receive UPI payments. Required before listing.",
+        "operationId": "link_payout_account_api_v1_payouts_account_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayoutAccountIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutAccountOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Link Payout Account",
+        "tags": [
+          "payments"
+        ]
+      }
+    },
+    "/api/v1/payouts/account/refresh": {
+      "post": {
+        "description": "Ask Razorpay for the latest activation status.",
+        "operationId": "refresh_payout_account_api_v1_payouts_account_refresh_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutAccountOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Refresh Payout Account",
+        "tags": [
+          "payments"
         ]
       }
     },
