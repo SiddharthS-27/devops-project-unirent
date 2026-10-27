@@ -12,6 +12,10 @@ Map<String, MockHandler> listingHandlers(MockDb db) {
     'GET /api/v1/home': h.home,
     'GET /api/v1/search': h.search,
     'GET /api/v1/search/suggest': h.suggest,
+    'GET /api/v1/listings/{listing_id}': h.getListing,
+    'POST /api/v1/listings/{listing_id}/pause': h.pause,
+    'POST /api/v1/listings/{listing_id}/resume': h.resume,
+    'GET /api/v1/assets/{asset_id}': h.getAsset,
   };
 }
 
@@ -154,6 +158,126 @@ class _ListingHandlers {
     final sorted = matched.toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return [for (final l in sorted) card(l)];
+  }
+
+  // ---- detail ---------------------------------------------------------------
+
+  MockListing _listing(MockRequest r) {
+    final listing = db.listings[r.pathParams['listing_id']];
+    if (listing == null) {
+      throw const MockApiError(404, 'NOT_FOUND', 'Listing not found');
+    }
+    return listing;
+  }
+
+  MockListing _ownListing(MockRequest r, MockAccount viewer) {
+    final listing = _listing(r);
+    if (listing.ownerId != viewer.id) {
+      throw const MockApiError(403, 'FORBIDDEN', "You can't do that");
+    }
+    return listing;
+  }
+
+  /// Serial numbers are masked to the last 4 characters for others.
+  static String? _maskSerial(String? serial, {required bool reveal}) {
+    if (serial == null || reveal || serial.length <= 4) return serial;
+    return '${'•' * (serial.length - 4)}${serial.substring(serial.length - 4)}';
+  }
+
+  AssetOut asset(MockAsset a, MockAccount viewer) => AssetOut(
+    id: a.id,
+    ownerId: a.ownerId,
+    condition: a.condition,
+    manufactureDate: a.manufactureDate,
+    serialNumber: _maskSerial(
+      a.serialNumber,
+      reveal: a.ownerId == viewer.id || viewer.isStaff,
+    ),
+    rentalCount: a.rentalCount,
+    history: a.history,
+  );
+
+  ListingDetail detail(MockListing l, MockAccount viewer) {
+    final owner = db.accounts[l.ownerId]!;
+    final mine = l.ownerId == viewer.id;
+    final a = db.assets[l.assetId]!;
+    return ListingDetail(
+      id: l.id,
+      kind: l.kind,
+      status: l.status,
+      title: l.title,
+      category: l.category,
+      pricePerHourPaise: l.pricePerHourPaise,
+      pricePerDayPaise: l.pricePerDayPaise,
+      salePricePaise: l.salePricePaise,
+      photoUrl: l.photos.firstOrNull?.url,
+      pickupPoint: l.pickupPoint,
+      createdAt: l.createdAt,
+      description: l.description,
+      condition: a.condition,
+      manufactureDate: a.manufactureDate,
+      photos: [for (final p in l.photos) PhotoOut(id: p.id, url: p.url)],
+      asset: asset(a, viewer),
+      lateFeeRule: l.kind == TradeKind.rent
+          ? mockLateFeeRule(db.clock().toUtc())
+          : null,
+      unavailable: l.unavailable,
+      isMine: mine,
+      canEdit: mine && !l.locked,
+      pendingRequestCount: mine ? l.pendingRequestCount : null,
+      owner: OwnerCard(
+        accountId: owner.id,
+        fullName: _name(owner),
+        photoUrl: null,
+        lenderTrust: owner.lenderScore,
+        isNew: owner.lenderScore == null,
+        lenderRating: owner.lenderRating,
+        cancellationCount: owner.cancellationCount,
+        phone: owner.phone,
+      ),
+    );
+  }
+
+  MockResponse getListing(MockRequest r) {
+    final viewer = _account(r);
+    return MockResponse.json(detail(_listing(r), viewer).toJson());
+  }
+
+  MockResponse pause(MockRequest r) {
+    final viewer = _account(r);
+    final listing = _ownListing(r, viewer);
+    if (listing.status != ListingStatus.active) {
+      throw const MockApiError(
+        409,
+        'LISTING_NOT_ACTIVE',
+        'Only active listings can be paused',
+      );
+    }
+    listing.status = ListingStatus.paused;
+    return MockResponse.json(detail(listing, viewer).toJson());
+  }
+
+  MockResponse resume(MockRequest r) {
+    final viewer = _account(r);
+    final listing = _ownListing(r, viewer);
+    if (listing.status != ListingStatus.paused) {
+      throw const MockApiError(
+        409,
+        'LISTING_NOT_PAUSED',
+        'Only paused listings can be resumed',
+      );
+    }
+    listing.status = ListingStatus.active;
+    return MockResponse.json(detail(listing, viewer).toJson());
+  }
+
+  MockResponse getAsset(MockRequest r) {
+    final viewer = _account(r);
+    final a = db.assets[r.pathParams['asset_id']];
+    if (a == null) {
+      throw const MockApiError(404, 'NOT_FOUND', 'Asset not found');
+    }
+    return MockResponse.json(asset(a, viewer).toJson());
   }
 
   static T? _enum<T>(Object? raw, T Function(String) parse) =>

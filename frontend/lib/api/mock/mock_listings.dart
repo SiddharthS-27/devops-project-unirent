@@ -148,6 +148,10 @@ const _descriptions = {
   ListingCategory.other: 'In good condition. Message me with any questions.',
 };
 
+/// The id of the [n]th seeded listing (1-based).
+String mockListingId(int n) =>
+    '00000000-0000-4000-b000-${n.toString().padLeft(12, '0')}';
+
 /// Adds three more students and a campus-sized set of listings to [db].
 void seedListings(MockDb db) {
   final now = db.clock().toUtc();
@@ -240,7 +244,7 @@ void seedListings(MockDb db) {
     int rentals = 0,
   }) {
     n++;
-    final id = '00000000-0000-4000-b000-${n.toString().padLeft(12, '0')}';
+    final id = mockListingId(n);
     final assetId = '00000000-0000-4000-c000-${n.toString().padLeft(12, '0')}';
     final createdAt = now.subtract(Duration(hours: 7 * n));
     db.assets[assetId] = MockAsset(

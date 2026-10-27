@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:unirent/api/api.dart';
@@ -109,6 +110,7 @@ Future<TestApp> pumpTestApp(
   AuthTokens? storedTokens,
   FakePushService? push,
   AppEnv env = const AppEnv(),
+  List<Override> overrides = const [],
 }) async {
   // A tall phone so long forms fit without scrolling.
   tester.view
@@ -130,6 +132,7 @@ Future<TestApp> pumpTestApp(
         tokenStoreProvider.overrideWithValue(tokens),
         appEnvProvider.overrideWithValue(env),
         pushServiceProvider.overrideWithValue(fakePush),
+        ...overrides,
       ],
       child: const UniRentApp(),
     ),
@@ -144,12 +147,14 @@ Future<TestApp> pumpSignedIn(
   String email, {
   MockServer? server,
   FakePushService? push,
+  List<Override> overrides = const [],
 }) {
   final mock = server ?? MockServer();
   return pumpTestApp(
     tester,
     server: mock,
     push: push,
+    overrides: overrides,
     storedTokens: tokensFor(mock, email),
   );
 }

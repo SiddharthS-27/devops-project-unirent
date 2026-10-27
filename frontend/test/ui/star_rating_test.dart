@@ -62,16 +62,18 @@ void main() {
     });
   });
 
-  testWidgets('StarRatingDisplay rounds to half stars', (tester) async {
+  testWidgets('StarRatingDisplay shows half stars and the exact average', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       themed(const StarRatingDisplay(rating: 3.7, count: 12)),
     );
     expect(find.byIcon(Icons.star_rounded), findsNWidgets(3));
     expect(find.byIcon(Icons.star_half_rounded), findsOneWidget);
     expect(find.byIcon(Icons.star_border_rounded), findsOneWidget);
-    expect(find.text('3.5 (12)'), findsOneWidget);
+    expect(find.text('3.7 (12)'), findsOneWidget);
     expect(
-      find.bySemanticsLabel('Rated 3.5 out of 5 from 12 ratings'),
+      find.bySemanticsLabel('Rated 3.7 out of 5 from 12 ratings'),
       findsOneWidget,
     );
   });

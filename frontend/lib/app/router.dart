@@ -8,8 +8,10 @@ import '../features/auth/staff_password_screen.dart';
 import '../features/auth/staff_sign_in_screen.dart';
 import '../features/bookings/booking_screen.dart';
 import '../features/bookings/bookings_screen.dart';
+import '../features/bookings/request_screen.dart';
 import '../features/help/help_screen.dart';
 import '../features/home/home_screen.dart';
+import '../features/listings/edit_listing_screen.dart';
 import '../features/listings/listing_detail_screen.dart';
 import '../features/listings/listings_screen.dart';
 import '../features/onboarding/notifications_screen.dart';
@@ -89,6 +91,18 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/listing/:id',
         builder: (context, state) =>
             ListingDetailScreen(listingId: state.pathParameters['id']!),
+        routes: [
+          GoRoute(
+            path: 'edit',
+            builder: (context, state) =>
+                EditListingScreen(listingId: state.pathParameters['id']!),
+          ),
+          GoRoute(
+            path: 'request',
+            builder: (context, state) =>
+                RequestScreen(listingId: state.pathParameters['id']!),
+          ),
+        ],
       ),
       GoRoute(
         path: Routes.help,

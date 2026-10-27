@@ -40,6 +40,10 @@ const _messages = {
   'TERMS_OUTDATED': 'The terms were just updated. Please review them again.',
   'PROFILE_REQUIRED': 'Fill in your profile first.',
   'STUDENTS_ONLY': 'Only students can do this.',
+  // Listings
+  'NOT_FOUND': 'This isn’t available any more.',
+  'LISTING_LOCKED':
+      'You can’t edit this listing while a booking is approved or active.',
   // Client-side
   ApiException.networkError:
       'Can’t reach UniRent. Check your internet connection.',
