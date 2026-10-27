@@ -15,6 +15,7 @@ class UniRentApi {
       health = HealthApi(transport),
       help = HelpApi(transport),
       listings = ListingsApi(transport),
+      payments = PaymentsApi(transport),
       profiles = ProfilesApi(transport),
       reviews = ReviewsApi(transport),
       search = SearchApi(transport),
@@ -27,6 +28,7 @@ class UniRentApi {
   final HealthApi health;
   final HelpApi help;
   final ListingsApi listings;
+  final PaymentsApi payments;
   final ProfilesApi profiles;
   final ReviewsApi reviews;
   final SearchApi search;
@@ -878,6 +880,8 @@ class ListingsApi {
 
   /// My Assets
   ///
+  /// Items you own, including ones you bought, so you can relist them.
+  ///
   /// `GET /api/v1/assets/mine`
   Future<List<AssetOut>> myAssets() async {
     final json = await _transport.send('GET', '/api/v1/assets/mine');
@@ -948,6 +952,8 @@ class ListingsApi {
 
   /// Update Listing
   ///
+  /// Refused while a booking is approved or active (price and terms are locked).
+  ///
   /// `PATCH /api/v1/listings/{listing_id}`
   Future<ListingDetail> updateListing(
     String listingId,
@@ -1007,7 +1013,8 @@ class ListingsApi {
 
   /// Presign Photo Upload
   ///
-  /// A presigned URL to upload one photo straight to storage.
+  /// A presigned URL to upload one photo straight to storage. Resize to at most
+  /// 1600 px first, then confirm the object_key where the photo belongs.
   ///
   /// `POST /api/v1/uploads/photos`
   Future<UploadOut> presignPhotoUpload(UploadRequest body) async {
@@ -1017,6 +1024,47 @@ class ListingsApi {
       body: body.toJson(),
     );
     return UploadOut.fromJson(json as Map<String, Object?>);
+  }
+}
+
+class PaymentsApi {
+  PaymentsApi(this._transport);
+
+  final ApiTransport _transport;
+
+  /// Get Payout Account
+  ///
+  /// `GET /api/v1/payouts/account`
+  Future<PayoutAccountOut> getPayoutAccount() async {
+    final json = await _transport.send('GET', '/api/v1/payouts/account');
+    return PayoutAccountOut.fromJson(json as Map<String, Object?>);
+  }
+
+  /// Link Payout Account
+  ///
+  /// Link a Razorpay account to receive UPI payments. Required before listing.
+  ///
+  /// `POST /api/v1/payouts/account`
+  Future<PayoutAccountOut> linkPayoutAccount(PayoutAccountIn body) async {
+    final json = await _transport.send(
+      'POST',
+      '/api/v1/payouts/account',
+      body: body.toJson(),
+    );
+    return PayoutAccountOut.fromJson(json as Map<String, Object?>);
+  }
+
+  /// Refresh Payout Account
+  ///
+  /// Ask Razorpay for the latest activation status.
+  ///
+  /// `POST /api/v1/payouts/account/refresh`
+  Future<PayoutAccountOut> refreshPayoutAccount() async {
+    final json = await _transport.send(
+      'POST',
+      '/api/v1/payouts/account/refresh',
+    );
+    return PayoutAccountOut.fromJson(json as Map<String, Object?>);
   }
 }
 
@@ -1124,6 +1172,8 @@ class SearchApi {
 
   /// Home
   ///
+  /// Category shortcuts, recently listed, and new matches for saved searches.
+  ///
   /// `GET /api/v1/home`
   Future<HomeOut> home() async {
     final json = await _transport.send('GET', '/api/v1/home');
@@ -1131,6 +1181,8 @@ class SearchApi {
   }
 
   /// List Saved Searches
+  ///
+  /// With the number of new matches since you last looked.
   ///
   /// `GET /api/v1/saved-searches`
   Future<List<SavedSearchOut>> listSavedSearches() async {
@@ -1141,6 +1193,8 @@ class SearchApi {
   }
 
   /// Create Saved Search
+  ///
+  /// You get a push when a new listing matches.
   ///
   /// `POST /api/v1/saved-searches`
   Future<SavedSearchOut> createSavedSearch(SavedSearchIn body) async {

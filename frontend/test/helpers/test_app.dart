@@ -121,6 +121,7 @@ Future<TestApp> pumpTestApp(
   final fakePush = push ?? FakePushService();
   await tester.pumpWidget(
     ProviderScope(
+      retry: (_, _) => null,
       overrides: [
         apiConfigProvider.overrideWithValue(
           const ApiConfig(baseUrl: 'http://mock', mode: ApiMode.mock),
@@ -135,4 +136,20 @@ Future<TestApp> pumpTestApp(
   );
   await tester.pumpAndSettle();
   return TestApp(tester, mock, tokens, fakePush);
+}
+
+/// The app restored with a stored session for [email].
+Future<TestApp> pumpSignedIn(
+  WidgetTester tester,
+  String email, {
+  MockServer? server,
+  FakePushService? push,
+}) {
+  final mock = server ?? MockServer();
+  return pumpTestApp(
+    tester,
+    server: mock,
+    push: push,
+    storedTokens: tokensFor(mock, email),
+  );
 }

@@ -10,6 +10,8 @@ Future<void> main() async {
   final firebaseReady = await initFirebase(AppEnv.fromEnvironment());
   runApp(
     ProviderScope(
+      // Screens offer an explicit "Try again" instead of silent retries.
+      retry: (_, _) => null,
       overrides: [firebaseReadyProvider.overrideWithValue(firebaseReady)],
       child: const UniRentApp(),
     ),

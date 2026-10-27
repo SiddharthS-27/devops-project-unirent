@@ -10,12 +10,15 @@ import '../features/bookings/booking_screen.dart';
 import '../features/bookings/bookings_screen.dart';
 import '../features/help/help_screen.dart';
 import '../features/home/home_screen.dart';
+import '../features/listings/listing_detail_screen.dart';
 import '../features/listings/listings_screen.dart';
 import '../features/onboarding/notifications_screen.dart';
 import '../features/onboarding/phone_screen.dart';
 import '../features/onboarding/profile_form_screen.dart';
 import '../features/onboarding/terms_screen.dart';
 import '../features/profile/profile_screen.dart';
+import '../features/search/search_filters.dart';
+import '../features/search/search_results_screen.dart';
 import '../features/staff/staff_section_screen.dart';
 import '../features/staff/staff_shell.dart';
 import '../features/staff/staff_tab.dart';
@@ -83,6 +86,11 @@ final routerProvider = Provider<GoRouter>((ref) {
             BookingScreen(bookingId: state.pathParameters['id']!),
       ),
       GoRoute(
+        path: '/listing/:id',
+        builder: (context, state) =>
+            ListingDetailScreen(listingId: state.pathParameters['id']!),
+      ),
+      GoRoute(
         path: Routes.help,
         builder: (context, state) => const HelpScreen(),
       ),
@@ -96,6 +104,18 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: Routes.home,
                 builder: (context, state) => const HomeScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'search',
+                    builder: (context, state) => SearchResultsScreen(
+                      // A new key per URL, so a different search starts fresh.
+                      key: ValueKey(state.uri.toString()),
+                      initial: SearchFilters.fromQuery(
+                        state.uri.queryParameters,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
