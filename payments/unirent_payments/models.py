@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import DateTime, Index, Integer, String, Text, text
+from sqlalchemy import BigInteger, DateTime, Index, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -43,3 +43,64 @@ class LinkedAccount(Base):
     status: Mapped[str] = mapped_column(String(30))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+LIVE_STATUSES = ("created", "pending", "captured", "marked_paid", "refunded", "partly_refunded")
+PAID_STATUSES = ("captured", "marked_paid", "refunded", "partly_refunded")
+
+
+class Payment(Base):
+    """One attempt to pay for one thing. At most one live (not failed) payment
+    exists per booking, purpose and purpose_ref, so nothing is paid twice."""
+
+    __tablename__ = "payments"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
+    booking_ref: Mapped[uuid.UUID] = mapped_column(UUID, index=True)
+    purpose: Mapped[str] = mapped_column(String(20))  # rent, extension, return_charges, sale
+    # Which extension an extension payment is for; null otherwise.
+    purpose_ref: Mapped[uuid.UUID | None] = mapped_column(UUID)
+    payer_id: Mapped[uuid.UUID] = mapped_column(UUID, index=True)
+    payee_id: Mapped[uuid.UUID] = mapped_column(UUID, index=True)
+    amount_paise: Mapped[int] = mapped_column(BigInteger)
+    items: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
+    method: Mapped[str] = mapped_column(String(10))  # upi or cash
+    status: Mapped[str] = mapped_column(String(20))
+    idempotency_key: Mapped[str] = mapped_column(String(100))
+    razorpay_order_id: Mapped[str | None] = mapped_column(String(50), unique=True)
+    razorpay_payment_id: Mapped[str | None] = mapped_column(String(50), unique=True)
+    transfer_id: Mapped[str | None] = mapped_column(String(50))
+    transfer_status: Mapped[str | None] = mapped_column(String(20))
+    failure_reason: Mapped[str | None] = mapped_column(Text)
+    refunded_paise: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0")
+    marked_by: Mapped[uuid.UUID | None] = mapped_column(UUID)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        UniqueConstraint("payer_id", "idempotency_key"),
+        Index(
+            "uq_payments_one_live",
+            "booking_ref",
+            "purpose",
+            text("coalesce(purpose_ref, '00000000-0000-0000-0000-000000000000'::uuid)"),
+            unique=True,
+            postgresql_where=text("status <> 'failed'"),
+        ),
+    )
+
+
+class IdempotencyRecord(Base):
+    """The first response to a request with an Idempotency-Key, replayed for 24 hours."""
+
+    __tablename__ = "idempotency_records"
+
+    scope: Mapped[str] = mapped_column(String(64), primary_key=True)
+    key: Mapped[str] = mapped_column(String(100), primary_key=True)
+    request_hash: Mapped[str] = mapped_column(String(64))
+    status_code: Mapped[int] = mapped_column(Integer)
+    response_body: Mapped[str] = mapped_column(Text)
+    content_type: Mapped[str | None] = mapped_column(String(100))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
