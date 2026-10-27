@@ -11,6 +11,7 @@ from app.core.logging import configure_logging
 from app.core.middleware import RequestContextMiddleware
 from app.core.redis import close_redis, get_redis
 from app.modules.health.router import router as health_router
+from app.modules.internal.router import router as internal_router
 
 
 @asynccontextmanager
@@ -28,6 +29,7 @@ def create_app() -> FastAPI:
     register_error_handlers(app)
     app.include_router(health_router)
     app.include_router(api_router)
+    app.include_router(internal_router)
     # The security package shares the api's connection pool and Redis client.
     unirent_security.db.setup(get_sessionmaker(), get_redis())
     return app
