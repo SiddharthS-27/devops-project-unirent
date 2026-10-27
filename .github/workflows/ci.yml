@@ -262,10 +262,18 @@ jobs:
         image: [api, workers]
     steps:
       - uses: actions/checkout@v4
-      - name: Skip images whose Dockerfile doesn't exist yet
+      - name: Skip images whose Dockerfile or package doesn't exist yet
         id: exists
         run: |
-          if [ -f infra/docker/${{ matrix.image }}.Dockerfile ]; then echo "build=true" >> "$GITHUB_OUTPUT"; fi
+          # The workers image installs workers/ as a package, which arrives after its Dockerfile.
+          if [ -f infra/docker/${{ matrix.image }}.Dockerfile ] \
+            && { [ "${{ matrix.image }}" != workers ] || [ -f workers/pyproject.toml ]; }; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          fi
+      # Image names must be lowercase; the repository owner may not be.
+      - name: Image name
+        id: image
+        run: echo "ref=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/unirent-${{ matrix.image }}:${{ github.sha }}" >> "$GITHUB_OUTPUT"
       - uses: docker/setup-buildx-action@v3
         if: steps.exists.outputs.build == 'true'
       - uses: docker/login-action@v3
@@ -281,14 +289,14 @@ jobs:
           file: infra/docker/${{ matrix.image }}.Dockerfile
           push: ${{ github.ref == 'refs/heads/master' }}
           load: ${{ github.ref != 'refs/heads/master' }}
-          tags: ghcr.io/${{ github.repository_owner }}/unirent-${{ matrix.image }}:${{ github.sha }}
+          tags: ${{ steps.image.outputs.ref }}
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
       - name: Scan the image (Trivy)
         if: steps.exists.outputs.build == 'true'
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
         with:
-          image-ref: ghcr.io/${{ github.repository_owner }}/unirent-${{ matrix.image }}:${{ github.sha }}
+          image-ref: ${{ steps.image.outputs.ref }}
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: "1"
