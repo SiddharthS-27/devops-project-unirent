@@ -190,6 +190,29 @@ jobs:
           path: integration-api.log
           if-no-files-found: ignore
 
+  # Stage 5: known-vulnerable dependencies and committed secrets. Images are
+  # scanned by Trivy in the images job, right after they are built.
+  scan:
+    needs: changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Secrets (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Python dependencies (pip-audit)
+        run: ci/scripts/pip-audit.sh
+      - name: App dependencies (osv-scanner on pubspec.lock)
+        uses: google/osv-scanner-action/osv-scanner-action@v2.0.2
+        with:
+          scan-args: --lockfile=frontend/pubspec.lock
+
   # Stage 6: the committed spec and the generated app client are current.
   contract:
     needs: changes
@@ -253,13 +276,21 @@ jobs:
           tags: ghcr.io/${{ github.repository_owner }}/unirent-${{ matrix.image }}:${{ github.sha }}
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+      - name: Scan the image (Trivy)
+        if: steps.exists.outputs.build == 'true'
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ghcr.io/${{ github.repository_owner }}/unirent-${{ matrix.image }}:${{ github.sha }}
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
 
   # Branch protection requires only this job. The jobs above are skipped when their
   # folders didn't change, so they can't be required checks themselves.
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [changes, lint-python, lint-flutter, unit-python, unit-flutter, integration, contract, images]
+    needs: [changes, lint-python, lint-flutter, unit-python, unit-flutter, integration, scan, contract, images]
     runs-on: ubuntu-latest
     steps:
       - name: Fail if any job failed or was cancelled
