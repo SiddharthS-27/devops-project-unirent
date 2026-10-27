@@ -6,12 +6,13 @@ from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from unirent_security import audit, microsoft, phone_otp, rate_limit, staff_auth, tokens
+from unirent_security import audit, microsoft, phone_otp, staff_auth, tokens
 from unirent_security.accounts import find_or_create_student, set_account_status
 from unirent_security.config import get_settings
 from unirent_security.db import SessionDep
 from unirent_security.errors import ApiError, not_found
 from unirent_security.models import Account
+from unirent_security.rate_limit import hit, rate_limit
 from unirent_security.roles import AdminAccount, CurrentAccount
 from unirent_security.schemas import (
     AccountOut,
@@ -31,7 +32,7 @@ from unirent_security.schemas import (
 )
 
 auth_router = APIRouter(prefix="/auth", tags=["auth"])
-signin_limit = Depends(rate_limit.rate_limit("student_signin", by="ip"))
+signin_limit = Depends(rate_limit("student_signin", by="ip"))
 admin_router = APIRouter(prefix="/admin/moderators", tags=["admin"])
 
 
@@ -96,7 +97,7 @@ async def logout(body: RefreshRequest, session: SessionDep) -> Response:
 async def staff_login(body: StaffLogin, request: Request, session: SessionDep) -> TokenPair:
     """Moderator and admin login. While `must_change_password` is true, the token
     only works for /auth/staff/password."""
-    await rate_limit.hit("staff_login", f"email:{str(body.email).lower()}")
+    await hit("staff_login", f"email:{str(body.email).lower()}")
     account, credential = await staff_auth.authenticate(session, str(body.email), body.password)
     pair = await token_pair(session, account, must_change_password=credential.must_change_password)
     await session.commit()
@@ -106,7 +107,7 @@ async def staff_login(body: StaffLogin, request: Request, session: SessionDep) -
 @auth_router.post("/staff/password", response_model=TokenPair)
 async def staff_change_password(body: StaffPasswordChange, session: SessionDep) -> TokenPair:
     """Set a new password; also how a new moderator replaces the temporary one."""
-    await rate_limit.hit("staff_login", f"email:{str(body.email).lower()}")
+    await hit("staff_login", f"email:{str(body.email).lower()}")
     account, _ = await staff_auth.change_password(
         session, str(body.email), body.current_password, body.new_password
     )
