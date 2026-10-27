@@ -1,0 +1,268 @@
+{
+  "amount_paise": 7,
+  "appeal": {
+    "id": "00000000-0000-4000-8000-0000000000aa",
+    "status": "overruled"
+  },
+  "can_appeal": true,
+  "can_cancel": true,
+  "can_escalate": true,
+  "cancellation": {
+    "at": "2026-10-27T09:30:00.000Z",
+    "by": "owner",
+    "note": "note-value",
+    "rating_due": true
+  },
+  "charges": {
+    "cash_extensions_paise": 7,
+    "damage_description": "damage_description-value",
+    "damage_paise": 7,
+    "late_fee_paise": 7,
+    "overdue_minutes": 7,
+    "paid": true,
+    "payment": {
+      "amount_paise": 7,
+      "captured_at": "2026-10-27T09:30:00.000Z",
+      "checkout": {
+        "amount_paise": 7,
+        "currency": "currency-value",
+        "description": "description-value",
+        "key_id": "key_id-value",
+        "name": "name-value",
+        "order_id": "order_id-value",
+        "prefill_contact": "prefill_contact-value",
+        "prefill_email": "prefill_email-value"
+      },
+      "created_at": "2026-10-27T09:30:00.000Z",
+      "id": "00000000-0000-4000-8000-0000000000aa",
+      "items": [
+        {
+          "amount_paise": 7,
+          "label": "label-value"
+        }
+      ],
+      "method": "cash",
+      "purpose": "sale",
+      "status": "partly_refunded"
+    },
+    "total_paise": 7
+  },
+  "created_at": "2026-10-27T09:30:00.000Z",
+  "end_at": "2026-10-27T09:30:00.000Z",
+  "escalation_available_at": "2026-10-27T09:30:00.000Z",
+  "extensions": [
+    {
+      "amount_paise": 7,
+      "created_at": "2026-10-27T09:30:00.000Z",
+      "id": "00000000-0000-4000-8000-0000000000aa",
+      "new_end_at": "2026-10-27T09:30:00.000Z",
+      "pay_in_cash_at_return": true,
+      "payment": {
+        "amount_paise": 7,
+        "captured_at": "2026-10-27T09:30:00.000Z",
+        "checkout": {
+          "amount_paise": 7,
+          "currency": "currency-value",
+          "description": "description-value",
+          "key_id": "key_id-value",
+          "name": "name-value",
+          "order_id": "order_id-value",
+          "prefill_contact": "prefill_contact-value",
+          "prefill_email": "prefill_email-value"
+        },
+        "created_at": "2026-10-27T09:30:00.000Z",
+        "id": "00000000-0000-4000-8000-0000000000aa",
+        "items": [
+          {
+            "amount_paise": 7,
+            "label": "label-value"
+          }
+        ],
+        "method": "cash",
+        "purpose": "sale",
+        "status": "partly_refunded"
+      },
+      "status": "declined"
+    }
+  ],
+  "id": "00000000-0000-4000-8000-0000000000aa",
+  "kind": "sale",
+  "late_fee_rule": {
+    "base_fee_paise": 7,
+    "effective_from": "2026-10-27T09:30:00.000Z",
+    "grace_minutes": 7,
+    "hourly_percent_bp": 7,
+    "id": "00000000-0000-4000-8000-0000000000aa"
+  },
+  "listing": {
+    "category": "other",
+    "created_at": "2026-10-27T09:30:00.000Z",
+    "id": "00000000-0000-4000-8000-0000000000aa",
+    "kind": "sale",
+    "owner": {
+      "account_id": "00000000-0000-4000-8000-0000000000aa",
+      "full_name": "full_name-value",
+      "is_new": true,
+      "lender_trust": 7,
+      "photo_url": "photo_url-value"
+    },
+    "photo_url": "photo_url-value",
+    "pickup_point": "pickup_point-value",
+    "price_per_day_paise": 7,
+    "price_per_hour_paise": 7,
+    "sale_price_paise": 7,
+    "status": "removed",
+    "title": "title-value"
+  },
+  "next_action": {
+    "by_me": true,
+    "key": "key-value",
+    "label": "label-value"
+  },
+  "overdue_since": "2026-10-27T09:30:00.000Z",
+  "owner": {
+    "account_id": "00000000-0000-4000-8000-0000000000aa",
+    "cancellation_count": 7,
+    "completed_trades": 7,
+    "department": "department-value",
+    "full_name": "full_name-value",
+    "is_new": true,
+    "lender": {
+      "rating": 4.5,
+      "review_count": 7,
+      "score": 7
+    },
+    "member_since": "2026-10-27T09:30:00.000Z",
+    "phone": "phone-value",
+    "photo_url": "photo_url-value",
+    "renter": {
+      "rating": 4.5,
+      "review_count": 7,
+      "score": 7
+    },
+    "view": "public",
+    "year": 7
+  },
+  "payments": [
+    {
+      "amount_paise": 7,
+      "captured_at": "2026-10-27T09:30:00.000Z",
+      "checkout": {
+        "amount_paise": 7,
+        "currency": "currency-value",
+        "description": "description-value",
+        "key_id": "key_id-value",
+        "name": "name-value",
+        "order_id": "order_id-value",
+        "prefill_contact": "prefill_contact-value",
+        "prefill_email": "prefill_email-value"
+      },
+      "created_at": "2026-10-27T09:30:00.000Z",
+      "id": "00000000-0000-4000-8000-0000000000aa",
+      "items": [
+        {
+          "amount_paise": 7,
+          "label": "label-value"
+        }
+      ],
+      "method": "cash",
+      "purpose": "sale",
+      "status": "partly_refunded"
+    }
+  ],
+  "pickup": {
+    "otp_ready": true,
+    "otp_shown_by": "owner",
+    "otp_verified_at": "2026-10-27T09:30:00.000Z",
+    "owner": {
+      "done": true,
+      "photos": [
+        {
+          "id": "id-value",
+          "url": "url-value"
+        }
+      ]
+    },
+    "phase": "return",
+    "renter": {
+      "done": true,
+      "photos": [
+        {
+          "id": "id-value",
+          "url": "url-value"
+        }
+      ]
+    }
+  },
+  "renter": {
+    "account_id": "00000000-0000-4000-8000-0000000000aa",
+    "cancellation_count": 7,
+    "completed_trades": 7,
+    "department": "department-value",
+    "full_name": "full_name-value",
+    "is_new": true,
+    "lender": {
+      "rating": 4.5,
+      "review_count": 7,
+      "score": 7
+    },
+    "member_since": "2026-10-27T09:30:00.000Z",
+    "phone": "phone-value",
+    "photo_url": "photo_url-value",
+    "renter": {
+      "rating": 4.5,
+      "review_count": 7,
+      "score": 7
+    },
+    "residence": {
+      "home_address": "home_address-value",
+      "hostel_name": "hostel_name-value",
+      "room_number": "room_number-value",
+      "type": "day_scholar"
+    },
+    "view": "counterparty",
+    "year": 7
+  },
+  "return": {
+    "otp_ready": true,
+    "otp_shown_by": "owner",
+    "otp_verified_at": "2026-10-27T09:30:00.000Z",
+    "owner": {
+      "done": true,
+      "photos": [
+        {
+          "id": "id-value",
+          "url": "url-value"
+        }
+      ]
+    },
+    "phase": "return",
+    "renter": {
+      "done": true,
+      "photos": [
+        {
+          "id": "id-value",
+          "url": "url-value"
+        }
+      ]
+    }
+  },
+  "reviews": {
+    "mine_submitted": true,
+    "release_at": "2026-10-27T09:30:00.000Z",
+    "revealed": true,
+    "theirs_submitted": true
+  },
+  "role": "owner",
+  "server_now": "2026-10-27T09:30:00.000Z",
+  "start_at": "2026-10-27T09:30:00.000Z",
+  "status": "completed",
+  "timeline": [
+    {
+      "at": "2026-10-27T09:30:00.000Z",
+      "key": "key-value",
+      "label": "label-value",
+      "state": "skipped"
+    }
+  ]
+}
