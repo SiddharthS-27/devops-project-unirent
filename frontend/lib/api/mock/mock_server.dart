@@ -51,6 +51,9 @@ class MockResponse {
 
   const MockResponse.noContent() : this(204);
 
+  /// Simulates the network being unreachable (no HTTP response at all).
+  static const offline = MockResponse(0);
+
   final int status;
   final Object? body;
 }
@@ -175,6 +178,16 @@ class MockInterceptor extends Interceptor {
         body: options.data,
       ),
     );
+    if (result.status == 0) {
+      handler.reject(
+        DioException.connectionError(
+          requestOptions: options,
+          reason: 'Mock server is offline',
+        ),
+        true,
+      );
+      return;
+    }
     final response = Response<Object?>(
       requestOptions: options,
       statusCode: result.status,

@@ -12,6 +12,7 @@ class AppTextField extends StatelessWidget {
     this.helperText,
     this.errorText,
     this.prefixIcon,
+    this.prefixText,
     this.suffix,
     this.keyboardType,
     this.textInputAction,
@@ -35,6 +36,7 @@ class AppTextField extends StatelessWidget {
   final String? helperText;
   final String? errorText;
   final IconData? prefixIcon;
+  final String? prefixText;
   final Widget? suffix;
   final TextInputType? keyboardType;
   final TextInputAction? textInputAction;
@@ -74,6 +76,7 @@ class AppTextField extends StatelessWidget {
         helperText: helperText,
         errorText: errorText,
         prefixIcon: prefixIcon == null ? null : Icon(prefixIcon),
+        prefixText: prefixText,
         suffixIcon: suffix,
       ),
     );

@@ -14,7 +14,7 @@ class StaffShell extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final tabs = StaffTab.visibleTo(ref.watch(sessionProvider));
+    final tabs = StaffTab.visibleTo(ref.watch(sessionProvider).status);
     // Briefly empty while signing out, before the redirect lands.
     if (tabs.isEmpty) return const SizedBox.shrink();
 

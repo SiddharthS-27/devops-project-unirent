@@ -25,7 +25,7 @@ final apiClientProvider = Provider<ApiClient>((ref) {
     config: ref.watch(apiConfigProvider),
     tokenStore: ref.watch(tokenStoreProvider),
     mockServer: ref.watch(mockServerProvider),
-    onSessionExpired: () => ref.read(sessionProvider.notifier).signOut(),
+    onSessionExpired: () => ref.read(sessionProvider.notifier).sessionExpired(),
   );
 });
 

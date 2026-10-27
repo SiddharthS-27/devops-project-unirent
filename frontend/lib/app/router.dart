@@ -2,13 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../features/auth/college_email_screen.dart';
 import '../features/auth/sign_in_screen.dart';
+import '../features/auth/staff_password_screen.dart';
+import '../features/auth/staff_sign_in_screen.dart';
 import '../features/bookings/booking_screen.dart';
 import '../features/bookings/bookings_screen.dart';
 import '../features/help/help_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/listings/listings_screen.dart';
-import '../features/onboarding/onboarding_screens.dart';
+import '../features/onboarding/notifications_screen.dart';
+import '../features/onboarding/phone_screen.dart';
+import '../features/onboarding/profile_form_screen.dart';
+import '../features/onboarding/terms_screen.dart';
 import '../features/profile/profile_screen.dart';
 import '../features/staff/staff_section_screen.dart';
 import '../features/staff/staff_shell.dart';
@@ -16,6 +22,7 @@ import '../features/staff/staff_tab.dart';
 import 'not_found_screen.dart';
 import 'routes.dart';
 import 'session.dart';
+import 'splash_screen.dart';
 import 'student_shell.dart';
 
 /// The app router. Session changes re-run [redirectFor] without rebuilding
@@ -32,24 +39,40 @@ final routerProvider = Provider<GoRouter>((ref) {
     errorBuilder: (context, state) => const NotFoundScreen(),
     routes: [
       GoRoute(
+        path: Routes.splash,
+        builder: (context, state) => const SplashScreen(),
+      ),
+      GoRoute(
         path: Routes.signIn,
         builder: (context, state) => const SignInScreen(),
       ),
       GoRoute(
+        path: Routes.signInWithEmail,
+        builder: (context, state) => const CollegeEmailSignInScreen(),
+      ),
+      GoRoute(
+        path: Routes.staffSignIn,
+        builder: (context, state) => const StaffSignInScreen(),
+      ),
+      GoRoute(
+        path: Routes.staffPassword,
+        builder: (context, state) => const StaffPasswordScreen(),
+      ),
+      GoRoute(
         path: Routes.onboardingProfile,
-        builder: (context, state) => const OnboardingProfileScreen(),
+        builder: (context, state) => const ProfileFormScreen(),
       ),
       GoRoute(
         path: Routes.onboardingPhone,
-        builder: (context, state) => const OnboardingPhoneScreen(),
+        builder: (context, state) => const PhoneScreen(),
       ),
       GoRoute(
         path: Routes.onboardingTerms,
-        builder: (context, state) => const OnboardingTermsScreen(),
+        builder: (context, state) => const TermsScreen(),
       ),
       GoRoute(
         path: Routes.onboardingNotifications,
-        builder: (context, state) => const OnboardingNotificationsScreen(),
+        builder: (context, state) => const NotificationsScreen(),
       ),
 
       // Shared by the Bookings and Listings tabs, so it lives on the root

@@ -1,32 +1,38 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
-import 'package:unirent/app/app.dart';
-import 'package:unirent/app/router.dart';
+import 'package:unirent/api/api.dart';
+import 'package:unirent/api/mock/mock_handlers.dart';
+import 'package:unirent/api/mock/mock_server.dart';
 import 'package:unirent/app/routes.dart';
 import 'package:unirent/app/session.dart';
 import 'package:unirent/features/bookings/booking_screen.dart';
 import 'package:unirent/features/staff/staff_section_screen.dart';
 import 'package:unirent/features/staff/staff_tab.dart';
 
-/// Pumps the full app with [session] and returns its container and router.
-Future<(ProviderContainer, GoRouter)> pumpApp(
-  WidgetTester tester, {
-  SessionStatus session = SessionStatus.signedOut,
-}) async {
-  await tester.pumpWidget(const ProviderScope(child: UniRentApp()));
-  final container = ProviderScope.containerOf(
-    tester.element(find.byType(UniRentApp)),
-  );
-  container.read(sessionProvider.notifier).set(session);
-  await tester.pumpAndSettle();
-  return (container, container.read(routerProvider));
-}
+import '../helpers/test_app.dart';
 
-/// Location of the top-most route, including pushed routes.
-String location(GoRouter router) => router.state.uri.toString();
+MeOut meOut({
+  String role = 'student',
+  bool profile = true,
+  bool phone = true,
+  bool terms = true,
+}) => MeOut(
+  account: AccountSummary(
+    id: 'a1',
+    email: 'x@college.edu',
+    role: role,
+    status: 'active',
+  ),
+  profile: null,
+  onboarding: Onboarding(
+    profileComplete: profile,
+    phoneVerified: phone,
+    termsAccepted: terms,
+    complete: profile && phone && terms,
+  ),
+  currentTermsVersion: '2026-10',
+);
 
 /// Delivers a deep link the way the platform embedding does.
 Future<void> openDeepLink(WidgetTester tester, String link) async {
@@ -41,51 +47,130 @@ Future<void> openDeepLink(WidgetTester tester, String link) async {
   await tester.pumpAndSettle();
 }
 
+/// The app restored with stored tokens for [email].
+Future<TestApp> signedInAs(
+  WidgetTester tester,
+  String email, {
+  MockServer? server,
+}) {
+  final mock = server ?? MockServer();
+  return pumpTestApp(
+    tester,
+    server: mock,
+    storedTokens: tokensFor(mock, email),
+  );
+}
+
 void main() {
+  group('Session.fromMe', () {
+    test('picks the first incomplete onboarding step', () {
+      expect(
+        Session.fromMe(meOut(profile: false, phone: false)).onboardingStep,
+        OnboardingStep.profile,
+      );
+      expect(
+        Session.fromMe(meOut(phone: false, terms: false)).onboardingStep,
+        OnboardingStep.phone,
+      );
+      expect(
+        Session.fromMe(meOut(terms: false)).onboardingStep,
+        OnboardingStep.terms,
+      );
+      expect(
+        Session.fromMe(meOut(), notificationsPending: true).onboardingStep,
+        OnboardingStep.notifications,
+      );
+      expect(Session.fromMe(meOut()).status, SessionStatus.student);
+    });
+
+    test('staff roles skip onboarding', () {
+      expect(
+        Session.fromMe(meOut(role: 'admin', profile: false)).status,
+        SessionStatus.admin,
+      );
+      expect(
+        Session.fromMe(meOut(role: 'moderator', profile: false)).status,
+        SessionStatus.moderator,
+      );
+    });
+  });
+
   group('redirectFor', () {
     Uri u(String s) => Uri.parse(s);
+    const student = Session(SessionStatus.student);
+    const moderator = Session(SessionStatus.moderator);
+    const admin = Session(SessionStatus.admin);
 
-    test('signed-out users can only reach sign-in', () {
-      const s = SessionStatus.signedOut;
-      expect(redirectFor(s, u('/')), Routes.signIn);
-      expect(redirectFor(s, u('/home')), Routes.signIn);
-      expect(redirectFor(s, u('/staff/appeals')), Routes.signIn);
-      expect(redirectFor(s, u(Routes.signIn)), isNull);
+    test('restoring holds on the splash and remembers the target', () {
+      expect(redirectFor(Session.restoring, u('/')), Routes.splash);
+      expect(
+        redirectFor(Session.restoring, u('/bookings/42')),
+        '/splash?from=%2Fbookings%2F42',
+      );
+      expect(redirectFor(Session.restoring, u(Routes.splash)), isNull);
     });
 
-    test('onboarding users stay in onboarding', () {
-      const s = SessionStatus.onboarding;
-      expect(redirectFor(s, u(Routes.signIn)), Routes.onboardingProfile);
-      expect(redirectFor(s, u('/home')), Routes.onboardingProfile);
-      expect(redirectFor(s, u(Routes.onboardingTerms)), isNull);
+    test('resumes the remembered target once signed in', () {
+      final splash = u('/splash?from=%2Fbookings%2F42');
+      expect(redirectFor(student, splash), '/bookings/42');
+      expect(redirectFor(student, u(Routes.splash)), Routes.home);
+      // A target the role may not open falls back to its start page.
+      expect(redirectFor(moderator, splash), Routes.staffHome);
     });
 
-    test('students land on home and cannot reach staff routes', () {
-      const s = SessionStatus.student;
-      expect(redirectFor(s, u('/')), Routes.home);
-      expect(redirectFor(s, u(Routes.signIn)), Routes.home);
-      expect(redirectFor(s, u(Routes.onboardingPhone)), Routes.home);
-      expect(redirectFor(s, u('/staff/appeals')), Routes.home);
-      expect(redirectFor(s, u('/bookings/42')), isNull);
-      expect(redirectFor(s, u('/listings')), isNull);
-    });
-
-    test('staff land on appeals and stay in the staff area', () {
-      for (final s in [SessionStatus.moderator, SessionStatus.admin]) {
-        expect(redirectFor(s, u('/')), '/staff/appeals');
-        expect(redirectFor(s, u('/home')), '/staff/appeals');
-        expect(redirectFor(s, u('/staff/users')), isNull);
+    test('signed-out users stay on the sign-in screens', () {
+      for (final path in [
+        Routes.signIn,
+        Routes.signInWithEmail,
+        Routes.staffSignIn,
+      ]) {
+        expect(redirectFor(Session.signedOut, u(path)), isNull);
       }
+      expect(redirectFor(Session.signedOut, u('/home')), Routes.signIn);
+      expect(
+        redirectFor(Session.signedOut, u('/staff/appeals')),
+        Routes.signIn,
+      );
     });
 
-    test('admin-only staff routes are closed to moderators', () {
+    test('a pending password change is the only way forward', () {
+      const session = Session(SessionStatus.passwordChange);
+      expect(redirectFor(session, u(Routes.staffPassword)), isNull);
+      expect(redirectFor(session, u('/staff/appeals')), Routes.staffPassword);
+    });
+
+    test('onboarding pins the user to the current step', () {
+      const session = Session(
+        SessionStatus.onboarding,
+        onboardingStep: OnboardingStep.phone,
+      );
+      expect(redirectFor(session, u(Routes.onboardingPhone)), isNull);
+      expect(
+        redirectFor(session, u(Routes.onboardingTerms)),
+        Routes.onboardingPhone,
+      );
+      expect(redirectFor(session, u('/home')), Routes.onboardingPhone);
+    });
+
+    test('students land on home and cannot reach staff or auth routes', () {
+      expect(redirectFor(student, u('/')), Routes.home);
+      expect(redirectFor(student, u(Routes.signIn)), Routes.home);
+      expect(redirectFor(student, u(Routes.staffSignIn)), Routes.home);
+      expect(redirectFor(student, u(Routes.onboardingPhone)), Routes.home);
+      expect(redirectFor(student, u('/staff/appeals')), Routes.home);
+      expect(redirectFor(student, u('/bookings/42')), isNull);
+    });
+
+    test('staff stay in the staff area; admin sections are admin-only', () {
+      expect(redirectFor(moderator, u('/home')), Routes.staffHome);
+      expect(redirectFor(moderator, u('/staff/users')), isNull);
       for (final path in [
         '/staff/reports',
         '/staff/late-fee',
         '/staff/moderators',
       ]) {
-        expect(redirectFor(SessionStatus.moderator, u(path)), '/staff/appeals');
-        expect(redirectFor(SessionStatus.admin, u(path)), isNull);
+        expect(redirectFor(moderator, u(path)), Routes.staffHome);
+        expect(redirectFor(admin, u(path)), isNull);
       }
     });
 
@@ -95,69 +180,109 @@ void main() {
         '/bookings/42',
       );
       expect(deepLinkToLocation(u('/bookings/42')), isNull);
+      expect(redirectFor(student, u('unirent://bookings/42')), '/bookings/42');
       expect(
-        redirectFor(SessionStatus.student, u('unirent://bookings/42')),
-        '/bookings/42',
-      );
-      expect(
-        redirectFor(SessionStatus.signedOut, u('unirent://bookings/42')),
+        redirectFor(Session.signedOut, u('unirent://bookings/42')),
         Routes.signIn,
       );
     });
   });
 
-  group('router', () {
-    testWidgets('signed-out users see sign-in', (tester) async {
-      final (_, router) = await pumpApp(tester);
-      expect(location(router), Routes.signIn);
-      expect(find.text('Welcome to UniRent'), findsOneWidget);
+  group('session restore from /me', () {
+    testWidgets('no stored tokens: sign-in', (tester) async {
+      final app = await pumpTestApp(tester);
+      expect(app.location, Routes.signIn);
     });
 
-    testWidgets('debug role switcher routes each role to its start page', (
+    testWidgets('onboarded student: home, and push is re-synced', (
       tester,
     ) async {
-      final (container, router) = await pumpApp(tester);
-
-      await tester.tap(find.widgetWithText(OutlinedButton, 'student'));
-      await tester.pumpAndSettle();
-      expect(location(router), Routes.home);
-
-      container.read(sessionProvider.notifier).signOut();
-      await tester.pumpAndSettle();
-      expect(location(router), Routes.signIn);
-
-      await tester.tap(find.widgetWithText(OutlinedButton, 'moderator'));
-      await tester.pumpAndSettle();
-      expect(location(router), '/staff/appeals');
-
-      container.read(sessionProvider.notifier).set(SessionStatus.admin);
-      await tester.pumpAndSettle();
-      expect(location(router), '/staff/appeals');
+      final app = await signedInAs(tester, 'asha@college.edu');
+      expect(app.location, Routes.home);
+      expect(app.session.me?.profile?.fullName, 'Asha Verma');
+      expect(app.push.syncCalls, 1);
     });
 
-    testWidgets('onboarding walks through every step to home', (tester) async {
-      final (_, router) = await pumpApp(tester);
-
-      await tester.tap(find.text('Continue with college account'));
-      await tester.pumpAndSettle();
-      expect(location(router), Routes.onboardingProfile);
-
-      for (final (button, next) in [
-        ('Continue', Routes.onboardingPhone),
-        ('Continue', Routes.onboardingTerms),
-        ('Accept', Routes.onboardingNotifications),
-        ('Finish', Routes.home),
-      ]) {
-        await tester.tap(find.text(button));
-        await tester.pumpAndSettle();
-        expect(location(router), next);
-      }
+    testWidgets('student without a profile: the profile step', (tester) async {
+      final server = MockServer();
+      addStudent(server, 'new@college.edu');
+      final app = await signedInAs(tester, 'new@college.edu', server: server);
+      expect(app.location, Routes.onboardingProfile);
     });
 
-    testWidgets('student shell shows four tabs and switches between them', (
+    testWidgets('profile but no phone: the phone step', (tester) async {
+      final server = MockServer();
+      final account = addStudent(server, 'nophone@college.edu');
+      server.db.profiles[account.id] = server.db.profiles.values.first;
+      final app = await signedInAs(
+        tester,
+        'nophone@college.edu',
+        server: server,
+      );
+      expect(app.location, Routes.onboardingPhone);
+    });
+
+    testWidgets('admin: staff console', (tester) async {
+      final app = await signedInAs(tester, 'admin@unirent.in');
+      expect(app.location, Routes.staffHome);
+    });
+
+    testWidgets('expired access token is refreshed transparently', (
       tester,
     ) async {
-      final (_, router) = await pumpApp(tester, session: SessionStatus.student);
+      final server = MockServer();
+      final tokens = tokensFor(server, 'asha@college.edu');
+      server.db.expireAccessTokens();
+      final app = await pumpTestApp(
+        tester,
+        server: server,
+        storedTokens: tokens,
+      );
+      expect(app.location, Routes.home);
+      expect(server.db.refreshCount, 1);
+    });
+
+    testWidgets('invalid stored tokens: sign-in and tokens cleared', (
+      tester,
+    ) async {
+      final app = await pumpTestApp(
+        tester,
+        storedTokens: const AuthTokens(
+          accessToken: 'stale-access',
+          refreshToken: 'stale-refresh',
+        ),
+      );
+      expect(app.location, Routes.signIn);
+      expect(await app.tokens.read(), isNull);
+    });
+
+    testWidgets('unreachable server: retryable splash', (tester) async {
+      final server = MockServer();
+      final tokens = tokensFor(server, 'asha@college.edu');
+      final getMe = mockHandlers(server.db)['GET /api/v1/me']!;
+      var offline = true;
+      server.on(
+        'GET /api/v1/me',
+        (request) => offline ? MockResponse.offline : getMe(request),
+      );
+      final app = await pumpTestApp(
+        tester,
+        server: server,
+        storedTokens: tokens,
+      );
+      expect(app.location, startsWith(Routes.splash));
+      expect(find.text('Couldn’t sign you in'), findsOneWidget);
+      expect(await app.tokens.read(), isNotNull);
+
+      offline = false;
+      await app.tapText('Try again');
+      expect(app.location, Routes.home);
+    });
+  });
+
+  group('student shell', () {
+    testWidgets('shows four tabs and switches between them', (tester) async {
+      final app = await signedInAs(tester, 'asha@college.edu');
 
       expect(find.byType(NavigationDestination), findsNWidgets(4));
       for (final label in ['Home', 'Bookings', 'Listings', 'Profile']) {
@@ -166,62 +291,57 @@ void main() {
           findsOneWidget,
         );
       }
-
-      await tester.tap(find.widgetWithText(NavigationDestination, 'Listings'));
-      await tester.pumpAndSettle();
-      expect(location(router), Routes.listings);
-
-      await tester.tap(find.widgetWithText(NavigationDestination, 'Profile'));
-      await tester.pumpAndSettle();
-      expect(location(router), Routes.profile);
+      await app.tap(find.widgetWithText(NavigationDestination, 'Listings'));
+      expect(app.location, Routes.listings);
+      await app.tap(find.widgetWithText(NavigationDestination, 'Profile'));
+      expect(app.location, Routes.profile);
+      expect(find.text('Asha Verma'), findsOneWidget);
     });
 
-    testWidgets('booking screen opens from Listings and pops back to it', (
+    testWidgets('booking screen opens from Listings and pops back', (
       tester,
     ) async {
-      final (_, router) = await pumpApp(tester, session: SessionStatus.student);
-
-      await tester.tap(find.widgetWithText(NavigationDestination, 'Listings'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Open sample booking'));
-      await tester.pumpAndSettle();
-      expect(location(router), '/bookings/sample');
+      final app = await signedInAs(tester, 'asha@college.edu');
+      await app.tap(find.widgetWithText(NavigationDestination, 'Listings'));
+      await app.tapText('Open sample booking');
+      expect(app.location, '/bookings/sample');
       expect(find.byType(BookingScreen), findsOneWidget);
 
       await tester.pageBack();
       await tester.pumpAndSettle();
-      expect(location(router), Routes.listings);
+      expect(app.location, Routes.listings);
     });
 
     testWidgets('booking screen opens from Bookings too', (tester) async {
-      final (_, router) = await pumpApp(tester, session: SessionStatus.student);
-
-      await tester.tap(find.widgetWithText(NavigationDestination, 'Bookings'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Open sample booking'));
-      await tester.pumpAndSettle();
-      expect(location(router), '/bookings/sample');
+      final app = await signedInAs(tester, 'asha@college.edu');
+      await app.tap(find.widgetWithText(NavigationDestination, 'Bookings'));
+      await app.tapText('Open sample booking');
       expect(find.text('Booking sample'), findsOneWidget);
     });
 
     testWidgets('unirent://bookings/{id} deep link opens the booking', (
       tester,
     ) async {
-      final (_, router) = await pumpApp(tester, session: SessionStatus.student);
-
+      final app = await signedInAs(tester, 'asha@college.edu');
       await openDeepLink(tester, 'unirent://bookings/42');
-      expect(location(router), '/bookings/42');
+      expect(app.location, '/bookings/42');
       expect(find.text('Booking 42'), findsOneWidget);
     });
 
-    testWidgets('signing out from Profile returns to sign-in', (tester) async {
-      final (_, router) = await pumpApp(tester, session: SessionStatus.student);
+    testWidgets('sign out revokes tokens, push and returns to sign-in', (
+      tester,
+    ) async {
+      final server = MockServer();
+      final app = await signedInAs(tester, 'asha@college.edu', server: server);
+      final refresh = (await app.tokens.read())!.refreshToken;
 
-      await tester.tap(find.widgetWithText(NavigationDestination, 'Profile'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Sign out'));
-      await tester.pumpAndSettle();
-      expect(location(router), Routes.signIn);
+      await app.tap(find.widgetWithText(NavigationDestination, 'Profile'));
+      await app.tapText('Sign out');
+
+      expect(app.location, Routes.signIn);
+      expect(await app.tokens.read(), isNull);
+      expect(app.push.unregisterCalls, 1);
+      expect(server.db.refreshTokens, isNot(contains(refresh)));
     });
   });
 
@@ -233,18 +353,16 @@ void main() {
       'Users',
       'Listings',
     ];
-    const adminTabs = [
-      ...moderatorTabs,
-      'Reports',
-      'Late-fee rule',
-      'Moderators',
-    ];
 
     testWidgets('admin sees all eight tabs', (tester) async {
-      await pumpApp(tester, session: SessionStatus.admin);
-
+      await signedInAs(tester, 'admin@unirent.in');
       expect(find.byType(Tab), findsNWidgets(8));
-      for (final label in adminTabs) {
+      for (final label in [
+        ...moderatorTabs,
+        'Reports',
+        'Late-fee rule',
+        'Moderators',
+      ]) {
         expect(find.widgetWithText(Tab, label), findsOneWidget);
       }
     });
@@ -252,34 +370,37 @@ void main() {
     testWidgets('moderator sees five tabs and no admin sections', (
       tester,
     ) async {
-      final (_, router) = await pumpApp(
+      final server = MockServer();
+      server.db.accountByEmail('moderator@unirent.in')!.mustChangePassword =
+          false;
+      final app = await signedInAs(
         tester,
-        session: SessionStatus.moderator,
+        'moderator@unirent.in',
+        server: server,
       );
-
       expect(find.byType(Tab), findsNWidgets(5));
       for (final label in moderatorTabs) {
         expect(find.widgetWithText(Tab, label), findsOneWidget);
       }
-      expect(find.widgetWithText(Tab, 'Reports'), findsNothing);
-
-      router.go('/staff/reports');
+      app.router.go('/staff/reports');
       await tester.pumpAndSettle();
-      expect(location(router), '/staff/appeals');
+      expect(app.location, Routes.staffHome);
     });
 
-    testWidgets('tapping a tab switches section', (tester) async {
-      final (_, router) = await pumpApp(tester, session: SessionStatus.admin);
-
-      await tester.tap(find.widgetWithText(Tab, 'Users'));
-      await tester.pumpAndSettle();
-      expect(location(router), '/staff/users');
+    testWidgets('tapping a tab switches section; sign out works', (
+      tester,
+    ) async {
+      final app = await signedInAs(tester, 'admin@unirent.in');
+      await app.tap(find.widgetWithText(Tab, 'Users'));
+      expect(app.location, '/staff/users');
       expect(
         find.byWidgetPredicate(
           (w) => w is StaffSectionScreen && w.tab == StaffTab.users,
         ),
         findsOneWidget,
       );
+      await app.tap(find.byTooltip('Sign out'));
+      expect(app.location, Routes.signIn);
     });
   });
 }

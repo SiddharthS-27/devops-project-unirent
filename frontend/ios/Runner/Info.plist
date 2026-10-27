@@ -32,6 +32,14 @@
 				<string>unirent</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>in.unirent.app.oauth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>in.unirent.app</string>
+			</array>
+		</dict>
 	</array>
 	<key>FlutterDeepLinkingEnabled</key>
 	<true/>

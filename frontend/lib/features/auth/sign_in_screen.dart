@@ -1,71 +1,101 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../app/env.dart';
+import '../../app/error_messages.dart';
+import '../../app/routes.dart';
 import '../../app/session.dart';
 import '../../ui/ui.dart';
+import 'microsoft_auth.dart';
 
-class SignInScreen extends ConsumerWidget {
+class SignInScreen extends ConsumerStatefulWidget {
   const SignInScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final session = ref.read(sessionProvider.notifier);
-    return Scaffold(
-      appBar: AppBar(title: const Text('Sign in')),
-      body: EmptyState(
-        icon: Icons.school_outlined,
-        title: 'Welcome to UniRent',
-        message: 'Rent and resell with students on your campus.',
-        action: Column(
-          children: [
-            AppButton(
-              label: 'Continue with college account',
-              icon: Icons.login,
-              // Placeholder until Google sign-in is wired up.
-              onPressed: () => session.set(SessionStatus.onboarding),
-            ),
-            if (kDebugMode) _DebugRoleSwitcher(onSelected: session.set),
-          ],
-        ),
-      ),
-    );
-  }
+  ConsumerState<SignInScreen> createState() => _SignInScreenState();
 }
 
-/// Debug builds only: jump straight into the app as a given role.
-class _DebugRoleSwitcher extends StatelessWidget {
-  const _DebugRoleSwitcher({required this.onSelected});
+class _SignInScreenState extends ConsumerState<SignInScreen> {
+  bool _busy = false;
+  String? _error;
 
-  final ValueChanged<SessionStatus> onSelected;
+  Future<void> _continue() async {
+    if (ref.read(appEnvProvider).authMode == AuthMode.mock) {
+      context.go(Routes.signInWithEmail);
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final idToken = await ref.read(microsoftAuthProvider).signIn();
+      if (idToken == null) return; // Cancelled.
+      // The router moves on once the session changes.
+      await ref.read(sessionProvider.notifier).signInWithMicrosoft(idToken);
+    } on Object catch (error) {
+      if (mounted) setState(() => _error = friendlyMessage(error));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: AppSpacing.xl),
-      child: Column(
-        children: [
-          Text(
-            'Debug: enter as',
-            style: Theme.of(context).textTheme.labelMedium,
+    final theme = Theme.of(context);
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(AppSpacing.xl),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Icon(
+                    Icons.school_outlined,
+                    size: 64,
+                    color: theme.colorScheme.primary,
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  Text(
+                    'Welcome to UniRent',
+                    style: theme.textTheme.headlineMedium,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    'Rent and resell with students on your campus.',
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: AppSpacing.xxl),
+                  if (_error != null) ...[
+                    InlineError(_error!),
+                    const SizedBox(height: AppSpacing.lg),
+                  ],
+                  AppButton(
+                    label: 'Continue with college Microsoft account',
+                    icon: Icons.login,
+                    isLoading: _busy,
+                    onPressed: _continue,
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  TextButton(
+                    onPressed: _busy
+                        ? null
+                        : () => context.go(Routes.staffSignIn),
+                    child: const Text('Staff sign in'),
+                  ),
+                ],
+              ),
+            ),
           ),
-          const SizedBox(height: AppSpacing.sm),
-          Wrap(
-            spacing: AppSpacing.sm,
-            alignment: WrapAlignment.center,
-            children: [
-              for (final role in const [
-                SessionStatus.student,
-                SessionStatus.moderator,
-                SessionStatus.admin,
-              ])
-                OutlinedButton(
-                  onPressed: () => onSelected(role),
-                  child: Text(role.name),
-                ),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }

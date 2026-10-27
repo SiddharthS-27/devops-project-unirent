@@ -40,6 +40,10 @@ dependencies:
   dio: ^5.11.1
   flutter_secure_storage: ^11.2.0
   uuid: ^4.6.0
+  flutter_appauth: ^12.1.0
+  firebase_core: ^5.1.0
+  firebase_auth: ^7.0.1
+  firebase_messaging: ^17.0.1
 
 dev_dependencies:
   flutter_test:
