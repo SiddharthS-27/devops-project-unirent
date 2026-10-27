@@ -7,6 +7,9 @@ import 'mock_server.dart';
 /// Maximum photos per listing (mirrors the backend).
 const mockMaxPhotos = 8;
 
+/// Maximum saved searches per student (mirrors the backend).
+const mockMaxSavedSearches = 20;
+
 /// Listing, search and home routes of the mock backend.
 Map<String, MockHandler> listingHandlers(MockDb db) {
   final h = _ListingHandlers(db);
@@ -26,6 +29,9 @@ Map<String, MockHandler> listingHandlers(MockDb db) {
     'POST /api/v1/listings/{listing_id}/photos': h.addPhoto,
     'DELETE /api/v1/listings/{listing_id}/photos/{photo_id}': h.deletePhoto,
     'POST /api/v1/uploads/photos': h.presignUpload,
+    'GET /api/v1/saved-searches': h.listSaved,
+    'POST /api/v1/saved-searches': h.createSaved,
+    'DELETE /api/v1/saved-searches/{saved_search_id}': h.deleteSaved,
   };
 }
 
@@ -150,12 +156,12 @@ class _ListingHandlers {
   }
 
   /// Active listings by others that match one of [viewer]'s saved
-  /// searches and were listed since that search was last viewed.
+  /// searches and were listed after that search was saved.
   List<ListingCard> savedSearchMatches(MockAccount viewer) {
     final matched = <MockListing>{};
     for (final s in db.savedSearches.values) {
       if (s.accountId != viewer.id) continue;
-      final since = s.lastViewedAt ?? s.createdAt;
+      final since = s.createdAt;
       matched.addAll(
         _active.where(
           (l) =>
@@ -566,6 +572,98 @@ class _ListingHandlers {
         expiresAt: db.clock().toUtc().add(const Duration(minutes: 15)),
       ).toJson(),
     );
+  }
+
+  // ---- saved searches -------------------------------------------------------
+
+  SavedSearchOut _savedOut(MockSavedSearch s) {
+    final since = s.lastViewedAt ?? s.createdAt;
+    final fresh = _active.where(
+      (l) =>
+          l.ownerId != s.accountId &&
+          l.createdAt.isAfter(since) &&
+          s.filter.matches(l),
+    );
+    return SavedSearchOut(
+      id: s.id,
+      name: s.name,
+      q: s.q,
+      category: s.category,
+      kind: s.kind,
+      minPricePaise: s.minPricePaise,
+      maxPricePaise: s.maxPricePaise,
+      createdAt: s.createdAt,
+      newMatchCount: fresh.length,
+    );
+  }
+
+  /// Counts new matches since the last look, then marks them seen.
+  MockResponse listSaved(MockRequest r) {
+    final viewer = _account(r);
+    final mine =
+        db.savedSearches.values.where((s) => s.accountId == viewer.id).toList()
+          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    final out = [for (final s in mine) _savedOut(s).toJson()];
+    final now = db.clock().toUtc();
+    for (final s in mine) {
+      s.lastViewedAt = now;
+    }
+    return MockResponse.json(out);
+  }
+
+  MockResponse createSaved(MockRequest r) {
+    final viewer = _account(r);
+    final body = mockParse(r, SavedSearchIn.fromJson);
+    final q = body.q?.trim();
+    final empty =
+        (q == null || q.isEmpty) &&
+        body.category == null &&
+        body.kind == null &&
+        body.minPricePaise == null &&
+        body.maxPricePaise == null &&
+        (body.name?.trim().isEmpty ?? true);
+    if (empty) {
+      throw const MockApiError(
+        422,
+        'EMPTY_SEARCH',
+        'Add a search term or a filter to save',
+      );
+    }
+    final count = db.savedSearches.values
+        .where((s) => s.accountId == viewer.id)
+        .length;
+    if (count >= mockMaxSavedSearches) {
+      throw const MockApiError(
+        409,
+        'TOO_MANY_SAVED_SEARCHES',
+        'You can save up to $mockMaxSavedSearches',
+      );
+    }
+    final now = db.clock().toUtc();
+    final id = db.nextId();
+    final saved = db.savedSearches[id] = MockSavedSearch(
+      id: id,
+      accountId: viewer.id,
+      createdAt: now,
+      name: body.name,
+      q: q == null || q.isEmpty ? null : q,
+      category: body.category,
+      kind: body.kind,
+      minPricePaise: body.minPricePaise,
+      maxPricePaise: body.maxPricePaise,
+    )..lastViewedAt = now;
+    return MockResponse(201, _savedOut(saved).toJson());
+  }
+
+  MockResponse deleteSaved(MockRequest r) {
+    final viewer = _account(r);
+    final id = r.pathParams['saved_search_id'];
+    final saved = db.savedSearches[id];
+    if (saved == null || saved.accountId != viewer.id) {
+      throw const MockApiError(404, 'NOT_FOUND', 'Saved search not found');
+    }
+    db.savedSearches.remove(id);
+    return const MockResponse.noContent();
   }
 
   static T? _enum<T>(Object? raw, T Function(String) parse) =>

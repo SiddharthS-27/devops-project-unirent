@@ -24,6 +24,7 @@ abstract final class Routes {
 
   static const home = '/home';
   static const search = '/home/search';
+  static const savedSearches = '/home/saved';
 
   /// The results screen for [filters].
   static String searchFor(SearchFilters filters) {

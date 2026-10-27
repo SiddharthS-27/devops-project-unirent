@@ -58,6 +58,10 @@ const _messages = {
   'PAYOUT_ACCOUNT_REQUIRED':
       'Link your payout account before listing your first item.',
   'ONBOARDING_INCOMPLETE': 'Finish setting up your profile first.',
+  // Saved searches
+  'EMPTY_SEARCH': 'Add a search term or a filter before saving.',
+  'TOO_MANY_SAVED_SEARCHES':
+      'You can save up to 20 searches. Delete one to save another.',
   // Payouts
   'PAYOUT_ACCOUNT_EXISTS': 'You’ve already linked a payout account.',
   'NO_PAYOUT_ACCOUNT': 'Link a payout account first.',

@@ -79,7 +79,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('UniRent')),
+      appBar: AppBar(
+        title: const Text('UniRent'),
+        actions: [
+          IconButton(
+            tooltip: 'Saved searches',
+            icon: const Icon(Icons.bookmarks_outlined),
+            onPressed: () => context.push(Routes.savedSearches),
+          ),
+        ],
+      ),
       body: Column(
         children: [
           Padding(

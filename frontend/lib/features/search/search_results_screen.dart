@@ -11,6 +11,7 @@ import '../../ui/ui.dart';
 import '../listings/listing_format.dart';
 import '../listings/widgets/listing_tiles.dart';
 import 'filter_sheet.dart';
+import 'saved_searches.dart';
 import 'search_filters.dart';
 
 /// Search results with filters, sort and cursor-based infinite scroll.
@@ -121,6 +122,40 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
     if (next != null && next != _filters) _apply(next);
   }
 
+  Future<void> _saveSearch() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final filters = _filters;
+    if (!canSaveSearch(filters)) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Add a search term or a filter first')),
+      );
+      return;
+    }
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) => _SaveSearchDialog(filters: filters),
+    );
+    if (name == null || !mounted) return;
+    try {
+      await ref
+          .read(apiProvider)
+          .search
+          .createSavedSearch(savedSearchFrom(filters, name: name));
+      ref.invalidate(savedSearchesProvider);
+      messenger.showSnackBar(
+        SnackBar(
+          content: const Text('Search saved. New matches show on Home.'),
+          action: SnackBarAction(
+            label: 'View',
+            onPressed: () => context.push(Routes.savedSearches),
+          ),
+        ),
+      );
+    } on Object catch (error) {
+      messenger.showSnackBar(SnackBar(content: Text(friendlyMessage(error))));
+    }
+  }
+
   void _openListing(ListingCard listing) =>
       context.push(Routes.listing(listing.id));
 
@@ -142,6 +177,11 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
           onSubmitted: (q) => _apply(_filters.copyWith(q: q.trim())),
         ),
         actions: [
+          IconButton(
+            tooltip: 'Save search',
+            onPressed: _saveSearch,
+            icon: const Icon(Icons.bookmark_add_outlined),
+          ),
           PopupMenuButton<SearchSort>(
             tooltip: 'Sort',
             icon: const Icon(Icons.sort),
@@ -277,4 +317,66 @@ class _ActiveFilters extends StatelessWidget {
     onDeleted: onDeleted,
     deleteButtonTooltipMessage: 'Remove $label filter',
   );
+}
+
+class _SaveSearchDialog extends StatefulWidget {
+  const _SaveSearchDialog({required this.filters});
+
+  final SearchFilters filters;
+
+  @override
+  State<_SaveSearchDialog> createState() => _SaveSearchDialogState();
+}
+
+class _SaveSearchDialogState extends State<_SaveSearchDialog> {
+  late final _name = TextEditingController(
+    text: suggestedSearchName(widget.filters),
+  );
+
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final f = widget.filters;
+    final skipped = [
+      if (f.hasDates) 'dates',
+      if (f.sort != SearchSort.trust) 'sort order',
+    ];
+    return AlertDialog(
+      title: const Text('Save this search'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(describeSearch(f)),
+          const SizedBox(height: AppSpacing.lg),
+          AppTextField(
+            controller: _name,
+            label: 'Name',
+            maxLength: 100,
+            textCapitalization: TextCapitalization.sentences,
+          ),
+          if (skipped.isNotEmpty)
+            Text(
+              'The ${skipped.join(' and ')} won’t be saved.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, _name.text),
+          child: const Text('Save'),
+        ),
+      ],
+    );
+  }
 }

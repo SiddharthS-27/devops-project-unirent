@@ -103,7 +103,8 @@ class MockSavedSearch {
   final int? minPricePaise;
   final int? maxPricePaise;
 
-  /// When the user last looked at this search's results.
+  /// When the user last listed their saved searches; new-match counts are
+  /// relative to it (null means [createdAt]).
   DateTime? lastViewedAt;
 
   MockSearchFilter get filter => MockSearchFilter(

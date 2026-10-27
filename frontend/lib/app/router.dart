@@ -20,6 +20,7 @@ import '../features/onboarding/profile_form_screen.dart';
 import '../features/onboarding/terms_screen.dart';
 import '../features/payouts/payout_account_screen.dart';
 import '../features/profile/profile_screen.dart';
+import '../features/search/saved_searches_screen.dart';
 import '../features/search/search_filters.dart';
 import '../features/search/search_results_screen.dart';
 import '../features/staff/staff_section_screen.dart';
@@ -124,6 +125,10 @@ final routerProvider = Provider<GoRouter>((ref) {
                 path: Routes.home,
                 builder: (context, state) => const HomeScreen(),
                 routes: [
+                  GoRoute(
+                    path: 'saved',
+                    builder: (context, state) => const SavedSearchesScreen(),
+                  ),
                   GoRoute(
                     path: 'search',
                     builder: (context, state) => SearchResultsScreen(
