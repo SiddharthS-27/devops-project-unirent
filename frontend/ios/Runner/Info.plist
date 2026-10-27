@@ -43,6 +43,10 @@
 	</array>
 	<key>FlutterDeepLinkingEnabled</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Take photos of items you list on UniRent.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Choose photos of items you list on UniRent.</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>

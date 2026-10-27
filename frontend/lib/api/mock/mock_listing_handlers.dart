@@ -4,6 +4,9 @@ import 'mock_handlers.dart';
 import 'mock_listings.dart';
 import 'mock_server.dart';
 
+/// Maximum photos per listing (mirrors the backend).
+const mockMaxPhotos = 8;
+
 /// Listing, search and home routes of the mock backend.
 Map<String, MockHandler> listingHandlers(MockDb db) {
   final h = _ListingHandlers(db);
@@ -16,6 +19,13 @@ Map<String, MockHandler> listingHandlers(MockDb db) {
     'POST /api/v1/listings/{listing_id}/pause': h.pause,
     'POST /api/v1/listings/{listing_id}/resume': h.resume,
     'GET /api/v1/assets/{asset_id}': h.getAsset,
+    'GET /api/v1/listings/mine': h.mine,
+    'GET /api/v1/assets/mine': h.myAssets,
+    'POST /api/v1/listings': h.create,
+    'PATCH /api/v1/listings/{listing_id}': h.update,
+    'POST /api/v1/listings/{listing_id}/photos': h.addPhoto,
+    'DELETE /api/v1/listings/{listing_id}/photos/{photo_id}': h.deletePhoto,
+    'POST /api/v1/uploads/photos': h.presignUpload,
   };
 }
 
@@ -278,6 +288,284 @@ class _ListingHandlers {
       throw const MockApiError(404, 'NOT_FOUND', 'Asset not found');
     }
     return MockResponse.json(asset(a, viewer).toJson());
+  }
+
+  // ---- owner: my listings, create, edit, photos -----------------------------
+
+  MockResponse mine(MockRequest r) {
+    final viewer = _account(r);
+    final status = _enum(r.query['status'], ListingStatus.fromJson);
+    final mine =
+        db.listings.values
+            .where(
+              (l) =>
+                  l.ownerId == viewer.id &&
+                  (status == null || l.status == status),
+            )
+            .toList()
+          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return MockResponse.json([for (final l in mine) card(l).toJson()]);
+  }
+
+  MockResponse myAssets(MockRequest r) {
+    final viewer = _account(r);
+    return MockResponse.json([
+      for (final a in db.assets.values)
+        if (a.ownerId == viewer.id) asset(a, viewer).toJson(),
+    ]);
+  }
+
+  /// Checks that [key] was presigned for [owner] and its bytes uploaded.
+  void _confirmUpload(String key, MockAccount owner) {
+    if (db.uploadOwners[key] != owner.id) {
+      throw const MockApiError(
+        422,
+        'INVALID_PHOTO',
+        "That photo upload isn't yours",
+      );
+    }
+    if (!db.uploadedKeys.contains(key)) {
+      throw const MockApiError(
+        422,
+        'PHOTO_NOT_UPLOADED',
+        'Upload the photo before confirming it',
+      );
+    }
+  }
+
+  MockPhoto _photoFor(String listingId, String key) {
+    final colour = (key.hashCode & 0xFFFFFF).toRadixString(16).padLeft(6, '0');
+    return MockPhoto(id: db.nextId(), key: key, url: 'mock://photo/$colour');
+  }
+
+  static void _checkLength(String field, String? value, int min, int max) {
+    if (value == null) return;
+    if (value.trim().length < min || value.length > max) {
+      throw mockValidation(field, 'Must be $min-$max characters');
+    }
+  }
+
+  static void _checkPrices(int? hour, int? day, int? sale) {
+    for (final (field, value) in [
+      ('price_per_hour_paise', hour),
+      ('price_per_day_paise', day),
+      ('sale_price_paise', sale),
+    ]) {
+      if (value != null && value <= 0) {
+        throw mockValidation(field, 'Must be greater than 0');
+      }
+    }
+  }
+
+  MockResponse create(MockRequest r) {
+    final viewer = _account(r);
+    final profile = db.profiles[viewer.id];
+    if (viewer.role != 'student' ||
+        profile == null ||
+        viewer.phoneVerifiedAt == null) {
+      throw const MockApiError(
+        403,
+        'ONBOARDING_INCOMPLETE',
+        'Finish setting up your profile first',
+      );
+    }
+    final body = mockParse(r, ListingCreate.fromJson);
+    _checkLength('title', body.title, 3, 120);
+    _checkLength('description', body.description, 0, 2000);
+    _checkLength('pickup_point', body.pickupPoint, 2, 200);
+    _checkLength('serial_number', body.serialNumber, 0, 100);
+    _checkPrices(
+      body.pricePerHourPaise,
+      body.pricePerDayPaise,
+      body.salePricePaise,
+    );
+    final keys = body.photoKeys;
+    if (keys.isEmpty || keys.length > mockMaxPhotos) {
+      throw mockValidation('photo_keys', 'Add 1-$mockMaxPhotos photos');
+    }
+    final isRent = body.kind == TradeKind.rent;
+    if (isRent &&
+        body.pricePerHourPaise == null &&
+        body.pricePerDayPaise == null) {
+      throw mockValidation('', 'rent listings need an hourly or daily price');
+    }
+    if (!isRent && body.salePricePaise == null) {
+      throw mockValidation('', 'sale listings need a price');
+    }
+    if (!viewer.payoutReady) {
+      throw const MockApiError(
+        409,
+        'PAYOUT_ACCOUNT_REQUIRED',
+        'Link a Razorpay account before your first listing',
+      );
+    }
+    for (final key in keys) {
+      _confirmUpload(key, viewer);
+    }
+
+    final now = db.clock().toUtc();
+    final assetId = body.assetId ?? db.nextId();
+    final existing = db.assets[assetId];
+    if (body.assetId != null &&
+        (existing == null || existing.ownerId != viewer.id)) {
+      throw const MockApiError(404, 'NOT_FOUND', 'Asset not found');
+    }
+    final a =
+        existing ??
+        (db.assets[assetId] = MockAsset(
+          id: assetId,
+          ownerId: viewer.id,
+          condition: body.condition,
+        ));
+    a
+      ..condition = body.condition
+      ..manufactureDate = body.manufactureDate ?? a.manufactureDate
+      ..serialNumber = body.serialNumber ?? a.serialNumber
+      ..history.add(
+        AssetHistoryEntry(
+          at: now,
+          kind: AssetEventKind.listed,
+          summary: 'Listed by ${_name(viewer)}',
+        ),
+      );
+
+    final id = db.nextId();
+    final listing = db.listings[id] = MockListing(
+      id: id,
+      ownerId: viewer.id,
+      assetId: a.id,
+      kind: body.kind,
+      title: body.title.trim(),
+      description: body.description,
+      category: body.category,
+      pickupPoint: body.pickupPoint.trim(),
+      pricePerHourPaise: isRent ? body.pricePerHourPaise : null,
+      pricePerDayPaise: isRent ? body.pricePerDayPaise : null,
+      salePricePaise: isRent ? null : body.salePricePaise,
+      createdAt: now,
+      photos: [for (final key in keys) _photoFor(id, key)],
+    );
+    return MockResponse(201, detail(listing, viewer).toJson());
+  }
+
+  MockListing _editable(MockRequest r, MockAccount viewer) {
+    final listing = _ownListing(r, viewer);
+    if (listing.status == ListingStatus.sold ||
+        listing.status == ListingStatus.removed) {
+      throw MockApiError(
+        409,
+        'LISTING_CLOSED',
+        'This listing is ${listing.status.json}',
+      );
+    }
+    if (listing.locked) {
+      throw const MockApiError(
+        409,
+        'LISTING_LOCKED',
+        'A booking is approved or active; edit after it ends',
+      );
+    }
+    return listing;
+  }
+
+  MockResponse update(MockRequest r) {
+    final viewer = _account(r);
+    final listing = _editable(r, viewer);
+    final body = mockParse(r, ListingUpdate.fromJson);
+    _checkLength('title', body.title, 3, 120);
+    _checkLength('description', body.description, 0, 2000);
+    _checkLength('pickup_point', body.pickupPoint, 2, 200);
+    _checkLength('serial_number', body.serialNumber, 0, 100);
+    _checkPrices(
+      body.pricePerHourPaise,
+      body.pricePerDayPaise,
+      body.salePricePaise,
+    );
+    if (listing.kind == TradeKind.rent && body.salePricePaise != null) {
+      throw const MockApiError(
+        422,
+        'INVALID_PRICE',
+        'Rent listings have no sale price',
+      );
+    }
+    if (listing.kind == TradeKind.sale &&
+        (body.pricePerHourPaise != null || body.pricePerDayPaise != null)) {
+      throw const MockApiError(
+        422,
+        'INVALID_PRICE',
+        'Sale listings have one fixed price',
+      );
+    }
+    final a = db.assets[listing.assetId]!;
+    listing
+      ..title = body.title?.trim() ?? listing.title
+      ..description = body.description ?? listing.description
+      ..category = body.category ?? listing.category
+      ..pickupPoint = body.pickupPoint?.trim() ?? listing.pickupPoint
+      ..pricePerHourPaise = body.pricePerHourPaise ?? listing.pricePerHourPaise
+      ..pricePerDayPaise = body.pricePerDayPaise ?? listing.pricePerDayPaise
+      ..salePricePaise = body.salePricePaise ?? listing.salePricePaise;
+    a
+      ..condition = body.condition ?? a.condition
+      ..manufactureDate = body.manufactureDate ?? a.manufactureDate
+      ..serialNumber = body.serialNumber ?? a.serialNumber;
+    return MockResponse.json(detail(listing, viewer).toJson());
+  }
+
+  MockResponse addPhoto(MockRequest r) {
+    final viewer = _account(r);
+    final listing = _editable(r, viewer);
+    final key = mockParse(r, PhotoAdd.fromJson).objectKey;
+    if (listing.photos.length >= mockMaxPhotos) {
+      throw const MockApiError(
+        422,
+        'TOO_MANY_PHOTOS',
+        'A listing can have up to $mockMaxPhotos photos',
+      );
+    }
+    _confirmUpload(key, viewer);
+    final photo = _photoFor(listing.id, key);
+    listing.photos.add(photo);
+    return MockResponse(201, PhotoOut(id: photo.id, url: photo.url).toJson());
+  }
+
+  MockResponse deletePhoto(MockRequest r) {
+    final viewer = _account(r);
+    final listing = _editable(r, viewer);
+    final id = r.pathParams['photo_id'];
+    final index = listing.photos.indexWhere((p) => p.id == id);
+    if (index < 0) {
+      throw const MockApiError(404, 'NOT_FOUND', 'Photo not found');
+    }
+    if (listing.photos.length == 1) {
+      throw const MockApiError(
+        409,
+        'LAST_PHOTO',
+        'A listing needs at least one photo',
+      );
+    }
+    listing.photos.removeAt(index);
+    return const MockResponse.noContent();
+  }
+
+  MockResponse presignUpload(MockRequest r) {
+    final viewer = _account(r);
+    final body = mockParse(r, UploadRequest.fromJson);
+    final ext = switch (body.contentType) {
+      PhotoContentType.imagePng => 'png',
+      PhotoContentType.imageWebp => 'webp',
+      _ => 'jpg',
+    };
+    final key = '${body.purpose.json}/${viewer.id}/${db.nextId()}.$ext';
+    db.uploadOwners[key] = viewer.id;
+    return MockResponse.json(
+      UploadOut(
+        objectKey: key,
+        uploadUrl: 'mock://upload/$key',
+        headers: {'Content-Type': body.contentType.json},
+        expiresAt: db.clock().toUtc().add(const Duration(minutes: 15)),
+      ).toJson(),
+    );
   }
 
   static T? _enum<T>(Object? raw, T Function(String) parse) =>

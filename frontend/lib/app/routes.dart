@@ -39,6 +39,8 @@ abstract final class Routes {
   static String listingRequest(String id) => '${listing(id)}/request';
   static const bookings = '/bookings';
   static const listings = '/listings';
+  static const newListing = '/listings/new';
+  static const payoutAccount = '/payout-account';
   static const profile = '/profile';
   static const help = '/help';
 

@@ -156,6 +156,9 @@ String mockListingId(int n) =>
 void seedListings(MockDb db) {
   final now = db.clock().toUtc();
   final asha = db.accountByEmail('asha@college.edu')!
+    ..payoutStatus = PayoutAccountOutStatus.activated
+    ..razorpayAccountId = 'acc_MockAsha0001'
+    ..payoutUpdatedAt = now.subtract(const Duration(days: 30))
     ..lenderScore = 86
     ..lenderRating = 4.7
     ..completedTrades = 12;
@@ -224,7 +227,7 @@ void seedListings(MockDb db) {
     score: 92,
     rating: 4.9,
     trades: 21,
-  );
+  )..payoutStatus = PayoutAccountOutStatus.activated;
 
   var n = 0;
   void listing(

@@ -41,6 +41,13 @@ class MockAccount {
   int completedTrades = 0;
   int cancellationCount = 0;
 
+  /// Razorpay linked account state; listings need it `activated`.
+  PayoutAccountOutStatus payoutStatus = PayoutAccountOutStatus.none;
+  String? razorpayAccountId;
+  DateTime? payoutUpdatedAt;
+
+  bool get payoutReady => payoutStatus == PayoutAccountOutStatus.activated;
+
   bool get isStaff => role == 'moderator' || role == 'admin';
 }
 
@@ -139,6 +146,12 @@ class MockDb {
   final listings = <String, MockListing>{};
   final assets = <String, MockAsset>{};
   final savedSearches = <String, MockSavedSearch>{};
+
+  /// Presigned upload keys → the account that requested them.
+  final uploadOwners = <String, String>{};
+
+  /// Keys whose bytes were PUT to their upload URL.
+  final uploadedKeys = <String>{};
 
   int _sequence = 0;
 

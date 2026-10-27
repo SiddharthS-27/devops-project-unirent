@@ -40,6 +40,23 @@ IconData categoryIcon(ListingCategory category) => switch (category) {
   ListingCategory.other || ListingCategory.unknown => Icons.category_outlined,
 };
 
+const listingConditions = [
+  ItemCondition.newValue,
+  ItemCondition.likeNew,
+  ItemCondition.good,
+  ItemCondition.fair,
+  ItemCondition.poor,
+];
+
+String conditionLabel(ItemCondition condition) => switch (condition) {
+  ItemCondition.newValue => 'New',
+  ItemCondition.likeNew => 'Like new',
+  ItemCondition.good => 'Good',
+  ItemCondition.fair => 'Fair',
+  ItemCondition.poor => 'Poor',
+  ItemCondition.unknown => 'Not stated',
+};
+
 String tradeKindLabel(TradeKind kind) =>
     kind == TradeKind.sale ? 'For sale' : 'For rent';
 

@@ -3,6 +3,7 @@ import 'dart:convert';
 import '../generated/models.dart';
 import 'mock_db.dart';
 import 'mock_listing_handlers.dart';
+import 'mock_payout_handlers.dart';
 import 'mock_server.dart';
 
 /// Every route the mock backend answers. Add new endpoints here as the app
@@ -11,6 +12,7 @@ Map<String, MockHandler> mockHandlers(MockDb db) {
   final h = _Handlers(db);
   return {
     ...listingHandlers(db),
+    ...payoutHandlers(db),
     'POST /api/v1/auth/microsoft/mock-token': h.microsoftMockToken,
     'POST /api/v1/auth/microsoft': h.microsoftSignIn,
     'POST /api/v1/auth/refresh': h.refresh,

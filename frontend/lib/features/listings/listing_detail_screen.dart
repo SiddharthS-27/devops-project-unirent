@@ -58,7 +58,9 @@ class _ListingDetailViewState extends ConsumerState<_ListingDetailView> {
       final updated = pause
           ? await listings.pauseListing(detail.id)
           : await listings.resumeListing(detail.id);
-      ref.invalidate(listingDetailProvider(updated.id));
+      ref
+        ..invalidate(listingDetailProvider(updated.id))
+        ..invalidate(myListingsProvider);
       messenger.showSnackBar(
         SnackBar(
           content: Text(
@@ -369,15 +371,6 @@ class _Availability extends StatelessWidget {
     );
   }
 }
-
-String conditionLabel(ItemCondition condition) => switch (condition) {
-  ItemCondition.newValue => 'New',
-  ItemCondition.likeNew => 'Like new',
-  ItemCondition.good => 'Good',
-  ItemCondition.fair => 'Fair',
-  ItemCondition.poor => 'Poor',
-  ItemCondition.unknown => 'Not stated',
-};
 
 IconData _historyIcon(AssetEventKind kind) => switch (kind) {
   AssetEventKind.listed => Icons.storefront_outlined,

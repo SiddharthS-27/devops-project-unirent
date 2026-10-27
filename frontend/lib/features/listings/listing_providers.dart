@@ -15,3 +15,10 @@ final phoneCallerProvider = Provider<PhoneCaller>(
   (ref) =>
       (phone) => launchUrl(Uri(scheme: 'tel', path: phone)),
 );
+
+/// The signed-in user's listings with one status.
+final myListingsProvider = FutureProvider.autoDispose
+    .family<List<ListingCard>, ListingStatus>(
+      (ref, status) =>
+          ref.watch(apiProvider).listings.myListings(status: status),
+    );

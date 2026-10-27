@@ -11,13 +11,14 @@ import '../features/bookings/bookings_screen.dart';
 import '../features/bookings/request_screen.dart';
 import '../features/help/help_screen.dart';
 import '../features/home/home_screen.dart';
-import '../features/listings/edit_listing_screen.dart';
 import '../features/listings/listing_detail_screen.dart';
+import '../features/listings/listing_form_screen.dart';
 import '../features/listings/listings_screen.dart';
 import '../features/onboarding/notifications_screen.dart';
 import '../features/onboarding/phone_screen.dart';
 import '../features/onboarding/profile_form_screen.dart';
 import '../features/onboarding/terms_screen.dart';
+import '../features/payouts/payout_account_screen.dart';
 import '../features/profile/profile_screen.dart';
 import '../features/search/search_filters.dart';
 import '../features/search/search_results_screen.dart';
@@ -95,7 +96,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: 'edit',
             builder: (context, state) =>
-                EditListingScreen(listingId: state.pathParameters['id']!),
+                ListingFormScreen(listingId: state.pathParameters['id']!),
           ),
           GoRoute(
             path: 'request',
@@ -103,6 +104,10 @@ final routerProvider = Provider<GoRouter>((ref) {
                 RequestScreen(listingId: state.pathParameters['id']!),
           ),
         ],
+      ),
+      GoRoute(
+        path: Routes.payoutAccount,
+        builder: (context, state) => const PayoutAccountScreen(),
       ),
       GoRoute(
         path: Routes.help,
@@ -146,6 +151,12 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: Routes.listings,
                 builder: (context, state) => const ListingsScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'new',
+                    builder: (context, state) => const ListingFormScreen(),
+                  ),
+                ],
               ),
             ],
           ),
