@@ -182,12 +182,14 @@ jobs:
       - uses: actions/checkout@v4
       - name: Run integration suites
         run: ci/scripts/integration.sh
-      - name: Keep API logs
-        if: failure()
+      - name: Keep API logs and results
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: integration-api-log
-          path: integration-api.log
+          name: integration-results
+          path: |
+            integration-api.log
+            test-results/
           if-no-files-found: ignore
 
   # Stage 5: known-vulnerable dependencies and committed secrets. Images are
