@@ -6,6 +6,7 @@ name: unirent
 #   test     api, the Razorpay simulator and the test runner (CI and make test-*)
 #   staging  api and workers from registry images, plus the monitoring stack
 #   init     one-shot jobs that make up runs once the stack is healthy
+#   tunnel   a cloudflared quick tunnel to the api, for Razorpay webhooks (opt-in)
 
 services:
   postgres:
@@ -190,6 +191,17 @@ services:
       - ./scripts/create-topics.sh:/create-topics.sh:ro
     depends_on:
       kafka:
+        condition: service_healthy
+
+  # Opt-in (`make tunnel`): a public HTTPS URL for the api, so Razorpay test-mode
+  # webhooks reach a laptop. Set the webhook URL in the Razorpay dashboard to
+  # <tunnel URL>/api/v1/payments/webhooks/razorpay.
+  tunnel:
+    image: cloudflare/cloudflared:2024.12.2
+    profiles: [tunnel]
+    command: ["tunnel", "--no-autoupdate", "--url", "http://api:8000"]
+    depends_on:
+      api:
         condition: service_healthy
 
   kafka-ui:

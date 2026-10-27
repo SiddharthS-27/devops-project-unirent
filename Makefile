@@ -4,7 +4,7 @@ PROFILE ?= $(shell grep -s '^PROFILE=' $(ENV_FILE) | cut -d= -f2 || echo dev)
 PROFILE := $(or $(PROFILE),dev)
 PYTHON_PACKAGES = security payments backend workers
 
-.PHONY: up down logs ps watch reset migrate seed test-unit test-integration test-e2e \
+.PHONY: up down logs ps watch tunnel reset migrate seed test-unit test-integration test-e2e \
 	test-security test-load
 
 $(ENV_FILE):
@@ -27,6 +27,11 @@ ps: $(ENV_FILE)
 ## Sync source changes into the running api for hot reload (dev).
 watch: $(ENV_FILE)
 	$(COMPOSE) --profile dev watch --no-up
+
+## Expose the api over HTTPS for Razorpay webhooks and print the public URL.
+tunnel: $(ENV_FILE)
+	$(COMPOSE) --profile $(PROFILE) --profile tunnel up -d tunnel
+	@sleep 5; $(COMPOSE) --profile tunnel logs tunnel | grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' | tail -n1
 
 ## Stop everything and delete all volumes.
 reset: $(ENV_FILE)
