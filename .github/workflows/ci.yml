@@ -151,6 +151,16 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
+      # Listing photos go to S3-compatible storage; the backend's tests upload to it.
+      - name: Start MinIO for the backend
+        if: steps.package.outputs.exists == 'true' && matrix.folder == 'backend'
+        run: |
+          docker run -d --name minio -p 9000:9000 \
+            -e MINIO_ROOT_USER=unirent -e MINIO_ROOT_PASSWORD=unirent-dev-password \
+            cgr.dev/chainguard/minio:latest server /data
+          for i in $(seq 30); do curl -sf http://localhost:9000/minio/health/live && break; sleep 1; done
+          docker exec minio mc alias set local http://localhost:9000 unirent unirent-dev-password
+          docker exec minio mc mb --ignore-existing local/photos
       - name: Run unit tests
         if: steps.package.outputs.exists == 'true'
         run: ci/scripts/python-unit.sh ${{ matrix.folder }}
