@@ -1,6 +1,7 @@
 """HTTP routes owned by the security package. The backend mounts these under /api/v1."""
 
 from fastapi import APIRouter, Response
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from unirent_security import microsoft, staff_auth, tokens
@@ -9,18 +10,22 @@ from unirent_security.config import get_settings
 from unirent_security.db import SessionDep
 from unirent_security.errors import ApiError
 from unirent_security.models import Account
+from unirent_security.roles import AdminAccount
 from unirent_security.schemas import (
     AccountOut,
     MicrosoftSignIn,
     MockTokenOut,
     MockTokenRequest,
+    ModeratorCreate,
     RefreshRequest,
+    StaffAccountOut,
     StaffLogin,
     StaffPasswordChange,
     TokenPair,
 )
 
 auth_router = APIRouter(prefix="/auth", tags=["auth"])
+admin_router = APIRouter(prefix="/admin/moderators", tags=["admin"])
 
 
 async def token_pair(
@@ -100,3 +105,36 @@ async def staff_change_password(body: StaffPasswordChange, session: SessionDep) 
     pair = await token_pair(session, account)
     await session.commit()
     return pair
+
+
+def _staff_out(account: Account) -> StaffAccountOut:
+    return StaffAccountOut(
+        id=account.id,
+        email=account.email,
+        name=account.display_name,
+        role=account.role,
+        status=account.status,
+        created_at=account.created_at,
+        last_login_at=account.last_login_at,
+    )
+
+
+@admin_router.get("", response_model=list[StaffAccountOut])
+async def list_moderators(_: AdminAccount, session: SessionDep) -> list[StaffAccountOut]:
+    rows = await session.scalars(
+        select(Account).where(Account.role == "moderator").order_by(Account.created_at)
+    )
+    return [_staff_out(a) for a in rows]
+
+
+@admin_router.post("", response_model=StaffAccountOut, status_code=201)
+async def create_moderator(
+    body: ModeratorCreate, admin: AdminAccount, session: SessionDep
+) -> StaffAccountOut:
+    """Create a moderator with a temporary password they replace on first login."""
+    account = await staff_auth.create_staff_account(
+        session, str(body.email), body.name, body.temporary_password
+    )
+    await session.commit()
+    await session.refresh(account)
+    return _staff_out(account)
