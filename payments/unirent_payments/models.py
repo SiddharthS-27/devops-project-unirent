@@ -29,3 +29,17 @@ class OutboxEvent(Base):
     __table_args__ = (
         Index("ix_outbox_unsent", "occurred_at", postgresql_where=text("sent_at IS NULL")),
     )
+
+
+class LinkedAccount(Base):
+    """An owner's Razorpay Route linked account. Bank details go straight to
+    Razorpay; only the account ID and its status are kept."""
+
+    __tablename__ = "linked_accounts"
+
+    account_id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True)
+    razorpay_account_id: Mapped[str] = mapped_column(String(50), unique=True)
+    route_product_id: Mapped[str | None] = mapped_column(String(50))
+    status: Mapped[str] = mapped_column(String(30))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
