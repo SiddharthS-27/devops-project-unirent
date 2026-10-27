@@ -32,6 +32,10 @@ class SecuritySettings(BaseSettings):
     # Signs the mock ID tokens in mock modes. Never used in staging or production.
     mock_token_secret: str = "dev-only-mock-token-secret-0123456789"
 
+    # Student sign-ins per minute per IP. Only the integration test profile,
+    # where every test student signs in from one container, raises it.
+    signin_limit_per_minute: int = 10
+
     # Staff lockout
     staff_max_failed_logins: int = 5
     staff_lockout_minutes: int = 15

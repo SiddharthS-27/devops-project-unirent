@@ -13,6 +13,7 @@ from fastapi import Request
 from redis.exceptions import RedisError
 
 from unirent_security import db
+from unirent_security.config import get_settings
 from unirent_security.errors import ApiError
 from unirent_security.metrics import RATE_LIMITED
 from unirent_security.roles import AccountContext
@@ -29,7 +30,7 @@ class Limit:
 
 
 LIMITS: dict[str, Limit] = {
-    "student_signin": Limit(10, 60),  # per IP
+    "student_signin": Limit(get_settings().signin_limit_per_minute, 60),  # per IP
     "staff_login": Limit(5, 15 * 60, fail_closed=True),  # per account email
     "otp_entry": Limit(5, 15 * 60, fail_closed=True),  # per handover code
     "payment_start": Limit(10, 60),  # per user
