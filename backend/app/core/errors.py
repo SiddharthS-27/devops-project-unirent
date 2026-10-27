@@ -20,6 +20,10 @@ def not_found(what: str = "Resource") -> ApiError:
     return ApiError(404, "NOT_FOUND", f"{what} not found")
 
 
+def not_implemented() -> ApiError:
+    return ApiError(501, "NOT_IMPLEMENTED", "This endpoint is not available yet")
+
+
 def error_body(code: str, message: str, details: Any = None) -> dict[str, Any]:
     error: dict[str, Any] = {"code": code, "message": message}
     if details:
