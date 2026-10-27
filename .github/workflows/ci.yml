@@ -47,7 +47,7 @@ jobs:
             # in payments/ or security/ reach it with the backend's next change.
             contract:
               - backend/**
-              - contracts/**
+              - contracts/openapi.json
               - frontend/tool/**
               - frontend/lib/api/**
       - name: Select folders to check
