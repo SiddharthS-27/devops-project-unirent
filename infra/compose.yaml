@@ -1,8 +1,11 @@
 name: unirent
 
-# Services without a profile run in every profile (dev, test, staging).
-# One-shot init jobs use the "init" profile; make up runs them after the stack is healthy.
-# api, workers, the monitoring stack and test services are added in later weeks.
+# Profiles:
+#   (none)   postgres, redis, kafka and minio run in every profile
+#   dev      api with hot reload (`make watch`), kafka-ui
+#   test     api, the Razorpay simulator and the test runner (CI and make test-*)
+#   staging  api and workers from registry images, plus the monitoring stack
+#   init     one-shot jobs that make up runs once the stack is healthy
 
 services:
   postgres:
@@ -100,18 +103,48 @@ services:
       context: ..
       dockerfile: infra/docker/api.Dockerfile
     image: ${API_IMAGE:-unirent-api:dev}
+    profiles: [dev, test, staging]
+    restart: unless-stopped
+    # API_RELOAD=--reload in dev; empty elsewhere.
+    command: ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers $${API_RELOAD:-}"]
     environment:
       UNIRENT_ENVIRONMENT: ${ENVIRONMENT:-dev}
       UNIRENT_DATABASE_URL: postgresql+asyncpg://${APP_DB_USER}:${APP_DB_PASSWORD}@postgres:5432/${POSTGRES_DB}
       UNIRENT_MIGRATION_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       UNIRENT_REDIS_URL: redis://redis:6379/0
       UNIRENT_SERVICE_TOKEN: ${SERVICE_TOKEN}
+      UNIRENT_LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      API_RELOAD: ${API_RELOAD:-}
     ports:
       - "${API_PORT:-8000}:8000"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+    # `make watch` syncs source changes into the container; uvicorn reloads them.
+    develop:
+      watch:
+        - action: sync
+          path: ../backend
+          target: /src/backend
+        - action: sync
+          path: ../security
+          target: /src/security
+        - action: sync
+          path: ../payments
+          target: /src/payments
+
+  kafka-ui:
+    image: ghcr.io/kafbat/kafka-ui:v1.2.0
+    profiles: [dev]
+    environment:
+      KAFKA_CLUSTERS_0_NAME: unirent
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+    ports:
+      - "${KAFKA_UI_PORT:-8080}:8080"
+    depends_on:
+      kafka:
         condition: service_healthy
 
 volumes:
