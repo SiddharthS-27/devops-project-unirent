@@ -21,6 +21,7 @@ jobs:
     outputs:
       python: ${{ steps.select.outputs.python }}
       frontend: ${{ steps.select.outputs.frontend }}
+      stack: ${{ steps.filter.outputs.stack }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -33,6 +34,14 @@ jobs:
             workers: workers/**
             frontend: frontend/**
             workflow: .github/workflows/**
+            stack:
+              - backend/**
+              - payments/**
+              - security/**
+              - workers/**
+              - infra/**
+              - tests/**
+              - ci/**
       - name: Select folders to check
         id: select
         # A change to the workflow itself re-checks every folder that exists.
@@ -156,12 +165,29 @@ jobs:
       - run: flutter pub get
       - run: flutter test
 
+  # Stage 4: integration and end-to-end suites on the test Compose profile.
+  integration:
+    needs: [changes, unit-python]
+    if: always() && needs.changes.outputs.stack == 'true' && !contains(needs.*.result, 'failure')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run integration suites
+        run: ci/scripts/integration.sh
+      - name: Keep API logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-api-log
+          path: integration-api.log
+          if-no-files-found: ignore
+
   # Branch protection requires only this job. The jobs above are skipped when their
   # folders didn't change, so they can't be required checks themselves.
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [changes, lint-python, lint-flutter, unit-python, unit-flutter]
+    needs: [changes, lint-python, lint-flutter, unit-python, unit-flutter, integration]
     runs-on: ubuntu-latest
     steps:
       - name: Fail if any job failed or was cancelled
