@@ -16,6 +16,7 @@ WORKDIR /src
 COPY security/ security/
 COPY payments/ payments/
 COPY backend/ backend/
+COPY infra/scripts/ infra/scripts/
 RUN for pkg in security payments backend; do \
       if [ -f "$pkg/pyproject.toml" ]; then pip install -e "./$pkg" || exit 1; fi; \
     done
