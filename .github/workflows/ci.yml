@@ -1,0 +1,148 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    # master until the default branch is renamed to main
+    branches: [main, master]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  # Stage 1: work out which folders changed so later jobs run only where needed.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      python: ${{ steps.select.outputs.python }}
+      frontend: ${{ steps.select.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend: backend/**
+            payments: payments/**
+            security: security/**
+            workers: workers/**
+            frontend: frontend/**
+            workflow: .github/workflows/**
+      - name: Select folders to check
+        id: select
+        # A change to the workflow itself re-checks every folder that exists.
+        run: |
+          if [ "${{ steps.filter.outputs.workflow }}" = "true" ]; then
+            python=$(for d in backend payments security workers; do if [ -d "$d" ]; then echo "$d"; fi; done | jq -R . | jq -sc .)
+            frontend=true
+          else
+            python=$(echo '${{ steps.filter.outputs.changes }}' | jq -c '[.[] | select(IN("backend", "payments", "security", "workers"))]')
+            frontend=${{ steps.filter.outputs.frontend }}
+          fi
+          echo "python=$python" >> "$GITHUB_OUTPUT"
+          echo "frontend=$frontend" >> "$GITHUB_OUTPUT"
+          echo "Python folders: $python, frontend: $frontend"
+
+  # Stage 2: lint.
+  lint-python:
+    name: lint (${{ matrix.folder }})
+    needs: changes
+    if: needs.changes.outputs.python != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        folder: ${{ fromJSON(needs.changes.outputs.python) }}
+    defaults:
+      run:
+        working-directory: ${{ matrix.folder }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff==0.17.2
+      - run: ruff check .
+      - run: ruff format --check .
+
+  lint-flutter:
+    name: lint (frontend)
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.3"
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: dart format --output=none --set-exit-if-changed .
+      - run: flutter analyze
+
+  # Stage 3: unit tests.
+  unit-python:
+    name: unit (${{ matrix.folder }})
+    needs: changes
+    if: needs.changes.outputs.python != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        folder: ${{ fromJSON(needs.changes.outputs.python) }}
+    defaults:
+      run:
+        working-directory: ${{ matrix.folder }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          pip install pytest
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          if [ -f pyproject.toml ]; then pip install -e .; fi
+      - name: Run pytest
+        # Exit code 5 means no tests were collected; allowed until the folder has tests.
+        run: pytest -q || [ $? -eq 5 ]
+
+  unit-flutter:
+    name: unit (frontend)
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.3"
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter test
+
+  # Branch protection requires only this job. The jobs above are skipped when their
+  # folders didn't change, so they can't be required checks themselves.
+  ci-ok:
+    name: ci-ok
+    if: always()
+    needs: [changes, lint-python, lint-flutter, unit-python, unit-flutter]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any job failed or was cancelled
+        run: |
+          echo '${{ toJSON(needs) }}' | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          echo '${{ toJSON(needs) }}' | jq -e 'all(.[]; .result == "success" or .result == "skipped")' > /dev/null
