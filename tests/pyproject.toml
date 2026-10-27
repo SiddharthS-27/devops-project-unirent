@@ -1,0 +1,19 @@
+# Cross-module suites. Not a package: run with pytest from this folder.
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["fixtures", "razorpay_sim"]
+
+[tool.pytest.ini_options]
+testpaths = ["integration", "e2e", "security"]
+markers = [
+    "payments: payment and ledger behaviour (merge gate)",
+    "security: authorization and abuse cases (merge gate)",
+    "bookings: booking lifecycle (merge gate)",
+    "reconciliation: ledger against Razorpay (merge gate)",
+]

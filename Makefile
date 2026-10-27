@@ -52,8 +52,8 @@ test-unit:
 	cd frontend && flutter test
 
 test-integration test-e2e test-security: $(ENV_FILE)
-	$(COMPOSE) --profile test run --rm test-runner pytest -q $(subst test-,,$@)
+	$(COMPOSE) --profile test --profile runner run --rm test-runner pytest -q $(subst test-,,$@)
 
 test-load: $(ENV_FILE)
-	$(COMPOSE) --profile test run --rm test-runner \
+	$(COMPOSE) --profile test --profile runner run --rm test-runner \
 	  locust -f performance/locustfile.py --headless -u 50 -r 10 -t 2m --host http://api:8000
