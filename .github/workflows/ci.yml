@@ -141,11 +141,17 @@ jobs:
       UNIRENT_ENVIRONMENT: test
     steps:
       - uses: actions/checkout@v4
+      # A folder only becomes a Python package with its pyproject.toml; until
+      # then there is nothing to install, cache or test.
+      - id: package
+        run: test -f "${{ matrix.folder }}/pyproject.toml" && echo "exists=true" >> "$GITHUB_OUTPUT" || true
       - uses: actions/setup-python@v5
+        if: steps.package.outputs.exists == 'true'
         with:
           python-version: "3.12"
           cache: pip
       - name: Run unit tests
+        if: steps.package.outputs.exists == 'true'
         run: ci/scripts/python-unit.sh ${{ matrix.folder }}
       - name: Upload test results
         if: always()
