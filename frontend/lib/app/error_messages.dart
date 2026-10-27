@@ -58,6 +58,9 @@ const _messages = {
   'PAYOUT_ACCOUNT_REQUIRED':
       'Link your payout account before listing your first item.',
   'ONBOARDING_INCOMPLETE': 'Finish setting up your profile first.',
+  // Payouts
+  'PAYOUT_ACCOUNT_EXISTS': 'You’ve already linked a payout account.',
+  'NO_PAYOUT_ACCOUNT': 'Link a payout account first.',
   // Client-side
   ApiException.networkError:
       'Can’t reach UniRent. Check your internet connection.',
