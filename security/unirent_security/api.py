@@ -2,11 +2,11 @@
 
 import uuid
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from unirent_security import microsoft, phone_otp, rate_limit, staff_auth, tokens
+from unirent_security import audit, microsoft, phone_otp, rate_limit, staff_auth, tokens
 from unirent_security.accounts import find_or_create_student, set_account_status
 from unirent_security.config import get_settings
 from unirent_security.db import SessionDep
@@ -93,7 +93,7 @@ async def logout(body: RefreshRequest, session: SessionDep) -> Response:
 
 
 @auth_router.post("/staff/login", response_model=TokenPair)
-async def staff_login(body: StaffLogin, session: SessionDep) -> TokenPair:
+async def staff_login(body: StaffLogin, request: Request, session: SessionDep) -> TokenPair:
     """Moderator and admin login. While `must_change_password` is true, the token
     only works for /auth/staff/password."""
     await rate_limit.hit("staff_login", f"email:{str(body.email).lower()}")
@@ -112,6 +112,12 @@ async def staff_change_password(body: StaffPasswordChange, session: SessionDep) 
     )
     await tokens.revoke_all(session, account.id)
     pair = await token_pair(session, account)
+    await audit.record(
+        account.id,
+        "auth.staff_password_changed",
+        audit.target("account", account.id),
+        session=session,
+    )
     await session.commit()
     return pair
 
@@ -121,6 +127,9 @@ async def verify_phone(body: PhoneVerify, account: CurrentAccount, session: Sess
     """Save the phone number from a verified Firebase phone ID token."""
     phone = await phone_otp.verify_firebase_token(body.firebase_id_token)
     saved = await phone_otp.save_verified_phone(session, account.id, phone)
+    await audit.record(
+        account, "auth.phone_verified", audit.target("account", account.id), session=session
+    )
     await session.commit()
     return PhoneOut(phone=saved.phone, phone_verified_at=saved.phone_verified_at)
 
@@ -163,6 +172,9 @@ async def create_moderator(
     """Create a moderator with a temporary password they replace on first login."""
     account = await staff_auth.create_staff_account(
         session, str(body.email), body.name, body.temporary_password
+    )
+    await audit.record(
+        admin, "admin.moderator_created", audit.target("account", account.id), session=session
     )
     await session.commit()
     await session.refresh(account)

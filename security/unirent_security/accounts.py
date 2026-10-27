@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from unirent_security import db
+from unirent_security import audit, db
 from unirent_security.config import get_settings
 from unirent_security.errors import ApiError, not_found
 from unirent_security.microsoft import MicrosoftIdentity
@@ -125,6 +125,13 @@ async def set_account_status(
     if status in ("banned", "deactivated"):
         await revoke_all(session, account_id)
     await session.flush()
+    await audit.record(
+        by,
+        "account.status_changed",
+        audit.target("account", account_id),
+        {"from": previous, "to": status, "reason": reason},
+        session=session,
+    )
 
     ttl = get_settings().access_token_ttl_seconds + 300
     await db.redis().set(_status_key(account_id), status, ex=ttl)
