@@ -8429,6 +8429,7 @@
     },
     "/api/v1/home": {
       "get": {
+        "description": "Category shortcuts, recently listed, and new matches for saved searches.",
         "operationId": "home_api_v1_home_get",
         "responses": {
           "200": {
@@ -9288,6 +9289,7 @@
     },
     "/api/v1/saved-searches": {
       "get": {
+        "description": "With the number of new matches since you last looked.",
         "operationId": "list_saved_searches_api_v1_saved_searches_get",
         "responses": {
           "200": {
@@ -9316,6 +9318,7 @@
         ]
       },
       "post": {
+        "description": "You get a push when a new listing matches.",
         "operationId": "create_saved_search_api_v1_saved_searches_post",
         "requestBody": {
           "content": {
@@ -10895,6 +10898,7 @@
     },
     "/internal/saved-searches/matches": {
       "get": {
+        "description": "Who to push when a listing is published. Empty unless the listing is active.",
         "operationId": "saved_search_matches_internal_saved_searches_matches_get",
         "parameters": [
           {
