@@ -24,6 +24,8 @@ compose=(docker compose -f infra/compose.yaml --env-file infra/env/.env --profil
 trap '"${compose[@]}" logs --no-color api > integration-api.log 2>&1 || true; "${compose[@]}" down -v' EXIT
 
 "${compose[@]}" up -d --build --wait
+# The photos bucket, as make up creates it (minio-init is a one-shot in its own profile).
+"${compose[@]}" run --rm minio-init
 "${compose[@]}" exec -T api sh /src/infra/scripts/migrate.sh
 "${compose[@]}" exec -T api python /src/infra/seed/seed.py
 failed=()
