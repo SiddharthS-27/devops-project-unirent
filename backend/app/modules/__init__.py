@@ -2,4 +2,5 @@
 
 from app.core import models  # noqa: F401
 from app.modules.devices import models as devices  # noqa: F401
+from app.modules.listings import models as listings  # noqa: F401
 from app.modules.profiles import models as profiles  # noqa: F401

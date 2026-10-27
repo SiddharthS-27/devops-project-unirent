@@ -5916,6 +5916,7 @@
     },
     "/api/v1/assets/mine": {
       "get": {
+        "description": "Items you own, including ones you bought, so you can relist them.",
         "operationId": "my_assets_api_v1_assets_mine_get",
         "responses": {
           "200": {
@@ -8611,6 +8612,7 @@
         ]
       },
       "patch": {
+        "description": "Refused while a booking is approved or active (price and terms are locked).",
         "operationId": "update_listing_api_v1_listings__listing_id__patch",
         "parameters": [
           {
@@ -10709,7 +10711,7 @@
     },
     "/api/v1/uploads/photos": {
       "post": {
-        "description": "A presigned URL to upload one photo straight to storage.",
+        "description": "A presigned URL to upload one photo straight to storage. Resize to at most\n1600 px first, then confirm the object_key where the photo belongs.",
         "operationId": "presign_photo_upload_api_v1_uploads_photos_post",
         "requestBody": {
           "content": {

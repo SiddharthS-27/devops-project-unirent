@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from unirent_security import AccountContext, AccountInfo, ActiveAccount, get_account, get_accounts
 
+from app.core import storage
 from app.core.clock import now
 from app.core.db import get_sessionmaker
 from app.core.errors import ApiError, not_found
@@ -40,6 +41,8 @@ def onboarding_state(profile: Profile | None, account: AccountInfo) -> Onboardin
 
 
 async def upsert_profile(session: AsyncSession, account_id: uuid.UUID, data: ProfileIn) -> Profile:
+    if data.photo_key:
+        await storage.confirm_upload(data.photo_key, "profile", account_id)
     profile = await session.get(Profile, account_id, with_for_update=True)
     if profile is None:
         profile = Profile(account_id=account_id)
@@ -84,10 +87,6 @@ async def is_counterparty(
     return False
 
 
-def photo_url(key: str | None) -> str | None:
-    return None
-
-
 async def public_profiles(
     session: AsyncSession, profiles: list[Profile], accounts: dict[uuid.UUID, AccountInfo]
 ) -> dict[uuid.UUID, ProfilePublic]:
@@ -102,7 +101,7 @@ async def public_profiles(
         out[p.account_id] = ProfilePublic(
             account_id=p.account_id,
             full_name=p.full_name,
-            photo_url=photo_url(p.photo_key),
+            photo_url=storage.photo_url(p.photo_key),
             department=p.department,
             year=p.year,
             phone=account.phone,

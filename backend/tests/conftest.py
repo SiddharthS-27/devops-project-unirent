@@ -102,3 +102,76 @@ async def onboard(client, profile=None) -> Student:
     r = await student.post("/me/terms", json={"version": "2026-10"})
     assert r.json()["onboarding"]["complete"] is True
     return student
+
+
+async def payout_ready(student: Student) -> None:
+    """Give a student an activated payout account without calling Razorpay."""
+    from datetime import UTC, datetime
+
+    from unirent_payments.models import LinkedAccount
+
+    from app.core.db import get_sessionmaker
+
+    async with get_sessionmaker()() as session:
+        session.add(
+            LinkedAccount(
+                account_id=student.id,
+                razorpay_account_id=f"acc_{uuid.uuid4().hex[:14]}",
+                route_product_id="acc_prd_test",
+                status="activated",
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
+            )
+        )
+        await session.commit()
+
+
+# A 1x1 JPEG, enough for storage round trips.
+TINY_JPEG = bytes.fromhex(
+    "ffd8ffe000104a46494600010100000100010000ffdb004300080606070605080707070909080a0c140d0c0b0b0c"
+    "1912130f141d1a1f1e1d1a1c1c20242e2720222c231c1c2837292c30313434341f27393d38323c2e333432ffc000"
+    "0b080001000101011100ffc4001f0000010501010101010100000000000000000102030405060708090a0bffc400"
+    "b5100002010303020403050504040000017d01020300041105122131410613516107227114328191a1082342b1c1"
+    "1552d1f02433627282090a161718191a25262728292a3435363738393a434445464748494a535455565758595a63"
+    "6465666768696a737475767778797a838485868788898a92939495969798999aa2a3a4a5a6a7a8a9aab2b3b4b5b6"
+    "b7b8b9bac2c3c4c5c6c7c8c9cad2d3d4d5d6d7d8d9dae1e2e3e4e5e6e7e8e9eaf1f2f3f4f5f6f7f8f9faffda0008"
+    "010100003f00fbd3ffd9"
+)
+
+
+async def upload_photo(student: Student, purpose: str = "listing") -> str:
+    r = await student.post("/uploads/photos", json={"purpose": purpose})
+    assert r.status_code == 200, r.text
+    upload = r.json()
+    async with httpx.AsyncClient() as raw:
+        put = await raw.put(upload["upload_url"], content=TINY_JPEG, headers=upload["headers"])
+    assert put.status_code == 200, put.text
+    return upload["object_key"]
+
+
+CAMERA = {
+    "kind": "rent",
+    "title": "Canon EOS 1500D camera",
+    "description": "DSLR with 18-55mm kit lens, two batteries and a bag.",
+    "category": "cameras",
+    "condition": "good",
+    "serial_number": "CN1500D-778812",
+    "price_per_day_paise": 30000,
+    "price_per_hour_paise": 2000,
+    "pickup_point": "Ganga hostel gate",
+}
+
+
+async def lister(client) -> Student:
+    """An onboarded student who can list."""
+    student = await onboard(client)
+    await payout_ready(student)
+    return student
+
+
+async def create_listing(student: Student, **overrides) -> dict:
+    key = await upload_photo(student)
+    body = {**CAMERA, "photo_keys": [key], **overrides}
+    r = await student.post("/listings", json=body)
+    assert r.status_code == 201, r.text
+    return r.json()
