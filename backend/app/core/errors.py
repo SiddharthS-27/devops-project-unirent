@@ -9,20 +9,11 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+# One error type for every package in the process (security, payments and the
+# core modules), so handlers and callers don't care which package raised it.
+from unirent_security.errors import ApiError
+
 log = logging.getLogger(__name__)
-
-
-class ApiError(Exception):
-    """Raise to return a stable error code the app can switch on."""
-
-    def __init__(
-        self, status_code: int, code: str, message: str, details: dict[str, Any] | None = None
-    ):
-        super().__init__(message)
-        self.status_code = status_code
-        self.code = code
-        self.message = message
-        self.details = details
 
 
 def not_found(what: str = "Resource") -> ApiError:
