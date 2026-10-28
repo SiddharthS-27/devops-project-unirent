@@ -152,3 +152,23 @@ class LateFeeRule(Base):
     effective_from: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     set_by: Mapped[uuid.UUID | None] = mapped_column(UUID)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class Refund(Base):
+    """Money back to the payer after a ruling. UPI refunds go through Razorpay and
+    reverse the transfer from the owner's linked account; cash refunds are
+    handed back in person and marked done by the owner."""
+
+    __tablename__ = "refunds"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
+    payment_id: Mapped[uuid.UUID] = mapped_column(UUID, index=True)
+    amount_paise: Mapped[int] = mapped_column(BigInteger)
+    ruling_ref: Mapped[uuid.UUID | None] = mapped_column(UUID)
+    method: Mapped[str] = mapped_column(String(10))
+    # upi: pending, processed, failed. cash: cash_pending, cash_done.
+    status: Mapped[str] = mapped_column(String(20))
+    razorpay_refund_id: Mapped[str | None] = mapped_column(String(50), unique=True)
+    marked_by: Mapped[uuid.UUID | None] = mapped_column(UUID)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

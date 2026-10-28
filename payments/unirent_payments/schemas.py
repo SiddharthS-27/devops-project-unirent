@@ -82,3 +82,13 @@ class LateFeeRuleOut(BaseModel):
     base_fee_paise: int
     hourly_percent_bp: int = Field(description="Basis points of the rent per hour: 200 = 2%")
     effective_from: datetime
+
+
+class RefundOut(BaseModel):
+    id: uuid.UUID
+    payment_id: uuid.UUID
+    amount_paise: int
+    method: PaymentMethod
+    status: Literal["pending", "processed", "failed", "cash_pending", "cash_done"]
+    created_at: datetime
+    processed_at: datetime | None

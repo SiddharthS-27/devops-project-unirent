@@ -7,7 +7,7 @@ from fastapi import APIRouter, Request
 from unirent_security import CurrentAccount, audit, require_owner
 from unirent_security.errors import ApiError
 
-from unirent_payments import late_fees, linked_accounts, payments, webhooks
+from unirent_payments import late_fees, linked_accounts, payments, refunds, webhooks
 from unirent_payments.db import SessionDep
 from unirent_payments.models import LinkedAccount
 from unirent_payments.payments import PaymentView
@@ -16,6 +16,7 @@ from unirent_payments.schemas import (
     PaymentOut,
     PayoutAccountIn,
     PayoutAccountOut,
+    RefundOut,
     VerifyIn,
     WebhookAck,
 )
@@ -118,6 +119,13 @@ async def verify_payment(
 async def mark_cash_paid(payment_id: uuid.UUID, account: CurrentAccount):
     """The owner (payee) taps "Mark cash received"."""
     return payment_out(await payments.mark_cash_paid(payment_id, account.id))
+
+
+@router.post("/refunds/{refund_id}/mark-done", response_model=RefundOut)
+async def mark_cash_refunded(refund_id: uuid.UUID, account: CurrentAccount) -> RefundOut:
+    """The owner confirms a ruled cash refund was handed back."""
+    refund = await refunds.mark_cash_refunded(refund_id, account.id)
+    return RefundOut.model_validate(refund, from_attributes=True)
 
 
 @webhook_router.post("/payments/webhooks/razorpay", response_model=WebhookAck)
