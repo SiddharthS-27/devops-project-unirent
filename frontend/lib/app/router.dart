@@ -19,6 +19,7 @@ import '../features/onboarding/notifications_screen.dart';
 import '../features/onboarding/phone_screen.dart';
 import '../features/onboarding/profile_form_screen.dart';
 import '../features/onboarding/terms_screen.dart';
+import '../features/payments/payment_history_screen.dart';
 import '../features/payouts/payout_account_screen.dart';
 import '../features/profile/profile_screen.dart';
 import '../features/profile/public_profile_screen.dart';
@@ -205,6 +206,10 @@ final routerProvider = Provider<GoRouter>((ref) {
                     path: 'edit',
                     builder: (context, state) =>
                         const ProfileFormScreen(editing: true),
+                  ),
+                  GoRoute(
+                    path: 'payments',
+                    builder: (context, state) => const PaymentHistoryScreen(),
                   ),
                 ],
               ),

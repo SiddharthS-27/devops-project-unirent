@@ -7,9 +7,6 @@ import '../review_format.dart';
 import '../review_providers.dart';
 
 /// Both sides' reviews for a booking, once revealed.
-///
-/// Reviews don't carry their booking id, so this shows the newest revealed
-/// review between the two people in the booking's roles.
 class BookingReviews extends StatelessWidget {
   const BookingReviews({super.key, required this.booking});
 
@@ -37,6 +34,7 @@ class BookingReviews extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.sm),
         _ReviewCard(
+          bookingId: booking.id,
           title: 'Their review of you',
           subject: me.accountId,
           role: myRole,
@@ -45,6 +43,7 @@ class BookingReviews extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.md),
         _ReviewCard(
+          bookingId: booking.id,
           title: 'Your review of them',
           subject: other.accountId,
           role: theirRole,
@@ -58,6 +57,7 @@ class BookingReviews extends StatelessWidget {
 
 class _ReviewCard extends ConsumerWidget {
   const _ReviewCard({
+    required this.bookingId,
     required this.title,
     required this.subject,
     required this.role,
@@ -65,6 +65,7 @@ class _ReviewCard extends ConsumerWidget {
     required this.missing,
   });
 
+  final String bookingId;
   final String title;
   final String subject;
   final TrustRole role;
@@ -81,7 +82,9 @@ class _ReviewCard extends ConsumerWidget {
         error: (_, _) => const Text('Couldn’t load this review.'),
         data: (p) {
           final review = p.items
-              .where((r) => r.reviewerId == reviewer)
+              .where(
+                (r) => r.bookingId == bookingId && r.reviewerId == reviewer,
+              )
               .firstOrNull;
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,

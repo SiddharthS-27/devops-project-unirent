@@ -46,6 +46,7 @@ abstract final class Routes {
   static const payoutAccount = '/payout-account';
   static const profile = '/profile';
   static const editProfile = '/profile/edit';
+  static const paymentHistory = '/profile/payments';
 
   static String person(String accountId) =>
       '/people/${Uri.encodeComponent(accountId)}';

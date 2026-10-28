@@ -11,6 +11,8 @@ Map<String, MockHandler> paymentHandlers(MockDb db) {
     'GET /api/v1/payments/{payment_id}': h.get,
     'POST /api/v1/payments/{payment_id}/verify': h.verify,
     'POST /api/v1/payments/{payment_id}/mark-cash-paid': h.markCashPaid,
+    'GET /api/v1/payments/history': h.history,
+    'POST /api/v1/refunds/{refund_id}/mark-done': h.markRefundDone,
   };
 }
 
@@ -116,6 +118,89 @@ class _PaymentHandlers {
         ..capturedAt = db.clock().toUtc();
     }
     return MockResponse.json(views.paymentOut(p).toJson());
+  }
+
+  RefundOut _refundOut(MockPayment p, MockRefund x) => RefundOut(
+    id: x.id,
+    paymentId: p.id,
+    amountPaise: x.amountPaise,
+    method: x.method,
+    status: x.status,
+    createdAt: x.createdAt,
+    processedAt: x.processedAt,
+  );
+
+  /// Every payment the viewer paid or received, newest first.
+  MockResponse history(MockRequest r) {
+    final viewer = mockAuthenticate(db, r);
+    final mine = [
+      for (final b in db.bookings.values)
+        for (final p in b.payments)
+          if (p.payerId == viewer.id || p.payeeId == viewer.id) p,
+    ]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    final offset = int.tryParse('${r.query['cursor'] ?? 0}') ?? 0;
+    final limit = int.tryParse('${r.query['limit'] ?? 20}') ?? 20;
+    final page = mine.skip(offset).take(limit).toList();
+    final next = offset + page.length;
+    return MockResponse.json(
+      PaymentHistoryPage(
+        items: [
+          for (final p in page)
+            () {
+              final out = views.paymentOut(p);
+              final paid = p.payerId == viewer.id;
+              return PaymentHistoryItem(
+                id: p.id,
+                bookingId: p.bookingId,
+                purpose: p.purpose,
+                method: p.method,
+                status: p.status,
+                amountPaise: p.amountPaise,
+                items: p.items,
+                checkout: out.checkout,
+                createdAt: p.createdAt,
+                capturedAt: p.capturedAt,
+                direction: paid ? Direction.paid : Direction.received,
+                counterpartyId: paid ? p.payeeId : p.payerId,
+                refundedPaise: p.refundedPaise,
+                refunds: [for (final x in p.refunds) _refundOut(p, x)],
+              );
+            }(),
+        ],
+        nextCursor: next < mine.length ? '$next' : null,
+      ).toJson(),
+    );
+  }
+
+  /// The payee confirms a ruled cash refund was handed back.
+  MockResponse markRefundDone(MockRequest r) {
+    final viewer = mockAuthenticate(db, r);
+    final id = r.pathParams['refund_id'];
+    for (final b in db.bookings.values) {
+      for (final p in b.payments) {
+        for (final x in p.refunds) {
+          if (x.id != id) continue;
+          if (p.payeeId != viewer.id) break;
+          if (x.method != PaymentMethod.cash) {
+            throw const MockApiError(
+              409,
+              'NOT_CASH',
+              'Only cash refunds are marked as done',
+            );
+          }
+          if (x.status == RefundOutStatus.cashPending) {
+            x
+              ..status = RefundOutStatus.cashDone
+              ..processedAt = db.clock().toUtc();
+            p.status = p.refundedPaise >= p.amountPaise
+                ? PaymentStatus.refunded
+                : PaymentStatus.partlyRefunded;
+          }
+          return MockResponse.json(_refundOut(p, x).toJson());
+        }
+      }
+    }
+    throw const MockApiError(404, 'NOT_FOUND', 'Refund not found');
   }
 
   MockResponse markCashPaid(MockRequest r) {

@@ -4335,6 +4335,7 @@ class ReviewIn {
 @immutable
 class ReviewOut {
   const ReviewOut({
+    required this.bookingId,
     required this.comment,
     required this.createdAt,
     required this.id,
@@ -4346,6 +4347,7 @@ class ReviewOut {
   });
 
   factory ReviewOut.fromJson(Map<String, Object?> json) => ReviewOut(
+    bookingId: json['booking_id'] as String,
     comment: json['comment'] as String,
     createdAt: DateTime.parse(json['created_at'] as String),
     id: json['id'] as String,
@@ -4357,6 +4359,8 @@ class ReviewOut {
     reviewerId: json['reviewer_id'] as String,
     reviewerName: json['reviewer_name'] as String,
   );
+
+  final String bookingId;
 
   final String comment;
 
@@ -4375,6 +4379,7 @@ class ReviewOut {
   final String reviewerName;
 
   Map<String, Object?> toJson() => {
+    'booking_id': bookingId,
     'comment': comment,
     'created_at': createdAt.toUtc().toIso8601String(),
     'id': id,

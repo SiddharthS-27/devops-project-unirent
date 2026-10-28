@@ -288,6 +288,7 @@ class _ReviewHandlers {
           for (final x in page)
             ReviewOut(
               id: x.id,
+              bookingId: x.bookingId,
               reviewType: x.type,
               overall: x.overall,
               ratings: x.ratings,

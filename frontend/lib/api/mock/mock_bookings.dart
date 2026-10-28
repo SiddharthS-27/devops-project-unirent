@@ -108,8 +108,36 @@ class MockPayment {
   /// Set when the payer completed (simulated) Checkout; captured on verify.
   String? razorpayPaymentId;
 
+  final refunds = <MockRefund>[];
+
   bool get isPaid =>
       status == PaymentStatus.captured || status == PaymentStatus.markedPaid;
+
+  /// Refunds that have reached the payer.
+  int get refundedPaise => refunds
+      .where(
+        (r) =>
+            r.status == RefundOutStatus.processed ||
+            r.status == RefundOutStatus.cashDone,
+      )
+      .fold(0, (sum, r) => sum + r.amountPaise);
+}
+
+class MockRefund {
+  MockRefund({
+    required this.id,
+    required this.amountPaise,
+    required this.method,
+    required this.createdAt,
+    this.status = RefundOutStatus.pending,
+  });
+
+  final String id;
+  final int amountPaise;
+  final PaymentMethod method;
+  final DateTime createdAt;
+  RefundOutStatus status;
+  DateTime? processedAt;
 }
 
 class MockExtension {
