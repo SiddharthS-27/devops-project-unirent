@@ -2,14 +2,16 @@
 plus pg_trgm word similarity for type-ahead."""
 
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy import Select, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from unirent_security import AccountContext
 
+from app.core.clock import now
 from app.core.pagination import decode_offset, encode_offset
 from app.core.schemas import Page
+from app.modules.bookings.models import HOLDS_SLOT, Booking
 from app.modules.listings.models import Listing
 from app.modules.listings.schemas import ListingCard
 from app.modules.listings.service import cards
@@ -54,8 +56,20 @@ def price_expr():
 
 
 async def available_between(stmt: Select, start: datetime | None, end: datetime | None) -> Select:
-    """Rent listings with no approved booking in [start, end). Filled in by bookings."""
-    return stmt
+    """Rent listings with no approved or later booking overlapping [start, end)."""
+    start = start or now()
+    end = end or start + timedelta(hours=1)
+    clash = (
+        select(Booking.id)
+        .where(
+            Booking.listing_id == Listing.id,
+            Booking.kind == "rent",
+            Booking.status.in_(HOLDS_SLOT),
+            Booking.period.op("&&")(func.tstzrange(start, end, "[)")),
+        )
+        .exists()
+    )
+    return stmt.where(Listing.kind == "rent", ~clash)
 
 
 async def campus_median(session: AsyncSession) -> float:

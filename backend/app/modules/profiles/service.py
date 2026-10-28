@@ -4,7 +4,7 @@ import uuid
 from typing import Annotated
 
 from fastapi import Depends
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from unirent_security import AccountContext, AccountInfo, ActiveAccount, get_account, get_accounts
 
@@ -12,6 +12,7 @@ from app.core import storage
 from app.core.clock import now
 from app.core.db import get_sessionmaker
 from app.core.errors import ApiError, not_found
+from app.modules.bookings.models import HOLDS_SLOT, Booking
 from app.modules.profiles.models import Profile
 from app.modules.profiles.schemas import (
     Onboarding,
@@ -84,7 +85,14 @@ async def is_counterparty(
     session: AsyncSession, viewer_id: uuid.UUID, subject_id: uuid.UUID
 ) -> bool:
     """True when the two share a booking that is approved or later."""
-    return False
+    pair = or_(
+        and_(Booking.renter_id == viewer_id, Booking.owner_id == subject_id),
+        and_(Booking.renter_id == subject_id, Booking.owner_id == viewer_id),
+    )
+    found = await session.scalar(
+        select(Booking.id).where(pair, Booking.status.in_(HOLDS_SLOT)).limit(1)
+    )
+    return found is not None
 
 
 async def public_profiles(
