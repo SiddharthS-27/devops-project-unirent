@@ -6736,7 +6736,7 @@
     },
     "/api/v1/bookings/{booking_id}/approve": {
       "post": {
-        "description": "Owner approves. Overlapping pending requests are auto-declined.",
+        "description": "Owner approves. The price locks, and overlapping pending requests are auto-declined.",
         "operationId": "approve_api_v1_bookings__booking_id__approve_post",
         "parameters": [
           {
@@ -8157,6 +8157,7 @@
     },
     "/api/v1/bookings/{booking_id}/withdraw": {
       "post": {
+        "description": "The renter withdraws a pending request. It doesn't count as a cancellation.",
         "operationId": "withdraw_api_v1_bookings__booking_id__withdraw_post",
         "parameters": [
           {

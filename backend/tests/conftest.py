@@ -60,7 +60,8 @@ class Student:
         return await self.client.get("/api/v1" + path, headers=self.headers, **kw)
 
     async def post(self, path, **kw):
-        headers = {**self.headers, **kw.pop("headers", {})}
+        # Like the app, every tap gets its own Idempotency-Key unless one is given.
+        headers = {"Idempotency-Key": uuid.uuid4().hex, **self.headers, **kw.pop("headers", {})}
         return await self.client.post("/api/v1" + path, headers=headers, **kw)
 
     async def put(self, path, **kw):

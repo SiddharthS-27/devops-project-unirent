@@ -3,11 +3,12 @@ from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Query
-from unirent_security import CurrentAccount
+from unirent_security import ActiveAccount, CurrentAccount
 
 from app.core.deps import IdempotencyKey, SessionDep
 from app.core.errors import not_implemented
 from app.core.schemas import Page
+from app.modules.bookings import pricing, service, views
 from app.modules.bookings.schemas import (
     AppealCreate,
     AppealOut,
@@ -33,6 +34,8 @@ from app.modules.bookings.schemas import (
     ReviewIn,
     ReviewState,
 )
+from app.modules.listings.service import current_late_fee_rule, get_listing
+from app.modules.profiles.service import OnboardedStudent
 
 router = APIRouter(prefix="/bookings", tags=["bookings"])
 B = "/{booking_id}"
@@ -47,15 +50,27 @@ async def quote(
     end_at: datetime | None = None,
 ):
     """The request summary: total rent, the late-fee rule and the grace period."""
-    raise not_implemented()
+    listing = await get_listing(session, listing_id)
+    hours, amount = pricing.quote(listing, start_at, end_at)
+    return QuoteOut(
+        listing_id=listing.id,
+        kind=listing.kind,  # type: ignore[arg-type]
+        start_at=start_at,
+        end_at=end_at,
+        hours=hours,
+        amount_paise=amount,
+        late_fee_rule=await current_late_fee_rule() if listing.kind == "rent" else None,
+    )
 
 
 @router.post("", response_model=BookingOut, status_code=201)
 async def request_booking(
-    body: BookingCreate, key: IdempotencyKey, account: CurrentAccount, session: SessionDep
+    body: BookingCreate, key: IdempotencyKey, account: OnboardedStudent, session: SessionDep
 ):
     """Request to rent or buy. Expires if the owner doesn't answer in 24 hours."""
-    raise not_implemented()
+    booking = await service.request(session, account, body.listing_id, body.start_at, body.end_at)
+    await session.commit()
+    return await views.booking_out(session, booking, account)
 
 
 @router.get("", response_model=Page[BookingSummary])
@@ -69,20 +84,25 @@ async def list_bookings(
     limit: Annotated[int, Query(ge=1, le=50)] = 20,
 ):
     """My bookings as renter or buyer, or as owner or seller (incoming requests)."""
-    raise not_implemented()
+    return await views.summaries(
+        session, account, role=role, group=group, listing_id=listing_id, cursor=cursor, limit=limit
+    )
 
 
 @router.get(B, response_model=BookingOut, response_model_by_alias=True)
 async def get_booking(booking_id: uuid.UUID, account: CurrentAccount, session: SessionDep):
-    raise not_implemented()
+    booking = await service.get_booking(session, booking_id, account)
+    return await views.booking_out(session, booking, account)
 
 
 @router.post(B + "/approve", response_model=BookingOut)
 async def approve(
-    booking_id: uuid.UUID, key: IdempotencyKey, account: CurrentAccount, session: SessionDep
+    booking_id: uuid.UUID, key: IdempotencyKey, account: ActiveAccount, session: SessionDep
 ):
-    """Owner approves. Overlapping pending requests are auto-declined."""
-    raise not_implemented()
+    """Owner approves. The price locks, and overlapping pending requests are auto-declined."""
+    booking = await service.approve(session, booking_id, account)
+    await session.commit()
+    return await views.booking_out(session, booking, account)
 
 
 @router.post(B + "/decline", response_model=BookingOut)
@@ -93,14 +113,19 @@ async def decline(
     account: CurrentAccount,
     session: SessionDep,
 ):
-    raise not_implemented()
+    booking = await service.decline(session, booking_id, account, body.reason)
+    await session.commit()
+    return await views.booking_out(session, booking, account)
 
 
 @router.post(B + "/withdraw", response_model=BookingOut)
 async def withdraw(
     booking_id: uuid.UUID, key: IdempotencyKey, account: CurrentAccount, session: SessionDep
 ):
-    raise not_implemented()
+    """The renter withdraws a pending request. It doesn't count as a cancellation."""
+    booking = await service.withdraw(session, booking_id, account)
+    await session.commit()
+    return await views.booking_out(session, booking, account)
 
 
 @router.post(B + "/cancel", response_model=BookingOut)
