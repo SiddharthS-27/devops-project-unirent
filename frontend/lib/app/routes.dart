@@ -45,6 +45,10 @@ abstract final class Routes {
   static const incomingRequests = '/listings/requests';
   static const payoutAccount = '/payout-account';
   static const profile = '/profile';
+  static const editProfile = '/profile/edit';
+
+  static String person(String accountId) =>
+      '/people/${Uri.encodeComponent(accountId)}';
   static const help = '/help';
 
   static String booking(String id) => '/bookings/${Uri.encodeComponent(id)}';

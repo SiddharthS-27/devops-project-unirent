@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../api/api.dart';
+import '../../../app/routes.dart';
 import '../../../ui/ui.dart';
+import '../../profile/widgets/profile_avatar.dart';
 
 /// The owner's name, trust, rating and cancellations, with a Call button.
 class OwnerCardView extends StatelessWidget {
@@ -24,33 +27,35 @@ class OwnerCardView extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              CircleAvatar(
-                child: Text(owner.fullName.isEmpty ? '?' : owner.fullName[0]),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(owner.fullName, style: theme.textTheme.titleSmall),
-                    const SizedBox(height: AppSpacing.xs),
-                    Wrap(
-                      spacing: AppSpacing.sm,
-                      runSpacing: AppSpacing.xs,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        TrustBadge(
-                          score: owner.isNew ? null : owner.lenderTrust,
-                        ),
-                        if (rating != null) StarRatingDisplay(rating: rating),
-                      ],
-                    ),
-                  ],
+          InkWell(
+            onTap: () => context.push(Routes.person(owner.accountId)),
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            child: Row(
+              children: [
+                ProfileAvatar(name: owner.fullName, photoUrl: owner.photoUrl),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(owner.fullName, style: theme.textTheme.titleSmall),
+                      const SizedBox(height: AppSpacing.xs),
+                      Wrap(
+                        spacing: AppSpacing.sm,
+                        runSpacing: AppSpacing.xs,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          TrustBadge(
+                            score: owner.isNew ? null : owner.lenderTrust,
+                          ),
+                          if (rating != null) StarRatingDisplay(rating: rating),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           const SizedBox(height: AppSpacing.sm),
           Text(

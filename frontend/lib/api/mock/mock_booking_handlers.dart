@@ -515,6 +515,22 @@ class MockBookingHandlers {
       ..ratingStars = body.stars
       ..ratingComment = body.comment.trim()
       ..ratedAt = now;
+    // Cancellation ratings show among the canceller's reviews.
+    db.reviews.add(
+      MockReview(
+        id: db.nextId(),
+        bookingId: b.id,
+        reviewerId: actor.id,
+        revieweeId: c.by == TradeRole.owner ? b.ownerId : b.renterId,
+        revieweeRole: c.by == TradeRole.owner
+            ? TrustRole.lender
+            : TrustRole.renter,
+        type: ReviewType.cancellation,
+        ratings: {'overall': body.stars},
+        comment: body.comment.trim(),
+        createdAt: now,
+      )..revealedAt = now,
+    );
     return view(b, actor);
   }
 

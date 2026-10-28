@@ -6,13 +6,18 @@ import 'mock_server.dart';
 /// Fewer completed trades than this shows the New badge (backend rule).
 const mockNewBadgeTrades = 5;
 
+/// A stable placeholder colour for an uploaded photo key.
+String? mockPhotoUrlFor(String? key) => key == null
+    ? null
+    : 'mock://photo/${(key.hashCode & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}';
+
 /// The full profile of [account] as its owner sees it.
 ProfileOwn mockOwnProfile(MockDb db, MockAccount account) {
   final p = db.profiles[account.id]!.data;
   return ProfileOwn(
     accountId: account.id,
     fullName: p.fullName,
-    photoUrl: null,
+    photoUrl: mockPhotoUrlFor(p.photoKey),
     photoKey: p.photoKey,
     department: p.department,
     year: p.year,

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../api/api.dart';
+import '../../../app/routes.dart';
 import '../../../ui/ui.dart';
 import '../booking_format.dart';
 
@@ -42,7 +44,15 @@ class CounterpartyCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: AppSpacing.xs),
-          Text(profile.fullName, style: theme.textTheme.titleMedium),
+          InkWell(
+            onTap: () => context.push(Routes.person(profile.accountId)),
+            child: Text(
+              profile.fullName,
+              style: theme.textTheme.titleMedium?.copyWith(
+                decoration: TextDecoration.underline,
+              ),
+            ),
+          ),
           const SizedBox(height: AppSpacing.xs),
           Wrap(
             spacing: AppSpacing.sm,

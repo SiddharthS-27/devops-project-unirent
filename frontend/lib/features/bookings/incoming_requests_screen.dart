@@ -208,7 +208,15 @@ class _Requester extends ConsumerWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(p.fullName, style: theme.textTheme.titleMedium),
+            InkWell(
+              onTap: () => context.push(Routes.person(p.accountId)),
+              child: Text(
+                p.fullName,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+            ),
             const SizedBox(height: AppSpacing.xs),
             Wrap(
               spacing: AppSpacing.sm,

@@ -311,6 +311,24 @@ class _Handlers {
     }
     var data = mockParse(r, ProfileIn.fromJson);
     _validateProfile(data);
+    final photoKey = data.photoKey;
+    final previous = db.profiles[account.id]?.data.photoKey;
+    if (photoKey != null && photoKey != previous) {
+      if (db.uploadOwners[photoKey] != account.id) {
+        throw const MockApiError(
+          422,
+          'INVALID_PHOTO',
+          "That photo upload isn't yours",
+        );
+      }
+      if (!db.uploadedKeys.contains(photoKey)) {
+        throw const MockApiError(
+          422,
+          'PHOTO_NOT_UPLOADED',
+          'Upload the photo before confirming it',
+        );
+      }
+    }
     if (data.residenceType == ResidenceType.dayScholar) {
       data = ProfileIn(
         fullName: data.fullName,

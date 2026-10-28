@@ -21,6 +21,7 @@ import '../features/onboarding/profile_form_screen.dart';
 import '../features/onboarding/terms_screen.dart';
 import '../features/payouts/payout_account_screen.dart';
 import '../features/profile/profile_screen.dart';
+import '../features/profile/public_profile_screen.dart';
 import '../features/reviews/pending_reviews.dart';
 import '../features/reviews/review_screen.dart';
 import '../features/search/saved_searches_screen.dart';
@@ -127,6 +128,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         ],
       ),
       GoRoute(
+        path: '/people/:id',
+        builder: (context, state) =>
+            PublicProfileScreen(accountId: state.pathParameters['id']!),
+      ),
+      GoRoute(
         path: Routes.payoutAccount,
         builder: (context, state) => const PayoutAccountScreen(),
       ),
@@ -194,6 +200,13 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: Routes.profile,
                 builder: (context, state) => const ProfileScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'edit',
+                    builder: (context, state) =>
+                        const ProfileFormScreen(editing: true),
+                  ),
+                ],
               ),
             ],
           ),
