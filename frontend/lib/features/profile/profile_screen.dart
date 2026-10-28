@@ -79,6 +79,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ),
             const SizedBox(height: AppSpacing.sm),
             AppButton.secondary(
+              label: 'Items you own',
+              icon: Icons.inventory_2_outlined,
+              onPressed: () => context.push(Routes.ownedItems),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            AppButton.secondary(
               label: 'Payment history',
               icon: Icons.receipt_long_outlined,
               onPressed: () => context.push(Routes.paymentHistory),

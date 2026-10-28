@@ -1070,54 +1070,89 @@ class AssetHistoryEntry {
 @immutable
 class AssetOut {
   const AssetOut({
+    required this.category,
     required this.condition,
+    required this.description,
     required this.history,
     required this.id,
+    required this.listingId,
+    required this.listingStatus,
     required this.manufactureDate,
     required this.ownerId,
+    required this.photoUrl,
     required this.rentalCount,
     required this.serialNumber,
+    required this.title,
   });
 
   factory AssetOut.fromJson(Map<String, Object?> json) => AssetOut(
+    category: ListingCategory.fromJson(json['category'] as String),
     condition: ItemCondition.fromJson(json['condition'] as String),
+    description: json['description'] as String,
     history: (json['history'] as List<Object?>)
         .map((e0) => AssetHistoryEntry.fromJson(e0! as Map<String, Object?>))
         .toList(),
     id: json['id'] as String,
+    listingId: json['listing_id'] as String?,
+    listingStatus: json['listing_status'] == null
+        ? null
+        : ListingStatus.fromJson(json['listing_status'] as String),
     manufactureDate: json['manufacture_date'] == null
         ? null
         : DateTime.parse(json['manufacture_date'] as String),
     ownerId: json['owner_id'] as String,
+    photoUrl: json['photo_url'] as String?,
     rentalCount: (json['rental_count'] as num).toInt(),
     serialNumber: json['serial_number'] as String?,
+    title: json['title'] as String,
   );
 
+  final ListingCategory category;
+
   final ItemCondition condition;
+
+  final String description;
 
   final List<AssetHistoryEntry> history;
 
   final String id;
 
+  /// The current owner's latest listing of the item, if they listed it
+  final String? listingId;
+
+  final ListingStatus? listingStatus;
+
   final DateTime? manufactureDate;
 
   final String ownerId;
+
+  /// Cover photo of the latest listing
+  final String? photoUrl;
 
   final int rentalCount;
 
   /// Masked to the last 4 characters except for the owner and staff
   final String? serialNumber;
 
+  /// From the item's latest listing
+  final String title;
+
   Map<String, Object?> toJson() => {
+    'category': category.json,
     'condition': condition.json,
+    'description': description,
     'history': history.map((e0) => e0.toJson()).toList(),
     'id': id,
+    'listing_id': listingId,
+    'listing_status': listingStatus?.json,
     'manufacture_date': manufactureDate == null
         ? null
         : _formatDate(manufactureDate!),
     'owner_id': ownerId,
+    'photo_url': photoUrl,
     'rental_count': rentalCount,
     'serial_number': serialNumber,
+    'title': title,
   };
 }
 

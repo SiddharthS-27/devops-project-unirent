@@ -15,6 +15,7 @@ import '../features/home/home_screen.dart';
 import '../features/listings/listing_detail_screen.dart';
 import '../features/listings/listing_form_screen.dart';
 import '../features/listings/listings_screen.dart';
+import '../features/listings/owned_items_screen.dart';
 import '../features/onboarding/notifications_screen.dart';
 import '../features/onboarding/phone_screen.dart';
 import '../features/onboarding/profile_form_screen.dart';
@@ -129,6 +130,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         ],
       ),
       GoRoute(
+        path: '/assets/:id/relist',
+        builder: (context, state) =>
+            ListingFormScreen(relistAssetId: state.pathParameters['id']!),
+      ),
+      GoRoute(
         path: '/people/:id',
         builder: (context, state) =>
             PublicProfileScreen(accountId: state.pathParameters['id']!),
@@ -210,6 +216,10 @@ final routerProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'payments',
                     builder: (context, state) => const PaymentHistoryScreen(),
+                  ),
+                  GoRoute(
+                    path: 'items',
+                    builder: (context, state) => const OwnedItemsScreen(),
                   ),
                 ],
               ),

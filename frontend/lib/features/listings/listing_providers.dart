@@ -22,3 +22,12 @@ final myListingsProvider = FutureProvider.autoDispose
       (ref, status) =>
           ref.watch(apiProvider).listings.myListings(status: status),
     );
+
+/// Items the user owns, including bought ones.
+final myAssetsProvider = FutureProvider.autoDispose<List<AssetOut>>(
+  (ref) => ref.watch(apiProvider).listings.myAssets(),
+);
+
+final assetProvider = FutureProvider.autoDispose.family<AssetOut, String>(
+  (ref, id) => ref.watch(apiProvider).listings.getAsset(id),
+);

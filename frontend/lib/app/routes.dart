@@ -47,6 +47,10 @@ abstract final class Routes {
   static const profile = '/profile';
   static const editProfile = '/profile/edit';
   static const paymentHistory = '/profile/payments';
+  static const ownedItems = '/profile/items';
+
+  static String relist(String assetId) =>
+      '/assets/${Uri.encodeComponent(assetId)}/relist';
 
   static String person(String accountId) =>
       '/people/${Uri.encodeComponent(accountId)}';

@@ -20,13 +20,33 @@ import 'widgets/listing_photo.dart';
 
 /// Add a listing, or edit one when [listingId] is given.
 class ListingFormScreen extends ConsumerWidget {
-  const ListingFormScreen({super.key, this.listingId});
+  const ListingFormScreen({super.key, this.listingId, this.relistAssetId});
 
   final String? listingId;
+
+  /// Relist an item you own: prefilled from the asset, created with its id.
+  final String? relistAssetId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final id = listingId;
+    final assetId = relistAssetId;
+    if (id == null && assetId != null) {
+      return ref
+          .watch(assetProvider(assetId))
+          .when(
+            loading: () =>
+                Scaffold(appBar: AppBar(), body: const LoadingState()),
+            error: (error, _) => Scaffold(
+              appBar: AppBar(),
+              body: ErrorState(
+                message: friendlyMessage(error),
+                onRetry: () => ref.invalidate(assetProvider(assetId)),
+              ),
+            ),
+            data: (asset) => _ListingForm(initial: null, relist: asset),
+          );
+    }
     if (id == null) return const _ListingForm(initial: null);
     return ref
         .watch(listingDetailProvider(id))
@@ -62,9 +82,10 @@ class _PhotoItem {
 }
 
 class _ListingForm extends ConsumerStatefulWidget {
-  const _ListingForm({required this.initial});
+  const _ListingForm({required this.initial, this.relist});
 
   final ListingDetail? initial;
+  final AssetOut? relist;
 
   @override
   ConsumerState<_ListingForm> createState() => _ListingFormState();
@@ -94,9 +115,24 @@ class _ListingFormState extends ConsumerState<_ListingForm> {
   bool get _isEdit => _initial != null;
   bool get _locked => _isEdit && !_initial!.canEdit;
 
+  AssetOut? get _relist => widget.relist;
+
   @override
   void initState() {
     super.initState();
+    final asset = _relist;
+    if (asset != null) {
+      _title.text = asset.title;
+      _description.text = asset.description;
+      _serial.text = asset.serialNumber ?? '';
+      _category = asset.category == ListingCategory.unknown
+          ? null
+          : asset.category;
+      _condition = asset.condition == ItemCondition.unknown
+          ? null
+          : asset.condition;
+      _manufactureDate = asset.manufactureDate;
+    }
     final d = _initial;
     if (d == null) return;
     String rupees(int? paise) => paise == null ? '' : '${paise ~/ 100}';
@@ -271,12 +307,15 @@ class _ListingFormState extends ConsumerState<_ListingForm> {
             serialNumber: serial.isEmpty ? null : serial,
             pickupPoint: _pickup.text.trim(),
             photoKeys: [for (final p in _photos) p.objectKey!],
+            assetId: _relist?.id,
             pricePerHourPaise: rent ? paise(_hourly) : null,
             pricePerDayPaise: rent ? paise(_daily) : null,
             salePricePaise: rent ? null : paise(_sale),
           ),
         );
-        ref.invalidate(myListingsProvider);
+        ref
+          ..invalidate(myListingsProvider)
+          ..invalidate(myAssetsProvider);
         router.pop();
         unawaited(router.push(Routes.listing(created.id)));
       } else {
@@ -328,7 +367,15 @@ class _ListingFormState extends ConsumerState<_ListingForm> {
     final digits = [FilteringTextInputFormatter.digitsOnly];
 
     return Scaffold(
-      appBar: AppBar(title: Text(_isEdit ? 'Edit listing' : 'Add a listing')),
+      appBar: AppBar(
+        title: Text(
+          _isEdit
+              ? 'Edit listing'
+              : _relist != null
+              ? 'Relist item'
+              : 'Add a listing',
+        ),
+      ),
       body: Form(
         key: _formKey,
         child: ListView(

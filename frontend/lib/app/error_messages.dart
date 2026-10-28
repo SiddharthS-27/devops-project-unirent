@@ -44,6 +44,8 @@ const _messages = {
   'NOT_FOUND': 'This isn’t available any more.',
   'LISTING_LOCKED':
       'You can’t edit this listing while a booking is approved or active.',
+  'ASSET_ALREADY_LISTED':
+      'This item already has a listing. Open it from Items you own.',
   'LISTING_CLOSED': 'This listing is closed and can’t be changed.',
   'INVALID_PRICE':
       'Check the prices: rentals have hourly or daily prices, '

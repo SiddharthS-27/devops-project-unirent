@@ -722,14 +722,17 @@ class MockBookingHandlers {
     } else {
       moveTo(b, BookingStatus.awaitingReviews);
       listing.status = ListingStatus.sold;
-      asset?.history.add(
-        AssetHistoryEntry(
-          at: now,
-          kind: AssetEventKind.sold,
-          summary: 'Sold',
-          amountPaise: b.amountPaise,
-        ),
-      );
+      // The item and its history move to the buyer.
+      asset
+        ?..history.add(
+          AssetHistoryEntry(
+            at: now,
+            kind: AssetEventKind.sold,
+            summary: 'Sold',
+            amountPaise: b.amountPaise,
+          ),
+        )
+        ..ownerId = b.renterId;
     }
     return view(b, owner);
   }
