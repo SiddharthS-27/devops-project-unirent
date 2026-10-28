@@ -39,6 +39,7 @@ const nextActionHints = {
   'record_damage_or_wait': 'Record any damage, or wait for the payment.',
   'proceed': 'Everything is settled. Tap Proceed to finish.',
   'waiting_proceed': 'The owner will finish the rental.',
+  'waiting_ruling': 'A moderator is reviewing the appeal.',
 };
 
 /// The single card telling this user what happens next, with the controls

@@ -40,6 +40,23 @@ Map<String, MockHandler> bookingHandlers(MockDb db) {
         .idempotent((r) => h.decideExtension(r, approve: false)),
     'POST /api/v1/bookings/{booking_id}/extensions/{extension_id}/payment': h
         .idempotent(h.payExtension),
+    'POST /api/v1/bookings/{booking_id}/escalate': h.escalate,
+    'POST /api/v1/bookings/{booking_id}/return/start': h.idempotent(
+      h.startReturn,
+    ),
+    'POST /api/v1/bookings/{booking_id}/return/photos': (r) =>
+        h.addPhotos(r, MockPhase.returnPhase),
+    'POST /api/v1/bookings/{booking_id}/return/otp': h.returnOtp,
+    'POST /api/v1/bookings/{booking_id}/return/otp/verify': h.idempotent(
+      h.verifyReturnOtp,
+    ),
+    'POST /api/v1/bookings/{booking_id}/damage-charge': h.idempotent(
+      h.recordDamage,
+    ),
+    'POST /api/v1/bookings/{booking_id}/return/payment': h.idempotent(
+      h.payReturnCharges,
+    ),
+    'POST /api/v1/bookings/{booking_id}/proceed': h.idempotent(h.proceed),
   };
 }
 
@@ -81,7 +98,26 @@ class MockBookingHandlers {
     if (b == null || (b.roleOf(viewer.id) == null && !viewer.isStaff)) {
       throw const MockApiError(404, 'NOT_FOUND', 'Booking not found');
     }
+    applyTimers(b);
     return b;
+  }
+
+  /// What the backend's timers would have done by now: unanswered requests
+  /// expire after 24 hours; a rental is overdue once its end time plus the
+  /// grace period has passed.
+  void applyTimers(MockBooking b) {
+    if (b.status == BookingStatus.requested &&
+        now.difference(b.createdAt) > const Duration(hours: 24)) {
+      moveTo(b, BookingStatus.expired);
+    }
+    if (b.status == BookingStatus.active) {
+      final grace = Duration(minutes: mockLateFeeRule(now).graceMinutes);
+      final overdueAt = b.endAt!.add(grace);
+      if (!now.isBefore(overdueAt)) {
+        moveTo(b, BookingStatus.overdue);
+        b.overdueSince = overdueAt;
+      }
+    }
   }
 
   static void requireParty(MockBooking b, MockAccount actor, TradeRole role) {
@@ -300,6 +336,7 @@ class MockBookingHandlers {
     final groupRaw = r.query['group'] as String?;
     final group = groupRaw == null ? null : BookingGroup.fromJson(groupRaw);
     final listingId = r.query['listing_id'] as String?;
+    db.bookings.values.forEach(applyTimers);
     final mine =
         db.bookings.values
             .where(
@@ -800,6 +837,169 @@ class MockBookingHandlers {
     }
     b.updatedAt = now;
     return _extensionOut(b, e);
+  }
+
+  // ---- overdue and return -------------------------------------------------------
+
+  /// One hour into overdue the owner can hand the case to the moderators.
+  MockResponse escalate(MockRequest r) {
+    final owner = account(r);
+    final b = booking(r, owner);
+    requireParty(b, owner, TradeRole.owner);
+    requireStatus(b, {BookingStatus.overdue});
+    if (!b.canEscalate(now)) {
+      throw const MockApiError(
+        409,
+        'ESCALATION_NOT_YET',
+        'You can escalate an hour into overdue; use Help before that',
+      );
+    }
+    final note = r.body == null ? null : mockParse(r, EscalateIn.fromJson).note;
+    if (b.escalatedAt == null) {
+      b
+        ..escalatedAt = now
+        ..escalationNote = note
+        ..updatedAt = now;
+    }
+    return view(b, owner);
+  }
+
+  FutureOr<MockResponse> startReturn(MockRequest r) {
+    final renter = account(r);
+    final b = booking(r, renter);
+    requireParty(b, renter, TradeRole.renter);
+    requireStatus(b, {BookingStatus.active, BookingStatus.overdue});
+    moveTo(b, BookingStatus.returning);
+    b.returnStartedAt = now;
+    return view(b, renter);
+  }
+
+  bool returnCodeReady(MockBooking b) =>
+      b.hasPhotos(MockPhase.returnPhase, TradeRole.renter) &&
+      b.hasPhotos(MockPhase.returnPhase, TradeRole.owner);
+
+  MockResponse returnOtp(MockRequest r) {
+    final actor = account(r);
+    final b = booking(r, actor);
+    return showCode(r, MockPhase.returnPhase, ready: returnCodeReady(b));
+  }
+
+  /// The renter typed the owner's code: the item is back and the late fee
+  /// stops.
+  FutureOr<MockResponse> verifyReturnOtp(MockRequest r) {
+    final renter = account(r);
+    final b = booking(r, renter);
+    checkCode(r, b, renter, MockPhase.returnPhase);
+    b
+      ..frozenLateFeePaise = b.liveLateFee(now)
+      ..returnCompletedAt = now
+      ..updatedAt = now;
+    final asset = db.assets[db.listings[b.listingId]!.assetId];
+    asset?.history.add(
+      AssetHistoryEntry(
+        at: now,
+        kind: AssetEventKind.returned,
+        summary: 'Returned to the owner',
+      ),
+    );
+    return view(b, renter);
+  }
+
+  void _requireItemBack(MockBooking b) {
+    if (b.returnCompletedAt == null) {
+      throw stepLocked('Confirm the return with the code first');
+    }
+  }
+
+  /// The charge both sides agreed on.
+  FutureOr<MockResponse> recordDamage(MockRequest r) {
+    final owner = account(r);
+    final b = booking(r, owner);
+    requireParty(b, owner, TradeRole.owner);
+    requireStatus(b, {BookingStatus.returning});
+    _requireItemBack(b);
+    if (b.paymentFor(PaymentPurpose.returnCharges)?.isPaid ?? false) {
+      throw const MockApiError(
+        409,
+        'ALREADY_PAID',
+        'The return charges are already paid',
+      );
+    }
+    final body = mockParse(r, DamageChargeIn.fromJson);
+    if (body.amountPaise < 0) {
+      throw mockValidation('amount_paise', 'Must be 0 or more');
+    }
+    if (body.description.trim().length < 3 || body.description.length > 1000) {
+      throw mockValidation('description', 'Must be 3-1000 characters');
+    }
+    b
+      ..damagePaise = body.amountPaise
+      ..damageDescription = body.description.trim()
+      ..updatedAt = now;
+    db.assets[db.listings[b.listingId]!.assetId]?.history.add(
+      AssetHistoryEntry(
+        at: now,
+        kind: AssetEventKind.damageCharge,
+        summary: body.description.trim(),
+        amountPaise: body.amountPaise,
+      ),
+    );
+    return view(b, owner);
+  }
+
+  List<PaymentItem> chargeItems(MockBooking b) => [
+    for (final (label, amount) in [
+      ('Late fee', b.frozenLateFeePaise ?? 0),
+      ('Damage charge', b.damagePaise),
+      ('Extensions paid in cash', b.cashExtensionsPaise),
+    ])
+      if (amount > 0) PaymentItem(label: label, amountPaise: amount),
+  ];
+
+  FutureOr<MockResponse> payReturnCharges(MockRequest r) {
+    final renter = account(r);
+    final b = booking(r, renter);
+    requireParty(b, renter, TradeRole.renter);
+    requireStatus(b, {BookingStatus.returning});
+    _requireItemBack(b);
+    final items = chargeItems(b);
+    final total = items.fold(0, (sum, i) => sum + i.amountPaise);
+    if (total == 0) {
+      throw const MockApiError(409, 'NOTHING_TO_PAY', 'Nothing is owed');
+    }
+    final payment = mockStartPayment(
+      db,
+      b,
+      purpose: PaymentPurpose.returnCharges,
+      method: mockParse(r, PaymentStartIn.fromJson).method,
+      amountPaise: total,
+      items: items,
+      payerId: b.renterId,
+      payeeId: b.ownerId,
+    );
+    b.updatedAt = now;
+    return MockResponse.json(views.paymentOut(payment).toJson());
+  }
+
+  /// Closes the return once everything owed is paid; reviews open.
+  FutureOr<MockResponse> proceed(MockRequest r) {
+    final owner = account(r);
+    final b = booking(r, owner);
+    requireParty(b, owner, TradeRole.owner);
+    requireStatus(b, {BookingStatus.returning});
+    _requireItemBack(b);
+    final owed = chargeItems(b).isNotEmpty;
+    final paid = b.paymentFor(PaymentPurpose.returnCharges)?.isPaid ?? false;
+    if (owed && !paid) {
+      throw const MockApiError(
+        409,
+        'CHARGES_UNPAID',
+        "The renter hasn't paid the charges yet",
+      );
+    }
+    moveTo(b, BookingStatus.awaitingReviews);
+    b.proceededAt = now;
+    return view(b, owner);
   }
 }
 

@@ -96,6 +96,12 @@ const _messages = {
   'EXTENSION_TOO_SHORT': 'Pick a time after the current end time.',
   'EXTENSION_DECIDED': 'That request was already answered.',
   'EXTENSION_NOT_APPROVED': 'The owner hasn’t approved that extra time.',
+  // Overdue and return
+  'ESCALATION_NOT_YET':
+      'You can escalate an hour after the item became overdue. Use Help '
+      'before that.',
+  'NOTHING_TO_PAY': 'Nothing is owed.',
+  'CHARGES_UNPAID': 'The renter hasn’t paid the charges yet.',
   // Payouts
   'PAYOUT_ACCOUNT_EXISTS': 'You’ve already linked a payout account.',
   'NO_PAYOUT_ACCOUNT': 'Link a payout account first.',

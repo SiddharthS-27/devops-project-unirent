@@ -8,6 +8,7 @@ import '../booking_actions.dart';
 import '../booking_format.dart';
 import '../booking_providers.dart';
 import 'ist_date_time_field.dart';
+import 'start_return_button.dart';
 
 /// While the item is out: time left (from the server's clock) and extra
 /// time requests, approvals and payments.
@@ -216,6 +217,10 @@ class _ActiveRentalSectionState extends ConsumerState<ActiveRentalSection>
                 ),
               ),
             ),
+        ],
+        if (isRenter && booking.status == BookingStatus.active) ...[
+          const SizedBox(height: AppSpacing.lg),
+          StartReturnButton(booking: booking),
         ],
         if (isRenter && booking.status == BookingStatus.active && !pending) ...[
           const SizedBox(height: AppSpacing.lg),

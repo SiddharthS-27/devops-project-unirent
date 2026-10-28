@@ -423,6 +423,12 @@ class MockBookingViews {
             : _action('rental_active', 'Rental in progress', false);
       case BookingStatus.returning:
         return _returnAction(b, role);
+      case BookingStatus.inAppeal:
+        return _action(
+          'waiting_ruling',
+          'Waiting for the moderators to rule',
+          false,
+        );
       case BookingStatus.overdue:
         if (renter) {
           return _action('return_now', 'Overdue: return the item now', true);

@@ -149,7 +149,15 @@ final pushServiceProvider = Provider<PushService>((ref) {
   return FirebasePushService(ref.watch(apiProvider));
 });
 
-/// Links of pushes received while the app is open.
-final pushReceivedProvider = StreamProvider<Uri>(
-  (ref) => ref.watch(pushServiceProvider).received,
+/// A push received while the app is open. Each push is a new object, so
+/// two pushes with the same link both notify listeners.
+class ReceivedPush {
+  ReceivedPush(this.link);
+
+  final Uri link;
+}
+
+/// Pushes received while the app is open.
+final pushReceivedProvider = StreamProvider<ReceivedPush>(
+  (ref) => ref.watch(pushServiceProvider).received.map(ReceivedPush.new),
 );

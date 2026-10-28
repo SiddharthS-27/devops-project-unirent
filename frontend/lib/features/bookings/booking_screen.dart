@@ -17,8 +17,10 @@ import 'widgets/booking_manage_actions.dart';
 import 'widgets/cancellation_card.dart';
 import 'widgets/counterparty_card.dart';
 import 'widgets/next_action_card.dart';
+import 'widgets/overdue_banner.dart';
 import 'widgets/payments_list.dart';
 import 'widgets/pickup_checklist.dart';
+import 'widgets/return_checklist.dart';
 
 /// One booking, shared by the renter (Bookings tab) and owner (Listings).
 class BookingScreen extends ConsumerWidget {
@@ -30,7 +32,7 @@ class BookingScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // A push about this booking means it changed: fetch it again.
     ref.listen(pushReceivedProvider, (_, next) {
-      final link = next.value;
+      final link = next.value?.link;
       if (link != null &&
           deepLinkToLocation(link)?.path == Routes.booking(bookingId)) {
         ref.invalidate(bookingProvider(bookingId));
@@ -97,8 +99,16 @@ class _BookingView extends ConsumerWidget {
           CancellationCard(booking: booking),
           gap,
         ],
+        if (OverdueBanner.appliesTo(booking)) ...[
+          OverdueBanner(booking: booking),
+          gap,
+        ],
         NextActionCard(booking: booking),
         if (booking.nextAction != null) gap,
+        if (ReturnChecklist.appliesTo(booking)) ...[
+          ReturnChecklist(booking: booking),
+          gap,
+        ],
         if (ActiveRentalSection.appliesTo(booking)) ...[
           ActiveRentalSection(booking: booking),
           gap,
