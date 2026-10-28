@@ -120,3 +120,16 @@ class MismatchOut(BaseModel):
 
 class ReconciliationReport(ReconciliationRunOut):
     mismatches: list[MismatchOut]
+
+
+class PaymentHistoryItem(PaymentOut):
+    booking_id: uuid.UUID
+    direction: Literal["paid", "received"]
+    counterparty_id: uuid.UUID
+    refunded_paise: int
+    refunds: list[RefundOut]
+
+
+class PaymentHistoryPage(BaseModel):
+    items: list[PaymentHistoryItem]
+    next_cursor: str | None = None

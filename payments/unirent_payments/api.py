@@ -5,8 +5,8 @@ import json
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, Request
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, Header, Query, Request
+from sqlalchemy import or_, select
 from unirent_security import AdminAccount, CurrentAccount, audit, require_owner
 from unirent_security.errors import ApiError
 
@@ -20,11 +20,13 @@ from unirent_payments import (
 )
 from unirent_payments.config import get_settings
 from unirent_payments.db import SessionDep
-from unirent_payments.models import LinkedAccount, ReconciliationRun
+from unirent_payments.models import LinkedAccount, Payment, ReconciliationRun, Refund
 from unirent_payments.payments import PaymentView
 from unirent_payments.schemas import (
     LateFeeRuleOut,
     MismatchOut,
+    PaymentHistoryItem,
+    PaymentHistoryPage,
     PaymentOut,
     PayoutAccountIn,
     PayoutAccountOut,
@@ -103,6 +105,56 @@ async def late_fee_rule(account: CurrentAccount) -> LateFeeRuleOut:
     """The platform rule every rent listing shows."""
     rule = await late_fees.current_late_fee_rule()
     return LateFeeRuleOut(**{k: getattr(rule, k) for k in LateFeeRuleOut.model_fields})
+
+
+@router.get("/payments/history", response_model=PaymentHistoryPage)
+async def payment_history(
+    account: CurrentAccount,
+    session: SessionDep,
+    cursor: str | None = None,
+    limit: Annotated[int, Query(ge=1, le=50)] = 20,
+):
+    """Every payment, cash mark and refund I was part of, newest first, with its booking."""
+    offset = int(cursor) if cursor and cursor.isdigit() else 0
+    rows = list(
+        await session.scalars(
+            select(Payment)
+            .where(
+                or_(Payment.payer_id == account.id, Payment.payee_id == account.id),
+                Payment.status != "created",
+            )
+            .order_by(Payment.created_at.desc(), Payment.id)
+            .offset(offset)
+            .limit(limit + 1)
+        )
+    )
+    page = rows[:limit]
+    refund_rows = await session.scalars(
+        select(Refund)
+        .where(Refund.payment_id.in_([p.id for p in page]))
+        .order_by(Refund.created_at)
+    )
+    by_payment: dict[uuid.UUID, list[RefundOut]] = {}
+    for refund in refund_rows:
+        by_payment.setdefault(refund.payment_id, []).append(
+            RefundOut.model_validate(refund, from_attributes=True)
+        )
+    items = []
+    for payment in page:
+        paid = payment.payer_id == account.id
+        base = payment_out(payments.view(payment, await payments.checkout_for(payment)))
+        items.append(
+            PaymentHistoryItem(
+                **base.model_dump(),
+                booking_id=payment.booking_ref,
+                direction="paid" if paid else "received",
+                counterparty_id=payment.payee_id if paid else payment.payer_id,
+                refunded_paise=payment.refunded_paise,
+                refunds=by_payment.get(payment.id, []),
+            )
+        )
+    next_cursor = str(offset + limit) if len(rows) > limit else None
+    return PaymentHistoryPage(items=items, next_cursor=next_cursor)
 
 
 @router.get("/payments/{payment_id}", response_model=PaymentOut)
