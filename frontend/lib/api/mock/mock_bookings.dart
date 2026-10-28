@@ -230,9 +230,14 @@ class MockBooking {
     return mockLateFee(mockLateFeeRule(now), amountPaise, overdueMinutes(now));
   }
 
-  /// Approved extensions to be paid in cash at the return.
+  /// Approved extensions not paid by UPI: owed at the return (backend
+  /// `unpaid_cash_extensions`).
   int get cashExtensionsPaise => extensions
-      .where((e) => e.status == ExtensionStatus.approved && e.payInCashAtReturn)
+      .where(
+        (e) =>
+            e.status == ExtensionStatus.approved &&
+            !(paymentFor(PaymentPurpose.extension, e.id)?.isPaid ?? false),
+      )
       .fold(0, (sum, e) => sum + e.amountPaise);
 
   DateTime? get escalationAvailableAt => overdueSince?.add(mockEscalationAfter);

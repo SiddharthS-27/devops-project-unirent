@@ -91,6 +91,11 @@ const _messages = {
       'Help.',
   'NOT_CASH': 'Only cash payments are confirmed by the owner.',
   'IDEMPOTENCY_KEY_REUSED': 'Something went wrong. Please try again.',
+  // Extensions
+  'EXTENSION_PENDING': 'Wait for the owner to answer your last request.',
+  'EXTENSION_TOO_SHORT': 'Pick a time after the current end time.',
+  'EXTENSION_DECIDED': 'That request was already answered.',
+  'EXTENSION_NOT_APPROVED': 'The owner hasn’t approved that extra time.',
   // Payouts
   'PAYOUT_ACCOUNT_EXISTS': 'You’ve already linked a payout account.',
   'NO_PAYOUT_ACCOUNT': 'Link a payout account first.',

@@ -31,6 +31,15 @@ Map<String, MockHandler> bookingHandlers(MockDb db) {
     'POST /api/v1/bookings/{booking_id}/pickup/otp/verify': h.idempotent(
       h.verifyPickupOtp,
     ),
+    'POST /api/v1/bookings/{booking_id}/extensions': h.idempotent(
+      h.requestExtension,
+    ),
+    'POST /api/v1/bookings/{booking_id}/extensions/{extension_id}/approve': h
+        .idempotent((r) => h.decideExtension(r, approve: true)),
+    'POST /api/v1/bookings/{booking_id}/extensions/{extension_id}/decline': h
+        .idempotent((r) => h.decideExtension(r, approve: false)),
+    'POST /api/v1/bookings/{booking_id}/extensions/{extension_id}/payment': h
+        .idempotent(h.payExtension),
   };
 }
 
@@ -668,6 +677,129 @@ class MockBookingHandlers {
       );
     }
     return view(b, owner);
+  }
+
+  // ---- extensions ----------------------------------------------------------------
+
+  MockExtension _extension(MockRequest r, MockBooking b) {
+    final e = b.extensions
+        .where((e) => e.id == r.pathParams['extension_id'])
+        .firstOrNull;
+    if (e == null) {
+      throw const MockApiError(404, 'NOT_FOUND', 'Extension not found');
+    }
+    return e;
+  }
+
+  MockResponse _extensionOut(
+    MockBooking b,
+    MockExtension e, {
+    int status = 200,
+  }) => MockResponse(status, views.extensionOut(b, e).toJson());
+
+  FutureOr<MockResponse> requestExtension(MockRequest r) {
+    final renter = account(r);
+    final b = booking(r, renter);
+    requireParty(b, renter, TradeRole.renter);
+    requireStatus(b, {BookingStatus.active});
+    final newEnd = mockParse(r, ExtensionIn.fromJson).newEndAt.toUtc();
+    if (!newEnd.isAfter(b.endAt!)) {
+      throw const MockApiError(
+        422,
+        'EXTENSION_TOO_SHORT',
+        'Pick a time after the current end time',
+      );
+    }
+    if (mockRentalHours(b.startAt!, newEnd) > mockMaxRentalDays * 24) {
+      throw const MockApiError(
+        422,
+        'PERIOD_TOO_LONG',
+        'Rent for at most $mockMaxRentalDays days',
+      );
+    }
+    if (b.extensions.any((e) => e.status == ExtensionStatus.requested)) {
+      throw const MockApiError(
+        409,
+        'EXTENSION_PENDING',
+        'Wait for the owner to answer the last request',
+      );
+    }
+    final listing = db.listings[b.listingId]!;
+    final e = MockExtension(
+      id: db.nextId(),
+      newEndAt: newEnd,
+      amountPaise: mockRentFor(listing, mockRentalHours(b.endAt!, newEnd)),
+      createdAt: now,
+    );
+    b
+      ..extensions.add(e)
+      ..updatedAt = now;
+    return _extensionOut(b, e, status: 201);
+  }
+
+  FutureOr<MockResponse> decideExtension(
+    MockRequest r, {
+    required bool approve,
+  }) {
+    final owner = account(r);
+    final b = booking(r, owner);
+    requireParty(b, owner, TradeRole.owner);
+    requireStatus(b, {BookingStatus.active});
+    final e = _extension(r, b);
+    if (e.status != ExtensionStatus.requested) {
+      throw MockApiError(409, 'EXTENSION_DECIDED', 'Already ${e.status.json}');
+    }
+    if (approve) {
+      final listing = db.listings[b.listingId]!;
+      if (slotTaken(listing, b.endAt!, e.newEndAt, except: b.id)) {
+        throw const MockApiError(
+          409,
+          'SLOT_TAKEN',
+          'Someone else has booked that time',
+        );
+      }
+      e.status = ExtensionStatus.approved;
+      b
+        ..endAt = e.newEndAt
+        ..amountPaise += e.amountPaise;
+    } else {
+      e.status = ExtensionStatus.declined;
+    }
+    b.updatedAt = now;
+    return _extensionOut(b, e);
+  }
+
+  /// UPI now, or cash at the return (added to the return charges).
+  FutureOr<MockResponse> payExtension(MockRequest r) {
+    final renter = account(r);
+    final b = booking(r, renter);
+    requireParty(b, renter, TradeRole.renter);
+    final e = _extension(r, b);
+    if (e.status != ExtensionStatus.approved) {
+      throw const MockApiError(
+        409,
+        'EXTENSION_NOT_APPROVED',
+        "The owner hasn't approved this extension",
+      );
+    }
+    final method = mockParse(r, PaymentStartIn.fromJson).method;
+    if (method == PaymentMethod.cash) {
+      e.payInCashAtReturn = true;
+    } else {
+      mockStartPayment(
+        db,
+        b,
+        purpose: PaymentPurpose.extension,
+        ref: e.id,
+        method: PaymentMethod.upi,
+        amountPaise: e.amountPaise,
+        items: [PaymentItem(label: 'Extension', amountPaise: e.amountPaise)],
+        payerId: b.renterId,
+        payeeId: b.ownerId,
+      );
+    }
+    b.updatedAt = now;
+    return _extensionOut(b, e);
   }
 }
 

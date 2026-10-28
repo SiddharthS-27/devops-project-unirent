@@ -460,6 +460,8 @@ class BookingsApi {
 
   /// Request Extension
   ///
+  /// Ask the owner for more time. Extra time costs the listing's rate.
+  ///
   /// `POST /api/v1/bookings/{booking_id}/extensions`
   Future<ExtensionOut> requestExtension(
     String bookingId,
@@ -476,6 +478,8 @@ class BookingsApi {
   }
 
   /// Approve Extension
+  ///
+  /// Moves the end time and the reminders; the renter then pays.
   ///
   /// `POST /api/v1/bookings/{booking_id}/extensions/{extension_id}/approve`
   Future<ExtensionOut> approveExtension(
@@ -509,10 +513,11 @@ class BookingsApi {
 
   /// Pay Extension
   ///
-  /// UPI now, or cash, which is added to the charges at return.
+  /// UPI now (the extension's payment carries the Checkout details), or cash,
+  /// which is added to the charges at return.
   ///
   /// `POST /api/v1/bookings/{booking_id}/extensions/{extension_id}/payment`
-  Future<PaymentOut> payExtension(
+  Future<ExtensionOut> payExtension(
     String bookingId,
     String extensionId,
     PaymentStartIn body, {
@@ -524,7 +529,7 @@ class BookingsApi {
       headers: {'Idempotency-Key': idempotencyKey},
       body: body.toJson(),
     );
-    return PaymentOut.fromJson(json as Map<String, Object?>);
+    return ExtensionOut.fromJson(json as Map<String, Object?>);
   }
 
   /// Pickup Otp
@@ -663,6 +668,8 @@ class BookingsApi {
 
   /// Return Photos
   ///
+  /// The renter's photos first, then the owner's inspection photos.
+  ///
   /// `POST /api/v1/bookings/{booking_id}/return/photos`
   Future<BookingOut> returnPhotos(String bookingId, PhotosIn body) async {
     final json = await _transport.send(
@@ -674,6 +681,8 @@ class BookingsApi {
   }
 
   /// Start Return
+  ///
+  /// The renter starts the return when the two meet.
   ///
   /// `POST /api/v1/bookings/{booking_id}/return/start`
   Future<BookingOut> startReturn(
@@ -1037,6 +1046,16 @@ class PaymentsApi {
   PaymentsApi(this._transport);
 
   final ApiTransport _transport;
+
+  /// Late Fee Rule
+  ///
+  /// The platform rule every rent listing shows.
+  ///
+  /// `GET /api/v1/late-fee-rule`
+  Future<LateFeeRuleOut> lateFeeRule() async {
+    final json = await _transport.send('GET', '/api/v1/late-fee-rule');
+    return LateFeeRuleOut.fromJson(json as Map<String, Object?>);
+  }
 
   /// Razorpay Webhook
   ///

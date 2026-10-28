@@ -6,9 +6,29 @@ import '../../app/error_messages.dart';
 import '../../ui/ui.dart';
 import 'payment_launcher.dart';
 
-/// Starts a payment for the chosen method; the key is one per tap.
+/// Starts a payment for the chosen method; the key is one per tap. Returns
+/// null when nothing is paid now (e.g. extra time paid in cash at return).
 typedef StartPayment =
-    Future<PaymentOut> Function(PaymentMethod method, String idempotencyKey);
+    Future<PaymentOut?> Function(PaymentMethod method, String idempotencyKey);
+
+/// How the cash option reads, and what to say after choosing it.
+class CashOption {
+  const CashOption({
+    this.subtitle = 'Hand it over; the owner confirms it',
+    this.confirmation,
+  });
+
+  /// For extra time: settled with the return charges.
+  static const atReturn = CashOption(
+    subtitle: 'Added to what you pay at the return',
+    confirmation: 'You’ll pay for the extra time at the return.',
+  );
+
+  final String subtitle;
+
+  /// Shown after choosing cash; defaults to "hand it to the owner".
+  final String? confirmation;
+}
 
 /// Paying for something by UPI (Razorpay) or cash.
 ///
@@ -33,12 +53,19 @@ class PaymentFlow {
     required String what,
     required StartPayment start,
     bool allowCash = true,
+    CashOption cash = const CashOption(),
   }) async {
     final method = allowCash
-        ? await _chooseMethod(context, amountPaise, what)
+        ? await _chooseMethod(context, amountPaise, what, cash)
         : PaymentMethod.upi;
     if (method == null || !context.mounted) return false;
-    return payWith(context, method, start: start, amountPaise: amountPaise);
+    return payWith(
+      context,
+      method,
+      start: start,
+      amountPaise: amountPaise,
+      cash: cash,
+    );
   }
 
   Future<bool> payWith(
@@ -46,22 +73,24 @@ class PaymentFlow {
     PaymentMethod method, {
     required StartPayment start,
     required int amountPaise,
+    CashOption cash = const CashOption(),
   }) async {
     final messenger = ScaffoldMessenger.of(context);
-    final PaymentOut payment;
+    final PaymentOut? payment;
     final key = _key(method);
     try {
       payment = await start(method, key.key);
     } on ApiException catch (error) {
       if (!error.isConnectivityProblem) key.reset();
       if (error.code == 'PAYEE_NOT_PAYOUT_READY' && context.mounted) {
-        final cash = await _offerCash(context);
-        if (cash && context.mounted) {
+        final payInCash = await _offerCash(context);
+        if (payInCash && context.mounted) {
           return payWith(
             context,
             PaymentMethod.cash,
             start: start,
             amountPaise: amountPaise,
+            cash: cash,
           );
         }
         return false;
@@ -75,17 +104,14 @@ class PaymentFlow {
     }
     key.reset();
 
-    if (payment.method == PaymentMethod.cash) {
+    if (payment == null || payment.method == PaymentMethod.cash) {
+      final message =
+          cash.confirmation ??
+          'Hand ${formatMoney(amountPaise)} in cash to the owner. '
+              'They’ll confirm it in the app.';
       messenger
         ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text(
-              'Hand ${formatMoney(payment.amountPaise)} in cash to the owner. '
-              'They’ll confirm it in the app.',
-            ),
-          ),
-        );
+        ..showSnackBar(SnackBar(content: Text(message)));
       return true;
     }
     final checkout = payment.checkout;
@@ -136,6 +162,7 @@ class PaymentFlow {
     BuildContext context,
     int amountPaise,
     String what,
+    CashOption cash,
   ) {
     return showModalBottomSheet<PaymentMethod>(
       context: context,
@@ -161,7 +188,7 @@ class PaymentFlow {
             ListTile(
               leading: const Icon(Icons.payments_outlined),
               title: const Text('Cash'),
-              subtitle: const Text('Hand it over; the owner confirms it'),
+              subtitle: Text(cash.subtitle),
               onTap: () => Navigator.pop(context, PaymentMethod.cash),
             ),
           ],

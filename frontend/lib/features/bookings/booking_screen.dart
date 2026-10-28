@@ -12,6 +12,7 @@ import '../listings/listing_providers.dart';
 import '../listings/widgets/listing_photo.dart';
 import 'booking_format.dart';
 import 'booking_providers.dart';
+import 'widgets/active_rental_section.dart';
 import 'widgets/booking_manage_actions.dart';
 import 'widgets/cancellation_card.dart';
 import 'widgets/counterparty_card.dart';
@@ -98,6 +99,10 @@ class _BookingView extends ConsumerWidget {
         ],
         NextActionCard(booking: booking),
         if (booking.nextAction != null) gap,
+        if (ActiveRentalSection.appliesTo(booking)) ...[
+          ActiveRentalSection(booking: booking),
+          gap,
+        ],
         if (PickupChecklist.appliesTo(booking)) ...[
           PickupChecklist(booking: booking),
           gap,
