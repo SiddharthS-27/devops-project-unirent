@@ -37,6 +37,10 @@ class _PickupChecklistState extends ConsumerState<PickupChecklist>
   bool get isRenter => booking.role == BookingViewerRole.renter;
   bool get isSale => booking.kind == TradeKind.sale;
 
+  /// Who's who, in rental or purchase words.
+  String get _ownerWord => isSale ? 'seller' : 'owner';
+  String get _renterWord => isSale ? 'buyer' : 'renter';
+
   PaymentPurpose get _purpose =>
       isSale ? PaymentPurpose.sale : PaymentPurpose.rent;
 
@@ -90,6 +94,13 @@ class _PickupChecklistState extends ConsumerState<PickupChecklist>
         context,
         amountPaise: booking.amountPaise,
         what: isSale ? 'the item' : 'the rent',
+        cash: isSale
+            ? CashOption(
+                confirmation:
+                    'Hand ${formatMoney(booking.amountPaise)} in cash to the '
+                    'seller. They’ll confirm it in the app.',
+              )
+            : const CashOption(),
         start: (method, key) => ref
             .read(apiProvider)
             .bookings
@@ -176,10 +187,10 @@ class _PickupChecklistState extends ConsumerState<PickupChecklist>
           () => _otpError = switch (error.code) {
             'WRONG_CODE' => 'That code isn’t right. Check it and try again.',
             'CODE_EXPIRED' =>
-              'That code expired. Ask the renter for a new one.',
+              'That code expired. Ask the $_renterWord for a new one.',
             'RATE_LIMITED' =>
-              'Too many tries for this code. Ask the renter for a new one.',
-            'STEP_LOCKED' => 'Ask the renter to show their code first.',
+              'Too many tries for this code. Ask the $_renterWord for a new one.',
+            'STEP_LOCKED' => 'Ask the $_renterWord to show their code first.',
             _ => friendlyMessage(error),
           },
         );
@@ -201,7 +212,7 @@ class _PickupChecklistState extends ConsumerState<PickupChecklist>
     final theme = Theme.of(context);
     final mine = isRenter ? pickup.renter : pickup.owner;
     final theirs = isRenter ? pickup.owner : pickup.renter;
-    final other = isRenter ? 'owner' : 'renter';
+    final other = isRenter ? _ownerWord : _renterWord;
     final photosDone = pickup.renter.done && pickup.owner.done;
     final payment = _payment;
     final cashPending =
@@ -218,12 +229,12 @@ class _PickupChecklistState extends ConsumerState<PickupChecklist>
       if (!photosDone) return 'After both of you add photos';
       if (cashPending) {
         return isRenter
-            ? 'Hand over the cash; the owner confirms it'
-            : 'The renter is paying ${formatMoney(payment.amountPaise)} in cash';
+            ? 'Hand over the cash; the $_ownerWord confirms it'
+            : 'The $_renterWord is paying ${formatMoney(payment.amountPaise)} in cash';
       }
       return isRenter
           ? '${formatMoney(booking.amountPaise)} by UPI or cash'
-          : 'Waiting for the renter to pay';
+          : 'Waiting for the $_renterWord to pay';
     }
 
     return Column(
@@ -273,13 +284,13 @@ class _PickupChecklistState extends ConsumerState<PickupChecklist>
               : null,
         ),
         ChecklistStep(
-          title: isRenter ? 'Show your code' : 'Enter the renter’s code',
+          title: isRenter ? 'Show your code' : 'Enter the $_renterWord’s code',
           subtitle: verified
               ? 'Handover confirmed'
               : pickup.otpReady
               ? (isRenter
-                    ? 'The owner types it to confirm the handover'
-                    : 'Ask the renter for the code on their screen')
+                    ? 'The $_ownerWord types it to confirm the handover'
+                    : 'Ask the $_renterWord for the code on their screen')
               : 'After the payment',
           state: _state(done: verified, available: pickup.otpReady),
           actionLabel: isRenter && pickup.otpReady

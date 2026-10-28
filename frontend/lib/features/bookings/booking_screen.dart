@@ -17,6 +17,7 @@ import '../reviews/widgets/booking_reviews.dart';
 import 'booking_format.dart';
 import 'booking_providers.dart';
 import 'widgets/active_rental_section.dart';
+import 'widgets/appeal_window_note.dart';
 import 'widgets/booking_manage_actions.dart';
 import 'widgets/cancellation_card.dart';
 import 'widgets/counterparty_card.dart';
@@ -147,10 +148,15 @@ class _BookingView extends ConsumerWidget {
           CounterpartyCard(
             profile: other,
             isOwner: isRenter,
+            isSale: booking.kind == TradeKind.sale,
             onCall: phone == null
                 ? null
                 : () => ref.read(phoneCallerProvider)(phone),
           ),
+        ],
+        if (AppealWindowNote.appliesTo(booking)) ...[
+          gap,
+          AppealWindowNote(booking: booking),
         ],
         if (BookingReviews.appliesTo(booking)) ...[
           gap,

@@ -702,7 +702,16 @@ class MockBookingViews {
           role == TradeRole.owner &&
           b.escalatedAt == null &&
           b.canEscalate(now),
-      canAppeal: false,
+      // Buyers can appeal a sale for 48 hours after the handover.
+      canAppeal:
+          b.kind == TradeKind.sale &&
+          role == TradeRole.renter &&
+          b.pickupCompletedAt != null &&
+          now.difference(b.pickupCompletedAt!) < const Duration(hours: 48) &&
+          const {
+            BookingStatus.awaitingReviews,
+            BookingStatus.completed,
+          }.contains(b.status),
       serverNow: now,
       createdAt: b.createdAt,
     );

@@ -149,7 +149,20 @@ class _ListingDetailViewState extends ConsumerState<_ListingDetailView> {
 
   Widget? _bottomBar() {
     final Widget content;
-    if (detail.isMine) {
+    final closed =
+        detail.status == ListingStatus.sold ||
+        detail.status == ListingStatus.removed;
+    if (closed) {
+      content = Text(
+        detail.status == ListingStatus.sold
+            ? (detail.isMine
+                  ? 'You sold this item.'
+                  : 'This item has been sold.')
+            : 'This listing is no longer available.',
+        style: Theme.of(context).textTheme.bodyLarge,
+        textAlign: TextAlign.center,
+      );
+    } else if (detail.isMine) {
       final paused = detail.status == ListingStatus.paused;
       final canToggle = paused || detail.status == ListingStatus.active;
       content = Column(

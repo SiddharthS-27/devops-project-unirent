@@ -13,6 +13,7 @@ class CounterpartyCard extends StatelessWidget {
     super.key,
     required this.profile,
     required this.isOwner,
+    this.isSale = false,
     this.onCall,
   });
 
@@ -20,6 +21,9 @@ class CounterpartyCard extends StatelessWidget {
 
   /// Whether [profile] is the owner (shows lender trust) or the renter.
   final bool isOwner;
+
+  /// Labels the sides seller and buyer instead of owner and renter.
+  final bool isSale;
   final VoidCallback? onCall;
 
   @override
@@ -38,7 +42,12 @@ class CounterpartyCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            isOwner ? 'Owner' : 'Renter',
+            switch ((isOwner, isSale)) {
+              (true, false) => 'Owner',
+              (false, false) => 'Renter',
+              (true, true) => 'Seller',
+              (false, true) => 'Buyer',
+            },
             style: theme.textTheme.labelMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),

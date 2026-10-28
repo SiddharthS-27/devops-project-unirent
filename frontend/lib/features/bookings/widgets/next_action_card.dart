@@ -48,6 +48,21 @@ const nextActionHints = {
   'waiting_review': 'Both reviews show once they review you.',
 };
 
+/// Purchase wording for hints whose rental text mentions rent or owners.
+const _saleHints = {
+  'decide_request':
+      'Approving fixes the price and declines the other requests for it.',
+  'pay': 'Pay for the item by UPI or hand over cash.',
+  'waiting_cash_mark': 'The seller needs to confirm they got the cash.',
+  'waiting_payment': 'The buyer is paying.',
+  'show_otp': 'The seller types this code to confirm the handover.',
+  'enter_otp': 'Ask the buyer for the code on their screen.',
+};
+
+/// The hint for [key], worded for a sale when [kind] is one.
+String? nextActionHint(String key, TradeKind kind) =>
+    (kind == TradeKind.sale ? _saleHints[key] : null) ?? nextActionHints[key];
+
 /// The single card telling this user what happens next, with the controls
 /// for that step.
 class NextActionCard extends ConsumerStatefulWidget {
@@ -134,7 +149,7 @@ class _NextActionCardState extends ConsumerState<NextActionCard>
     final foreground = action.byMe
         ? scheme.onPrimaryContainer
         : scheme.onSurface;
-    final hint = nextActionHints[action.key];
+    final hint = nextActionHint(action.key, booking.kind);
     final controls = _controls(action.key);
     return Semantics(
       container: true,
