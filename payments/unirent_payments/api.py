@@ -1,21 +1,36 @@
 """HTTP routes owned by the payments package. The backend mounts them under /api/v1."""
 
+import hmac
 import json
 import uuid
+from typing import Annotated
 
-from fastapi import APIRouter, Request
-from unirent_security import CurrentAccount, audit, require_owner
+from fastapi import APIRouter, Depends, Header, Request
+from sqlalchemy import select
+from unirent_security import AdminAccount, CurrentAccount, audit, require_owner
 from unirent_security.errors import ApiError
 
-from unirent_payments import late_fees, linked_accounts, payments, refunds, webhooks
+from unirent_payments import (
+    late_fees,
+    linked_accounts,
+    payments,
+    reconciliation,
+    refunds,
+    webhooks,
+)
+from unirent_payments.config import get_settings
 from unirent_payments.db import SessionDep
-from unirent_payments.models import LinkedAccount
+from unirent_payments.models import LinkedAccount, ReconciliationRun
 from unirent_payments.payments import PaymentView
 from unirent_payments.schemas import (
     LateFeeRuleOut,
+    MismatchOut,
     PaymentOut,
     PayoutAccountIn,
     PayoutAccountOut,
+    ReconciliationReport,
+    ReconciliationRunIn,
+    ReconciliationRunOut,
     RefundOut,
     VerifyIn,
     WebhookAck,
@@ -126,6 +141,60 @@ async def mark_cash_refunded(refund_id: uuid.UUID, account: CurrentAccount) -> R
     """The owner confirms a ruled cash refund was handed back."""
     refund = await refunds.mark_cash_refunded(refund_id, account.id)
     return RefundOut.model_validate(refund, from_attributes=True)
+
+
+async def _report(session, run) -> ReconciliationReport:
+    rows = await reconciliation.mismatches(session, run.id)
+    return ReconciliationReport(
+        **ReconciliationRunOut.model_validate(run, from_attributes=True).model_dump(),
+        mismatches=[MismatchOut.model_validate(m, from_attributes=True) for m in rows],
+    )
+
+
+@router.get("/admin/reconciliation/runs", response_model=list[ReconciliationRunOut])
+async def reconciliation_runs(admin: AdminAccount, session: SessionDep):
+    rows = await session.scalars(
+        select(ReconciliationRun).order_by(ReconciliationRun.started_at.desc()).limit(60)
+    )
+    return [ReconciliationRunOut.model_validate(r, from_attributes=True) for r in rows]
+
+
+@router.get("/admin/reconciliation/runs/{run_id}", response_model=ReconciliationReport)
+async def reconciliation_report(run_id: uuid.UUID, admin: AdminAccount, session: SessionDep):
+    run = await session.get(ReconciliationRun, run_id)
+    if run is None:
+        raise ApiError(404, "NOT_FOUND", "Reconciliation run not found")
+    return await _report(session, run)
+
+
+@router.post("/admin/reconciliation/run", response_model=ReconciliationReport)
+async def run_reconciliation_now(
+    body: ReconciliationRunIn, admin: AdminAccount, session: SessionDep
+):
+    """Ledger against Razorpay payments, transfers and refunds for one IST day."""
+    run = await reconciliation.run(body.day, triggered_by=str(admin.id))
+    await audit.record(admin, "admin.reconciliation_run", audit.target("reconciliation", run.id))
+    return await _report(session, run)
+
+
+async def _service_token(
+    service_token: Annotated[str | None, Header(alias="X-Service-Token")] = None,
+) -> None:
+    expected = get_settings().service_token
+    if not service_token or not hmac.compare_digest(service_token, expected):
+        raise ApiError(401, "SERVICE_TOKEN_REQUIRED", "Internal route")
+
+
+internal_router = APIRouter(
+    prefix="/internal", tags=["internal"], dependencies=[Depends(_service_token)]
+)
+
+
+@internal_router.post("/reconciliation/run", response_model=ReconciliationRunOut)
+async def nightly_reconciliation(body: ReconciliationRunIn | None = None):
+    """The workers' nightly trigger (02:00 IST): checks yesterday."""
+    run = await reconciliation.run(body.day if body else None)
+    return ReconciliationRunOut.model_validate(run, from_attributes=True)
 
 
 @webhook_router.post("/payments/webhooks/razorpay", response_model=WebhookAck)

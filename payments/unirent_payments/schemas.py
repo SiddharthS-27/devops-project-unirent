@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field
@@ -92,3 +92,31 @@ class RefundOut(BaseModel):
     status: Literal["pending", "processed", "failed", "cash_pending", "cash_done"]
     created_at: datetime
     processed_at: datetime | None
+
+
+class ReconciliationRunIn(BaseModel):
+    day: date | None = Field(None, description="The IST day to check; yesterday by default")
+
+
+class ReconciliationRunOut(BaseModel):
+    id: uuid.UUID
+    day: date
+    triggered_by: str
+    status: Literal["running", "done", "failed"]
+    totals: dict[str, int | bool]
+    started_at: datetime
+    finished_at: datetime | None
+
+
+class MismatchOut(BaseModel):
+    kind: str
+    reference: str
+    payment_id: uuid.UUID | None
+    ledger_amount_paise: int | None
+    razorpay_amount_paise: int | None
+    ledger_status: str | None
+    razorpay_status: str | None
+
+
+class ReconciliationReport(ReconciliationRunOut):
+    mismatches: list[MismatchOut]
