@@ -10,13 +10,14 @@ from prometheus_client import start_http_server
 from unirent_workers import db, logs, relay, timers
 from unirent_workers.backend_api import BackendApi
 from unirent_workers.config import get_settings
+from unirent_workers.consumers import matcher
 from unirent_workers.consumers import push as push_consumer
 from unirent_workers.consumers.base import Consumer
 from unirent_workers.kafka import start_producer
 from unirent_workers.push import PushDelivery, make_sender
 
 log = logging.getLogger("unirent.workers")
-COMPONENTS = ("relay", "push", "timers")
+COMPONENTS = ("relay", "push", "timers", "matcher")
 
 
 async def main(components: list[str]) -> None:
@@ -34,10 +35,15 @@ async def main(components: list[str]) -> None:
     tasks = []
     if "relay" in components:
         tasks.append(asyncio.create_task(relay.run(producer, stop), name="relay"))
+    delivery = PushDelivery(backend, make_sender())
     if "push" in components:
-        handler = push_consumer.make_handler(PushDelivery(backend, make_sender()))
+        handler = push_consumer.make_handler(delivery)
         consumer = Consumer("push", push_consumer.PUSH_TOPICS, handler)
         tasks.append(asyncio.create_task(consumer.run(stop), name="push"))
+    if "matcher" in components:
+        handler = matcher.make_handler(backend, delivery)
+        consumer = Consumer("matcher", matcher.MATCHER_TOPICS, handler)
+        tasks.append(asyncio.create_task(consumer.run(stop), name="matcher"))
 
     if "timers" in components:
         tasks.append(asyncio.create_task(timers.run(backend, stop), name="timers"))
