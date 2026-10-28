@@ -32,3 +32,9 @@ async def test_internal_routes_need_the_service_token(api):
         f"/internal/accounts/{uuid.uuid4()}/push-tokens", headers={"X-Service-Token": "nope"}
     )
     assert r.status_code == 401
+
+
+async def test_reconciliation_route_is_mounted_behind_the_service_token(api):
+    r = await api.post("/internal/reconciliation/run", json={})
+    assert r.status_code == 401
+    assert r.json()["error"]["code"] == "SERVICE_TOKEN_REQUIRED"

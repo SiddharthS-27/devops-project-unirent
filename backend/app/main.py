@@ -5,6 +5,7 @@ import unirent_payments.db
 import unirent_security.db
 from fastapi import FastAPI
 from prometheus_client import make_asgi_app
+from unirent_payments.api import internal_router as payments_internal_router
 from unirent_payments.idempotency import IdempotencyMiddleware
 
 from app.api import api_router
@@ -42,6 +43,7 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(api_router)
     app.include_router(internal_router)
+    app.include_router(payments_internal_router)
     app.mount("/metrics", make_asgi_app())
     # The installed packages share the api's connection pool and Redis client.
     unirent_security.db.setup(get_sessionmaker(), get_redis())
