@@ -55,6 +55,7 @@ async def test_reviews_are_blind_until_both_are_in(api):
     assert done["status"] == "completed" and done["reviews"]["revealed"]
     shown = (await buyer.get(f"/profiles/{seller.id}/reviews", params={"role": "lender"})).json()
     assert shown["items"][0]["overall"] == 4.0 and shown["items"][0]["comment"] == "As described"
+    assert shown["items"][0]["booking_id"] == bid
 
     again = await review(seller, bid, ratings, "Again")
     assert again.json()["error"]["code"] in ("ALREADY_REVIEWED", "BOOKING_STATE")
