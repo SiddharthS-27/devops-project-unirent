@@ -96,3 +96,50 @@ def listing(user: User, **overrides: Any) -> dict:
         **overrides,
     }
     return user.ok("POST", "/listings", 201, json=body)
+
+
+def period(hours_ahead: int = 2, hours: int = 24) -> dict:
+    from datetime import UTC, datetime, timedelta
+
+    start = (datetime.now(UTC) + timedelta(hours=hours_ahead)).replace(microsecond=0)
+    return {"start_at": start.isoformat(), "end_at": (start + timedelta(hours=hours)).isoformat()}
+
+
+def approved_booking(**listing_overrides: Any) -> tuple[User, User, dict]:
+    """An owner, a renter, and an approved booking between them."""
+    lister = owner()
+    item = listing(lister, **listing_overrides)
+    renter = onboarded("Test Renter")
+    body = {"listing_id": item["id"], **(period() if item["kind"] == "rent" else {})}
+    booking = renter.ok("POST", "/bookings", 201, json=body)
+    booking = lister.ok("POST", f"/bookings/{booking['id']}/approve")
+    return lister, renter, booking
+
+
+def pickup_photos(lister: User, renter: User, booking_id: str) -> None:
+    for user in (lister, renter):
+        user.ok(
+            "POST",
+            f"/bookings/{booking_id}/pickup/photos",
+            json={"object_keys": [upload(user, "handover")]},
+        )
+
+
+def pay_upi(
+    renter: User, booking_id: str, path: str = "pickup/payment", **sim_options: Any
+) -> dict:
+    """Start a UPI payment, complete Checkout in the simulator, and verify it."""
+    from fixtures.client import sim
+
+    payment = renter.ok("POST", f"/bookings/{booking_id}/{path}", json={"method": "upi"})
+    order_id = payment["checkout"]["order_id"]
+    with sim() as s:
+        checkout = s.post(f"/sim/orders/{order_id}/pay", json=sim_options).json()
+    if "razorpay_signature" in checkout:
+        renter.ok("POST", f"/payments/{payment['id']}/verify", json=checkout)
+    return {"payment": payment, "checkout": checkout}
+
+
+def hand_over(lister: User, renter: User, booking_id: str) -> dict:
+    code = renter.ok("POST", f"/bookings/{booking_id}/pickup/otp")["code"]
+    return lister.ok("POST", f"/bookings/{booking_id}/pickup/otp/verify", json={"code": code})
