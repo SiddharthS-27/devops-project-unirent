@@ -9,7 +9,8 @@ from unirent_security import ActiveAccount, CurrentAccount
 from app.core.deps import IdempotencyKey, SessionDep
 from app.core.errors import not_implemented
 from app.core.schemas import Page
-from app.modules.bookings import handover, pricing, service, views
+from app.modules.bookings import handover, pricing, rental, service, views
+from app.modules.bookings.models import Extension
 from app.modules.bookings.schemas import (
     AppealCreate,
     AppealOut,
@@ -213,7 +214,10 @@ async def request_extension(
     account: CurrentAccount,
     session: SessionDep,
 ):
-    raise not_implemented()
+    """Ask the owner for more time. Extra time costs the listing's rate."""
+    extension = await rental.request_extension(session, booking_id, account, body.new_end_at)
+    await session.commit()
+    return await views.extension_out(extension)
 
 
 @router.post(B + "/extensions/{extension_id}/approve", response_model=ExtensionOut)
@@ -224,7 +228,10 @@ async def approve_extension(
     account: CurrentAccount,
     session: SessionDep,
 ):
-    raise not_implemented()
+    """Moves the end time and the reminders; the renter then pays."""
+    extension = await rental.decide_extension(session, booking_id, extension_id, account, True)
+    await session.commit()
+    return await views.extension_out(extension)
 
 
 @router.post(B + "/extensions/{extension_id}/decline", response_model=ExtensionOut)
@@ -235,10 +242,12 @@ async def decline_extension(
     account: CurrentAccount,
     session: SessionDep,
 ):
-    raise not_implemented()
+    extension = await rental.decide_extension(session, booking_id, extension_id, account, False)
+    await session.commit()
+    return await views.extension_out(extension)
 
 
-@router.post(B + "/extensions/{extension_id}/payment", response_model=PaymentOut)
+@router.post(B + "/extensions/{extension_id}/payment", response_model=ExtensionOut)
 async def pay_extension(
     booking_id: uuid.UUID,
     extension_id: uuid.UUID,
@@ -247,8 +256,11 @@ async def pay_extension(
     account: CurrentAccount,
     session: SessionDep,
 ):
-    """UPI now, or cash, which is added to the charges at return."""
-    raise not_implemented()
+    """UPI now (the extension's payment carries the Checkout details), or cash,
+    which is added to the charges at return."""
+    await rental.pay_extension(session, booking_id, extension_id, account, body.method, key)
+    extension = await session.get(Extension, extension_id)
+    return await views.extension_out(extension)
 
 
 @router.post(B + "/return/start", response_model=BookingOut)
@@ -320,7 +332,9 @@ async def escalate(
     booking_id: uuid.UUID, body: EscalateIn, account: CurrentAccount, session: SessionDep
 ):
     """Owner, one hour or more into overdue."""
-    raise not_implemented()
+    booking = await rental.escalate(session, booking_id, account, body.note)
+    await session.commit()
+    return await views.booking_out(session, booking, account)
 
 
 @router.post(B + "/appeals", response_model=AppealOut, status_code=201)

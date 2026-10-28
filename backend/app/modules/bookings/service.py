@@ -7,7 +7,8 @@ from datetime import datetime, timedelta
 from sqlalchemy import and_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from unirent_payments import payment_status
+from unirent_payments import current_late_fee_rule, payment_status
+from unirent_payments.late_fees import get_rule
 from unirent_security import AccountContext, require_owner
 
 from app.core.clock import now
@@ -164,6 +165,8 @@ async def lock_terms(session: AsyncSession, booking: Booking, listing: Listing) 
         booking.amount_paise = listing.sale_price_paise or booking.amount_paise
     booking.listing_title = listing.title
     booking.pickup_point = listing.pickup_point
+    if booking.kind == "rent":
+        booking.late_fee_rule_id = (await current_late_fee_rule()).id
 
 
 async def approve(session: AsyncSession, booking_id: uuid.UUID, owner: AccountContext) -> Booking:
@@ -295,7 +298,9 @@ async def complete_pickup(session: AsyncSession, booking: Booking, actor: Accoun
         await cancel_timers(session, booking.id, timers.PICKUP_REMINDER)
         if booking.end_at and booking.end_at - REMINDER_BEFORE > at:
             schedule(session, timers.RETURN_REMINDER, booking.id, booking.end_at - REMINDER_BEFORE)
-        schedule(session, timers.OVERDUE_START, booking.id, booking.end_at)  # type: ignore[arg-type]
+        rule = await get_rule(booking.late_fee_rule_id) if booking.late_fee_rule_id else None
+        grace = timedelta(minutes=rule.grace_minutes if rule else 0)
+        schedule(session, timers.OVERDUE_START, booking.id, booking.end_at + grace)  # type: ignore[operator]
     else:
         transition(
             session,

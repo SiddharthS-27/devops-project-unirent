@@ -4,6 +4,7 @@ import uuid
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from unirent_payments import current_late_fee_rule as payments_late_fee_rule
 from unirent_payments import payout_ready
 from unirent_security import AccountContext, mask_serial, require_owner
 
@@ -67,7 +68,14 @@ async def pending_request_count(session: AsyncSession, listing_id: uuid.UUID) ->
 
 
 async def current_late_fee_rule() -> LateFeeRuleOut | None:
-    return None
+    rule = await payments_late_fee_rule()
+    return LateFeeRuleOut(
+        id=rule.id,
+        grace_minutes=rule.grace_minutes,
+        base_fee_paise=rule.base_fee_paise,
+        hourly_percent_bp=rule.hourly_percent_bp,
+        effective_from=rule.effective_from,
+    )
 
 
 async def get_listing(

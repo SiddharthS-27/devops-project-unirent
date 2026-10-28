@@ -7149,6 +7149,7 @@
     },
     "/api/v1/bookings/{booking_id}/extensions": {
       "post": {
+        "description": "Ask the owner for more time. Extra time costs the listing's rate.",
         "operationId": "request_extension_api_v1_bookings__booking_id__extensions_post",
         "parameters": [
           {
@@ -7220,6 +7221,7 @@
     },
     "/api/v1/bookings/{booking_id}/extensions/{extension_id}/approve": {
       "post": {
+        "description": "Moves the end time and the reminders; the renter then pays.",
         "operationId": "approve_extension_api_v1_bookings__booking_id__extensions__extension_id__approve_post",
         "parameters": [
           {
@@ -7362,7 +7364,7 @@
     },
     "/api/v1/bookings/{booking_id}/extensions/{extension_id}/payment": {
       "post": {
-        "description": "UPI now, or cash, which is added to the charges at return.",
+        "description": "UPI now (the extension's payment carries the Checkout details), or cash,\nwhich is added to the charges at return.",
         "operationId": "pay_extension_api_v1_bookings__booking_id__extensions__extension_id__payment_post",
         "parameters": [
           {
@@ -7414,7 +7416,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PaymentOut"
+                  "$ref": "#/components/schemas/ExtensionOut"
                 }
               }
             },
@@ -8496,6 +8498,33 @@
         "summary": "Home",
         "tags": [
           "search"
+        ]
+      }
+    },
+    "/api/v1/late-fee-rule": {
+      "get": {
+        "description": "The platform rule every rent listing shows.",
+        "operationId": "late_fee_rule_api_v1_late_fee_rule_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LateFeeRuleOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Late Fee Rule",
+        "tags": [
+          "payments"
         ]
       }
     },

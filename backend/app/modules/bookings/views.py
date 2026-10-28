@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from unirent_payments import PaymentView, payments_for_booking
+from unirent_payments import PaymentView, payment_status, payments_for_booking
 from unirent_payments.api import payment_out
 from unirent_security import AccountContext
 
@@ -13,12 +13,15 @@ from app.core import storage
 from app.core.clock import now
 from app.core.pagination import decode_offset, encode_offset
 from app.core.schemas import Page, PhotoOut
+from app.modules.bookings import rental
 from app.modules.bookings.handover import SHOWS_CODE, photo_keys
-from app.modules.bookings.models import Booking, Cancellation
+from app.modules.bookings.models import Booking, Cancellation, Extension
 from app.modules.bookings.schemas import (
     BookingOut,
     BookingSummary,
     CancellationInfo,
+    Charges,
+    ExtensionOut,
     Handover,
     HandoverSide,
     NextAction,
@@ -71,11 +74,24 @@ class Facts:
 
     payments: list[PaymentView] = field(default_factory=list)
     cancellation: Cancellation | None = None
+    extensions: list[Extension] = field(default_factory=list)
+    late_fee_paise: int = 0
+    cash_extensions_paise: int = 0
     photos: dict[tuple[str, str], list[str]] = field(default_factory=dict)
 
     def paid(self, purpose: str) -> PaymentView | None:
         return next(
             (p for p in self.payments if p.purpose == purpose and p.status != "failed"), None
+        )
+
+    def paid_ref(self, purpose: str, ref) -> PaymentView | None:
+        return next(
+            (
+                p
+                for p in self.payments
+                if p.purpose == purpose and p.purpose_ref == ref and p.status != "failed"
+            ),
+            None,
         )
 
     def has_photos(self, phase: str, side: str) -> bool:
@@ -89,6 +105,16 @@ async def load_facts(session: AsyncSession, booking: Booking) -> Facts:
     )
     if booking.status == "cancelled":
         facts.cancellation = await session.get(Cancellation, booking.id)
+    if booking.kind == "rent" and booking.pickup_completed_at is not None:
+        facts.extensions = list(
+            await session.scalars(
+                select(Extension)
+                .where(Extension.booking_id == booking.id)
+                .order_by(Extension.created_at)
+            )
+        )
+        facts.late_fee_paise = await rental.live_late_fee(booking)
+        facts.cash_extensions_paise = await rental.unpaid_cash_extensions(session, booking)
     return facts
 
 
@@ -164,6 +190,26 @@ def _handover(booking: Booking, facts: Facts, phase: str) -> Handover | None:
     )
 
 
+def _charges(booking: Booking, facts: Facts) -> Charges | None:
+    """What the renter owes at return. Shown once anything is owed or the item is back."""
+    if booking.kind != "rent" or booking.pickup_completed_at is None:
+        return None
+    total = facts.late_fee_paise + booking.damage_paise + facts.cash_extensions_paise
+    if total == 0 and booking.return_started_at is None:
+        return None
+    payment = facts.paid("return_charges")
+    return Charges(
+        late_fee_paise=facts.late_fee_paise,
+        overdue_minutes=rental.overdue_minutes(booking) if booking.late_fee_paise is None else 0,
+        damage_paise=booking.damage_paise,
+        damage_description=booking.damage_description,
+        cash_extensions_paise=facts.cash_extensions_paise,
+        total_paise=total,
+        paid=total == 0 or (payment is not None and payment.is_paid),
+        payment=payment_out(payment) if payment else None,
+    )
+
+
 def _cancellation(facts: Facts, role: str) -> CancellationInfo | None:
     c = facts.cancellation
     if c is None:
@@ -213,7 +259,43 @@ def next_action(booking: Booking, role: str, facts: Facts) -> NextAction | None:
         if role == "renter":
             return _action("show_otp", "Show your code to the owner", True)
         return _action("enter_otp", "Enter the renter's code", True)
+    pending = next((e for e in facts.extensions if e.status == "requested"), None)
+    if status == "active":
+        if pending is not None:
+            if role == "owner":
+                return _action("decide_extension", "Approve or decline more time", True)
+            return _action("waiting_extension", "Waiting for the owner about more time", False)
+        unpaid = next(
+            (
+                e
+                for e in facts.extensions
+                if e.status == "approved"
+                and not e.pay_in_cash_at_return
+                and not (facts.paid_ref("extension", e.id) or _NotPaid).is_paid
+            ),
+            None,
+        )
+        if unpaid is not None and role == "renter":
+            return _action("pay_extension", "Pay for the extra time", True)
+        if role == "renter":
+            return _action("return_on_time", "Return the item on time", False)
+        return _action("rental_active", "Rental in progress", False)
+    if status == "overdue":
+        if role == "renter":
+            return _action("return_now", "Overdue: return the item now", True)
+        if booking.escalated_at is None and _can_escalate(booking):
+            return _action("escalate", "You can escalate to the moderators", True)
+        return _action("waiting_return", "Waiting for the return", False)
     return None
+
+
+class _NotPaid:
+    is_paid = False
+
+
+def _can_escalate(booking: Booking) -> bool:
+    available = rental.escalation_available_at(booking)
+    return booking.status == "overdue" and available is not None and now() >= available
 
 
 async def booking_out(
@@ -241,17 +323,17 @@ async def booking_out(
         pickup=_handover(booking, facts, "pickup"),
         **{"return": None},
         payments=[payment_out(p) for p in facts.payments],
-        extensions=[],
-        charges=None,
+        extensions=[await extension_out(e) for e in facts.extensions],
+        charges=_charges(booking, facts),
         cancellation=_cancellation(facts, role),
         appeal=None,
         reviews=None,
         overdue_since=booking.overdue_since,
-        escalation_available_at=None,
+        escalation_available_at=rental.escalation_available_at(booking),
         can_cancel=booking.status == "approved"
         and role in ("renter", "owner")
         and not any(p.is_paid for p in facts.payments if p.purpose in ("rent", "sale")),
-        can_escalate=False,
+        can_escalate=role == "owner" and booking.escalated_at is None and _can_escalate(booking),
         can_appeal=False,
         server_now=now(),
         created_at=booking.created_at,
@@ -320,3 +402,16 @@ async def _first_photos(session: AsyncSession, listing_ids) -> dict:
         .group_by(ListingPhoto.listing_id)
     )
     return dict(rows.all())
+
+
+async def extension_out(extension: Extension) -> ExtensionOut:
+    payment = await payment_status(extension.booking_id, "extension", extension.id)
+    return ExtensionOut(
+        id=extension.id,
+        new_end_at=extension.new_end_at,
+        status=extension.status,  # type: ignore[arg-type]
+        amount_paise=extension.amount_paise,
+        payment=payment_out(payment) if payment else None,
+        pay_in_cash_at_return=extension.pay_in_cash_at_return,
+        created_at=extension.created_at,
+    )

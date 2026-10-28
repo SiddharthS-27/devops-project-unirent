@@ -63,6 +63,8 @@ class Booking(Base):
     overdue_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     escalated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     escalation_note: Mapped[str | None] = mapped_column(Text)
+    # Frozen when the item is back (return code entered); live until then.
+    late_fee_paise: Mapped[int | None] = mapped_column(BigInteger)
     damage_paise: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0")
     damage_description: Mapped[str | None] = mapped_column(Text)
     proceeded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -160,3 +162,22 @@ class Cancellation(Base):
     rating_stars: Mapped[int | None] = mapped_column(SmallInteger)
     rating_comment: Mapped[str | None] = mapped_column(Text)
     rated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class Extension(Base):
+    """A request for more time. Approval moves the booking's end time; the extra
+    rent is paid by UPI then, or in cash at return."""
+
+    __tablename__ = "extensions"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
+    booking_id: Mapped[uuid.UUID] = mapped_column(
+        UUID, ForeignKey("core.bookings.id", ondelete="CASCADE"), index=True
+    )
+    old_end_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    new_end_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(10))  # requested, approved, declined
+    amount_paise: Mapped[int] = mapped_column(BigInteger)
+    pay_in_cash_at_return: Mapped[bool] = mapped_column(Boolean, default=False)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
