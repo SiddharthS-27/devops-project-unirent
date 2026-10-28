@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -34,6 +36,15 @@ class FakePushService implements PushService {
 
   @override
   Future<void> unregister() async => unregisterCalls++;
+
+  final receivedPushes = StreamController<Uri>.broadcast();
+  final openedPushes = StreamController<Uri>.broadcast();
+
+  @override
+  Stream<Uri> get received => receivedPushes.stream;
+
+  @override
+  Stream<Uri> get opened => openedPushes.stream;
 }
 
 /// The running app plus handles on its fakes.

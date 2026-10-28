@@ -27,6 +27,19 @@ abstract interface class PushService {
 
   /// Removes this device's token from the backend (on sign-out).
   Future<void> unregister();
+
+  /// Deep links (`unirent://bookings/{id}`) of pushes received while the app
+  /// is open, so open screens can refetch.
+  Stream<Uri> get received;
+
+  /// Deep links of notifications the user tapped, to navigate to.
+  Stream<Uri> get opened;
+}
+
+/// The `link` a push carries in its data, if any.
+Uri? pushLink(Map<String, dynamic> data) {
+  final link = data['link'];
+  return link is String ? Uri.tryParse(link) : null;
 }
 
 /// Used when Firebase isn't configured.
@@ -44,6 +57,12 @@ class UnavailablePushService implements PushService {
 
   @override
   Future<void> unregister() async {}
+
+  @override
+  Stream<Uri> get received => const Stream.empty();
+
+  @override
+  Stream<Uri> get opened => const Stream.empty();
 }
 
 class FirebasePushService implements PushService {
@@ -97,6 +116,23 @@ class FirebasePushService implements PushService {
   }
 
   @override
+  Stream<Uri> get received => FirebaseMessaging.onMessage
+      .map((m) => pushLink(m.data))
+      .where((link) => link != null)
+      .cast<Uri>();
+
+  @override
+  Stream<Uri> get opened async* {
+    final initial = await _messaging.getInitialMessage();
+    final link = initial == null ? null : pushLink(initial.data);
+    if (link != null) yield link;
+    yield* FirebaseMessaging.onMessageOpenedApp
+        .map((m) => pushLink(m.data))
+        .where((link) => link != null)
+        .cast<Uri>();
+  }
+
+  @override
   Future<void> unregister() async {
     await _tokenRefresh?.cancel();
     _tokenRefresh = null;
@@ -112,3 +148,8 @@ final pushServiceProvider = Provider<PushService>((ref) {
   if (!ref.watch(firebaseReadyProvider)) return const UnavailablePushService();
   return FirebasePushService(ref.watch(apiProvider));
 });
+
+/// Links of pushes received while the app is open.
+final pushReceivedProvider = StreamProvider<Uri>(
+  (ref) => ref.watch(pushServiceProvider).received,
+);

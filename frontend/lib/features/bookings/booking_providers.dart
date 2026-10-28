@@ -31,3 +31,7 @@ final profileViewProvider = FutureProvider.autoDispose
     .family<ProfileView, String>(
       (ref, accountId) => ref.watch(apiProvider).profiles.getProfile(accountId),
     );
+
+final bookingProvider = FutureProvider.autoDispose.family<BookingOut, String>(
+  (ref, id) => ref.watch(apiProvider).bookings.getBooking(id),
+);

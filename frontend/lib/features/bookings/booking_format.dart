@@ -35,3 +35,48 @@ DateTime nextIstHour(DateTime now, {int plusHours = 1}) {
   final ist = toIst(now);
   return fromIst(ist.year, ist.month, ist.day, ist.hour + plusHours);
 }
+
+String bookingStatusLabel(BookingStatus status) => switch (status) {
+  BookingStatus.requested => 'Requested',
+  BookingStatus.approved => 'Approved',
+  BookingStatus.declined => 'Declined',
+  BookingStatus.withdrawn => 'Withdrawn',
+  BookingStatus.expired => 'Expired',
+  BookingStatus.cancelled => 'Cancelled',
+  BookingStatus.active => 'Active',
+  BookingStatus.overdue => 'Overdue',
+  BookingStatus.returning => 'Returning',
+  BookingStatus.inAppeal => 'In appeal',
+  BookingStatus.awaitingReviews => 'Awaiting reviews',
+  BookingStatus.completed => 'Completed',
+  BookingStatus.unknown => 'Updated',
+};
+
+String paymentPurposeLabel(PaymentPurpose purpose) => switch (purpose) {
+  PaymentPurpose.rent => 'Rent',
+  PaymentPurpose.extension => 'Extra time',
+  PaymentPurpose.returnCharges => 'Return charges',
+  PaymentPurpose.sale => 'Purchase',
+  PaymentPurpose.unknown => 'Payment',
+};
+
+String paymentStatusLabel(PaymentStatus status) => switch (status) {
+  PaymentStatus.created || PaymentStatus.pending => 'Pending',
+  PaymentStatus.captured => 'Paid',
+  PaymentStatus.failed => 'Failed',
+  PaymentStatus.markedPaid => 'Paid in cash',
+  PaymentStatus.refunded => 'Refunded',
+  PaymentStatus.partlyRefunded => 'Partly refunded',
+  PaymentStatus.unknown => 'Updated',
+};
+
+/// "Ganga Hostel, room B-214" or the home address.
+String? residenceLabel(Residence? r) {
+  if (r == null) return null;
+  if (r.type == ResidenceType.dayScholar) return r.homeAddress;
+  final parts = [
+    ?r.hostelName,
+    if (r.roomNumber != null) 'room ${r.roomNumber}',
+  ];
+  return parts.isEmpty ? null : parts.join(', ');
+}
