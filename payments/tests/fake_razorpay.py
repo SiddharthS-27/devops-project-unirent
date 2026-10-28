@@ -19,6 +19,7 @@ class FakeRazorpay:
         self.refunds: dict[str, dict] = {}
         self.calls: list[tuple[str, str]] = []
         self.fail_next: int | None = None
+        self.refund_status = "processed"
 
     def transport(self) -> httpx.MockTransport:
         return httpx.MockTransport(self.handle)
@@ -53,7 +54,12 @@ class FakeRazorpay:
             items = [p for p in self.payments.values() if p["order_id"] == parts[2]]
             return httpx.Response(200, json={"items": items})
         if parts[:2] == ["v1", "payments"] and len(parts) == 4 and parts[3] == "refund":
-            refund = {"id": _id("rfnd"), "payment_id": parts[2], "status": "processed", **body}
+            refund = {
+                "id": _id("rfnd"),
+                "payment_id": parts[2],
+                "status": self.refund_status,
+                **body,
+            }
             self.refunds[refund["id"]] = refund
             return httpx.Response(200, json=refund)
         if parts[:2] == ["v1", "payments"] and len(parts) == 4 and parts[3] == "transfers":

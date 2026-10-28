@@ -58,3 +58,22 @@ async def test_unpaid_payments_cannot_be_refunded(env):  # noqa: F811
     with pytest.raises(ApiError) as err:
         await issue_refund(p.id, 100, None)
     assert err.value.code == "NOT_REFUNDABLE"
+
+
+async def test_a_pending_refund_completes_on_the_webhook(env, session):  # noqa: F811
+    from tests.test_webhooks import _webhook
+
+    fake, client = env
+    fake.refund_status = "pending"
+    p, paid, payer = await _upi(fake)
+    await _verify(client, p, paid, payer)
+    refund = await issue_refund(p.id, 30000, uuid.uuid4())
+    assert refund.status == "pending"
+    entity = {"id": refund.razorpay_refund_id, "amount": 30000, "status": "processed"}
+    first = await _webhook(client, "refund.processed", "refund", entity)
+    again = await _webhook(client, "refund.processed", "refund", entity)
+    assert first.json()["status"] == "processed" and again.json()["status"] == "processed"
+    payment = await session.get(Payment, p.id)
+    await session.refresh(payment)
+    assert payment.status == "refunded" and payment.refunded_paise == 30000
+    assert (await ledger.trial_balance(session)).balanced
