@@ -7,9 +7,9 @@ from unirent_payments.api import payment_out
 from unirent_security import ActiveAccount, CurrentAccount
 
 from app.core.deps import IdempotencyKey, SessionDep
-from app.core.errors import not_implemented
+from app.core.errors import ApiError, not_implemented
 from app.core.schemas import Page
-from app.modules.bookings import handover, pricing, rental, service, views
+from app.modules.bookings import handover, pricing, rental, returns, service, views
 from app.modules.bookings.models import Extension
 from app.modules.bookings.schemas import (
     AppealCreate,
@@ -267,20 +267,33 @@ async def pay_extension(
 async def start_return(
     booking_id: uuid.UUID, key: IdempotencyKey, account: CurrentAccount, session: SessionDep
 ):
-    raise not_implemented()
+    """The renter starts the return when the two meet."""
+    booking = await returns.start_return(session, booking_id, account)
+    await session.commit()
+    return await views.booking_out(session, booking, account)
 
 
 @router.post(B + "/return/photos", response_model=BookingOut)
 async def return_photos(
     booking_id: uuid.UUID, body: PhotosIn, account: CurrentAccount, session: SessionDep
 ):
-    raise not_implemented()
+    """The renter's photos first, then the owner's inspection photos."""
+    booking = await service.get_booking(session, booking_id, account)
+    if booking.role_of(account.id) == "owner":
+        await returns.owner_may_inspect(session, booking)
+    booking = await handover.add_photos(session, booking_id, account, "return", body.object_keys)
+    await session.commit()
+    return await views.booking_out(session, booking, account)
 
 
 @router.post(B + "/return/otp", response_model=OtpOut)
 async def return_otp(booking_id: uuid.UUID, account: CurrentAccount, session: SessionDep):
     """Owner's phone shows this code after both sides' return photos."""
-    raise not_implemented()
+    booking = await service.get_booking(session, booking_id, account)
+    ready = await returns.code_ready(session, booking) and booking.return_completed_at is None
+    code, otp = await handover.show_code(session, booking_id, account, "return", ready)
+    await session.commit()
+    return OtpOut(code=code, expires_at=otp.expires_at)
 
 
 @router.post(B + "/return/otp/verify", response_model=BookingOut)
@@ -292,7 +305,13 @@ async def verify_return_otp(
     session: SessionDep,
 ):
     """Renter types the owner's code, confirming the item is back."""
-    raise not_implemented()
+    booking = await service.get_booking(session, booking_id, account, lock=True)
+    if booking.return_completed_at is not None:
+        raise ApiError(409, "BOOKING_STATE", "The return is already confirmed")
+    await handover.check_code(session, booking, account, "return", body.code)
+    await returns.complete_return(session, booking, account)
+    await session.commit()
+    return await views.booking_out(session, booking, account)
 
 
 @router.post(B + "/damage-charge", response_model=BookingOut)
@@ -304,7 +323,11 @@ async def record_damage_charge(
     session: SessionDep,
 ):
     """Owner records the charge both sides agreed on. Either side may appeal instead."""
-    raise not_implemented()
+    booking = await returns.record_damage(
+        session, booking_id, account, body.amount_paise, body.description
+    )
+    await session.commit()
+    return await views.booking_out(session, booking, account)
 
 
 @router.post(B + "/return/payment", response_model=PaymentOut)
@@ -316,7 +339,7 @@ async def pay_return_charges(
     session: SessionDep,
 ):
     """Late fee, damage charge and any cash extensions, itemised."""
-    raise not_implemented()
+    return payment_out(await returns.pay_charges(session, booking_id, account, body.method, key))
 
 
 @router.post(B + "/proceed", response_model=BookingOut)
@@ -324,7 +347,9 @@ async def proceed(
     booking_id: uuid.UUID, key: IdempotencyKey, account: CurrentAccount, session: SessionDep
 ):
     """Owner closes the return once charges are paid. Reviews open."""
-    raise not_implemented()
+    booking = await returns.proceed(session, booking_id, account)
+    await session.commit()
+    return await views.booking_out(session, booking, account)
 
 
 @router.post(B + "/escalate", response_model=BookingOut)

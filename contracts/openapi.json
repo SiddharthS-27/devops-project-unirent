@@ -7953,6 +7953,7 @@
     },
     "/api/v1/bookings/{booking_id}/return/photos": {
       "post": {
+        "description": "The renter's photos first, then the owner's inspection photos.",
         "operationId": "return_photos_api_v1_bookings__booking_id__return_photos_post",
         "parameters": [
           {
@@ -8011,6 +8012,7 @@
     },
     "/api/v1/bookings/{booking_id}/return/start": {
       "post": {
+        "description": "The renter starts the return when the two meet.",
         "operationId": "start_return_api_v1_bookings__booking_id__return_start_post",
         "parameters": [
           {

@@ -280,6 +280,8 @@ def next_action(booking: Booking, role: str, facts: Facts) -> NextAction | None:
         if role == "renter":
             return _action("return_on_time", "Return the item on time", False)
         return _action("rental_active", "Rental in progress", False)
+    if status == "returning":
+        return _return_action(booking, role, facts)
     if status == "overdue":
         if role == "renter":
             return _action("return_now", "Overdue: return the item now", True)
@@ -287,6 +289,35 @@ def next_action(booking: Booking, role: str, facts: Facts) -> NextAction | None:
             return _action("escalate", "You can escalate to the moderators", True)
         return _action("waiting_return", "Waiting for the return", False)
     return None
+
+
+def _return_action(booking: Booking, role: str, facts: Facts) -> NextAction:
+    renter_done = facts.has_photos("return", "renter")
+    owner_done = facts.has_photos("return", "owner")
+    if not renter_done:
+        if role == "renter":
+            return _action("upload_return_photos", "Upload return photos", True)
+        return _action("waiting_return_photos", "Waiting for the renter's photos", False)
+    if not owner_done:
+        if role == "owner":
+            return _action("inspect_item", "Inspect the item and upload photos", True)
+        return _action("waiting_inspection", "The owner is inspecting the item", False)
+    if booking.return_completed_at is None:
+        if role == "owner":
+            return _action("show_return_otp", "Show your code to the renter", True)
+        return _action("enter_return_otp", "Enter the owner's code", True)
+    charges = _charges(booking, facts)
+    if charges is not None and not charges.paid:
+        if role == "renter":
+            if charges.payment and charges.payment.method == "cash":
+                return _action("waiting_cash_mark", "Waiting for cash to be marked", False)
+            return _action("pay_charges", "Pay the charges", True)
+        if charges.payment and charges.payment.method == "cash":
+            return _action("mark_cash_received", "Mark cash received", True)
+        return _action("record_damage_or_wait", "Record any damage, or wait for payment", True)
+    if role == "owner":
+        return _action("proceed", "Tap Proceed to finish", True)
+    return _action("waiting_proceed", "Waiting for the owner to finish", False)
 
 
 class _NotPaid:
@@ -321,7 +352,7 @@ async def booking_out(
         timeline=timeline(booking),
         next_action=next_action(booking, role, facts),
         pickup=_handover(booking, facts, "pickup"),
-        **{"return": None},
+        **{"return": _handover(booking, facts, "return")},
         payments=[payment_out(p) for p in facts.payments],
         extensions=[await extension_out(e) for e in facts.extensions],
         charges=_charges(booking, facts),
