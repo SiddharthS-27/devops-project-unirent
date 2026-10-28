@@ -23,6 +23,7 @@ from app.modules.listings.models import Asset, AssetEvent, Listing
 from app.modules.listings.service import get_listing
 from app.modules.profiles.service import profiles_for
 from app.modules.reviews.models import Review
+from app.modules.trust import service as trust
 
 REQUEST_TTL = timedelta(hours=24)
 REMINDER_BEFORE = timedelta(hours=1)
@@ -254,6 +255,8 @@ async def cancel(
     )
     await cancel_timers(session, booking.id)
     emit(session, "BookingCancelled", booking.id, payload(booking, cancelled_by=role, note=note))
+    await session.flush()
+    await trust.recompute(session, actor.id)
     return booking
 
 
@@ -287,6 +290,8 @@ async def rate_cancellation(
             revealed_at=now(),
         )
     )
+    await session.flush()
+    await trust.recompute(session, cancellation.by_id)
     record(session, booking, actor.id, booking.role_of(actor.id) or "", "rate_cancellation")
     return booking
 

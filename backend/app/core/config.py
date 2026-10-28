@@ -27,6 +27,16 @@ class Settings(BaseSettings):
     storage_bucket: str = "photos"
     storage_secure: bool = False
     storage_region: str = "us-east-1"
+    # Trust score weights (the plan's proposal; tune without code changes).
+    trust_lender_r: float = 0.70
+    trust_lender_c: float = 0.15
+    trust_lender_a: float = 0.15
+    trust_renter_r: float = 0.50
+    trust_renter_p: float = 0.20
+    trust_renter_d: float = 0.10
+    trust_renter_c: float = 0.10
+    trust_renter_a: float = 0.10
+
     upload_url_minutes: int = 15
     photo_url_minutes: int = 60
 

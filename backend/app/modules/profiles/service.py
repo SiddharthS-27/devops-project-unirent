@@ -24,6 +24,7 @@ from app.modules.profiles.schemas import (
     Residence,
     TrustSummary,
 )
+from app.modules.trust.models import TrustScore
 
 CURRENT_TERMS_VERSION = "2026-10"
 NEW_BADGE_TRADES = 5
@@ -68,17 +69,45 @@ async def accept_terms(session: AsyncSession, account_id: uuid.UUID, version: st
 
 # Hooks the later modules fill in: trust scores, trade counts and the
 # counterparty check all come from bookings and reviews.
+async def _trust_rows(session: AsyncSession, account_ids: list[uuid.UUID]) -> dict:
+    rows = await session.scalars(select(TrustScore).where(TrustScore.account_id.in_(account_ids)))
+    return {row.account_id: row for row in rows}
+
+
 async def trust_summaries(
-    account_ids: list[uuid.UUID],
+    session: AsyncSession, account_ids: list[uuid.UUID]
 ) -> dict[uuid.UUID, tuple[TrustSummary, TrustSummary]]:
-    return {a: (TrustSummary(), TrustSummary()) for a in account_ids}
+    rows = await _trust_rows(session, account_ids)
+    out = {}
+    for account_id in account_ids:
+        row = rows.get(account_id)
+        if row is None:
+            out[account_id] = (TrustSummary(), TrustSummary())
+            continue
+        out[account_id] = (
+            TrustSummary(
+                score=row.lender_score,
+                rating=float(row.lender_rating) if row.lender_rating is not None else None,
+                review_count=row.lender_reviews,
+            ),
+            TrustSummary(
+                score=row.renter_score,
+                rating=float(row.renter_rating) if row.renter_rating is not None else None,
+                review_count=row.renter_reviews,
+            ),
+        )
+    return out
 
 
 async def trade_counts(
     session: AsyncSession, account_ids: list[uuid.UUID]
 ) -> dict[uuid.UUID, tuple[int, int]]:
     """(completed trades, cancellations) per account."""
-    return {a: (0, 0) for a in account_ids}
+    rows = await _trust_rows(session, account_ids)
+    return {
+        a: (rows[a].completed_trades, rows[a].cancellations) if a in rows else (0, 0)
+        for a in account_ids
+    }
 
 
 async def is_counterparty(
@@ -99,7 +128,7 @@ async def public_profiles(
     session: AsyncSession, profiles: list[Profile], accounts: dict[uuid.UUID, AccountInfo]
 ) -> dict[uuid.UUID, ProfilePublic]:
     ids = [p.account_id for p in profiles]
-    trust = await trust_summaries(ids)
+    trust = await trust_summaries(session, ids)
     counts = await trade_counts(session, ids)
     out = {}
     for p in profiles:

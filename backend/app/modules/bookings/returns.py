@@ -20,6 +20,7 @@ from app.modules.bookings.models import Booking
 from app.modules.bookings.service import get_booking, require_party
 from app.modules.bookings.state import record, require_status, transition
 from app.modules.listings.models import AssetEvent
+from app.modules.trust import service as trust
 
 STALLED_PROCEED_AFTER = timedelta(hours=24)
 
@@ -87,6 +88,8 @@ async def complete_return(session: AsyncSession, booking: Booking, renter: Accou
         booking.id,
         payload(booking, late_fee_paise=booking.late_fee_paise),
     )
+    await session.flush()
+    await trust.recompute(session, booking.renter_id)
 
 
 def _require_item_back(booking: Booking) -> None:

@@ -19,6 +19,7 @@ from app.modules.bookings.models import Booking
 from app.modules.bookings.service import get_booking
 from app.modules.bookings.state import record, transition
 from app.modules.reviews.models import Review
+from app.modules.trust import service as trust
 
 RELEASE_AFTER = timedelta(hours=24)
 
@@ -140,7 +141,8 @@ async def reveal(session: AsyncSession, booking: Booking) -> bool:
 
 
 async def on_completed(session: AsyncSession, booking: Booking) -> None:
-    """Hook for what completion updates (trust scores)."""
+    await session.flush()
+    await trust.recompute(session, booking.renter_id, booking.owner_id)
 
 
 async def release(session: AsyncSession, booking: Booking) -> bool:

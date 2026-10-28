@@ -75,3 +75,16 @@ async def test_the_waiting_side_is_released_after_24_hours(api, time_travel):  #
     await api.post(f"/internal/timers/{release['id']}/fire", headers=service)
     out = (await buyer.get(f"/bookings/{bid}")).json()
     assert out["status"] == "completed" and out["reviews"]["revealed"]
+
+
+async def test_completed_trades_count_toward_the_new_badge(api):
+    seller, buyer, booking = await reviewable_sale(api)
+    await review(buyer, booking["id"], LENDER_RATINGS)
+    await review(
+        seller,
+        booking["id"],
+        {"handover_punctuality": 5, "payment_promptness": 5, "communication": 5},
+    )
+    profile = (await buyer.get(f"/profiles/{seller.id}")).json()
+    assert profile["completed_trades"] == 1 and profile["is_new"]
+    assert profile["lender"]["rating"] == 4.0 and profile["lender"]["score"] is None
