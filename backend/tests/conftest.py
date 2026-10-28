@@ -219,3 +219,25 @@ async def pay_cash_and_hand_over(owner, renter, booking_id) -> dict:
     r = await owner.post(f"/bookings/{booking_id}/pickup/otp/verify", json={"code": code})
     assert r.status_code == 200, r.text
     return r.json()
+
+
+async def moderator(client) -> Student:
+    """A signed-in moderator (password already changed)."""
+    from unirent_security.staff_auth import create_staff_account
+
+    from app.core.db import get_sessionmaker
+
+    email = f"m{uuid.uuid4().hex[:10]}@unirent.in"
+    async with get_sessionmaker()() as session:
+        await create_staff_account(session, email, "Mod", "temporary-pass-1")
+        await session.commit()
+    r = await client.post(
+        "/api/v1/auth/staff/password",
+        json={
+            "email": email,
+            "current_password": "temporary-pass-1",
+            "new_password": "a-new-pass-123",
+        },
+    )
+    assert r.status_code == 200, r.text
+    return Student(client, r.json())
