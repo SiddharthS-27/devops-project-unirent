@@ -17,6 +17,10 @@ Map<String, MockHandler> bookingHandlers(MockDb db) {
     'GET /api/v1/bookings/{booking_id}': h.get,
     'POST /api/v1/bookings/{booking_id}/approve': h.idempotent(h.approve),
     'POST /api/v1/bookings/{booking_id}/decline': h.idempotent(h.decline),
+    'POST /api/v1/bookings/{booking_id}/withdraw': h.idempotent(h.withdraw),
+    'POST /api/v1/bookings/{booking_id}/cancel': h.idempotent(h.cancel),
+    'POST /api/v1/bookings/{booking_id}/cancellation-rating':
+        h.rateCancellation,
   };
 }
 
@@ -373,6 +377,87 @@ class MockBookingHandlers {
       ..decidedAt = now
       ..declineReason = body.reason;
     return view(b, owner);
+  }
+
+  // ---- withdraw, cancel, rate ------------------------------------------------
+
+  FutureOr<MockResponse> withdraw(MockRequest r) {
+    final renter = account(r);
+    final b = booking(r, renter);
+    requireParty(b, renter, TradeRole.renter);
+    requireStatus(b, {BookingStatus.requested});
+    moveTo(b, BookingStatus.withdrawn);
+    return view(b, renter);
+  }
+
+  /// Either side, after approval and until the handover is paid.
+  FutureOr<MockResponse> cancel(MockRequest r) {
+    final actor = account(r);
+    final b = booking(r, actor);
+    final role = b.roleOf(actor.id);
+    if (role == null) {
+      throw const MockApiError(
+        403,
+        'NOT_YOUR_STEP',
+        'Only the two sides can cancel',
+      );
+    }
+    final note = mockParse(r, CancelIn.fromJson).note;
+    if (note.trim().length < 5 || note.length > 1000) {
+      throw mockValidation('note', 'Must be 5-1000 characters');
+    }
+    requireStatus(b, {BookingStatus.approved});
+    if (b.paymentFor(b.handoverPurpose)?.isPaid ?? false) {
+      throw const MockApiError(
+        409,
+        'ALREADY_PAID',
+        "It's paid for; finish the handover or ask for help",
+      );
+    }
+    moveTo(b, BookingStatus.cancelled);
+    b.cancellation = MockCancellation(by: role, note: note.trim(), at: now);
+    actor.cancellationCount++;
+    return view(b, actor);
+  }
+
+  MockResponse rateCancellation(MockRequest r) {
+    final actor = account(r);
+    final b = booking(r, actor);
+    final c = b.cancellation;
+    if (c == null) {
+      throw const MockApiError(
+        409,
+        'NOT_CANCELLED',
+        "This booking wasn't cancelled",
+      );
+    }
+    final role = b.roleOf(actor.id);
+    if (role == null || role == c.by) {
+      throw const MockApiError(
+        403,
+        'NOT_YOUR_STEP',
+        'The other side rates the cancellation',
+      );
+    }
+    if (c.ratedAt != null) {
+      throw const MockApiError(
+        409,
+        'ALREADY_RATED',
+        'You already rated this cancellation',
+      );
+    }
+    final body = mockParse(r, CancellationRatingIn.fromJson);
+    if (body.stars < 1 || body.stars > 5) {
+      throw mockValidation('stars', 'Must be 1-5');
+    }
+    if (body.comment.trim().length < 2 || body.comment.length > 1000) {
+      throw mockValidation('comment', 'Must be 2-1000 characters');
+    }
+    c
+      ..ratingStars = body.stars
+      ..ratingComment = body.comment.trim()
+      ..ratedAt = now;
+    return view(b, actor);
   }
 }
 

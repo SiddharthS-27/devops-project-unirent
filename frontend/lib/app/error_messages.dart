@@ -73,6 +73,10 @@ const _messages = {
   'LISTING_UNAVAILABLE': 'This listing isn’t available right now.',
   'BOOKING_STATE': 'This booking has moved on. Pull to refresh.',
   'NOT_YOUR_STEP': 'That step is for the other person.',
+  'ALREADY_PAID':
+      'It’s already paid for. Finish the handover, or ask Help to sort it out.',
+  'ALREADY_RATED': 'You’ve already rated this cancellation.',
+  'NOT_CANCELLED': 'This booking wasn’t cancelled.',
   // Payouts
   'PAYOUT_ACCOUNT_EXISTS': 'You’ve already linked a payout account.',
   'NO_PAYOUT_ACCOUNT': 'Link a payout account first.',

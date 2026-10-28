@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../api/api.dart';
 import '../../../ui/ui.dart';
 import '../booking_actions.dart';
+import 'cancellation_rating_form.dart';
 
 /// One-line explanations for next-action keys; unknown keys show the label.
 const nextActionHints = {
@@ -102,6 +103,7 @@ class _NextActionCardState extends ConsumerState<NextActionCard>
         ),
       ],
     ),
+    'rate_cancellation' => CancellationRatingForm(booking: booking),
     _ => null,
   };
 

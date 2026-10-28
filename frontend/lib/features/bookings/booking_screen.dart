@@ -12,6 +12,8 @@ import '../listings/listing_providers.dart';
 import '../listings/widgets/listing_photo.dart';
 import 'booking_format.dart';
 import 'booking_providers.dart';
+import 'widgets/booking_manage_actions.dart';
+import 'widgets/cancellation_card.dart';
 import 'widgets/counterparty_card.dart';
 import 'widgets/next_action_card.dart';
 import 'widgets/payments_list.dart';
@@ -89,8 +91,16 @@ class _BookingView extends ConsumerWidget {
       children: [
         _Header(booking: booking),
         gap,
+        if (booking.cancellation != null) ...[
+          CancellationCard(booking: booking),
+          gap,
+        ],
         NextActionCard(booking: booking),
         if (booking.nextAction != null) gap,
+        if (BookingManageActions.appliesTo(booking)) ...[
+          BookingManageActions(booking: booking),
+          gap,
+        ],
         Semantics(
           header: true,
           child: Text('Progress', style: theme.textTheme.titleMedium),
