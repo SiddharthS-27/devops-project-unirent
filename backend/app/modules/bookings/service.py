@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import and_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from unirent_payments import payment_status
 from unirent_security import AccountContext, require_owner
 
 from app.core.clock import now
@@ -15,7 +16,7 @@ from app.core.outbox import emit
 from app.core.timers import cancel_timers, schedule
 from app.modules.bookings import pricing, timers
 from app.modules.bookings.events import payload
-from app.modules.bookings.models import HOLDS_SLOT, Booking
+from app.modules.bookings.models import HOLDS_SLOT, Booking, Cancellation
 from app.modules.bookings.state import record, require_status, transition
 from app.modules.listings.models import Listing
 from app.modules.listings.service import get_listing
@@ -227,3 +228,44 @@ async def expire(session: AsyncSession, booking: Booking) -> bool:
     transition(session, booking, "expired", actor_id=None, actor_role="system", action="expire")
     _decided(session, booking, "expired")
     return True
+
+
+async def cancel(
+    session: AsyncSession, booking_id: uuid.UUID, actor: AccountContext, note: str
+) -> Booking:
+    """Either side, after approval and until the pickup payment and OTP. The note
+    goes to the other side, who then rates the canceller."""
+    booking = await get_booking(session, booking_id, actor, lock=True)
+    role = booking.role_of(actor.id)
+    if role is None:
+        raise ApiError(403, "NOT_YOUR_STEP", "Only the two sides can cancel")
+    require_status(booking, "approved")
+    purpose = "rent" if booking.kind == "rent" else "sale"
+    paid = await payment_status(booking.id, purpose)
+    if paid is not None and paid.is_paid:
+        raise ApiError(409, "ALREADY_PAID", "It's paid for; finish the handover or ask for help")
+    transition(session, booking, "cancelled", actor_id=actor.id, actor_role=role, action="cancel")
+    session.add(
+        Cancellation(booking_id=booking.id, by_id=actor.id, by_role=role, note=note, at=now())
+    )
+    await cancel_timers(session, booking.id)
+    emit(session, "BookingCancelled", booking.id, payload(booking, cancelled_by=role, note=note))
+    return booking
+
+
+async def rate_cancellation(
+    session: AsyncSession, booking_id: uuid.UUID, actor: AccountContext, stars: int, comment: str
+) -> Booking:
+    booking = await get_booking(session, booking_id, actor)
+    cancellation = await session.get(Cancellation, booking.id, with_for_update=True)
+    if cancellation is None:
+        raise ApiError(409, "NOT_CANCELLED", "This booking wasn't cancelled")
+    if booking.role_of(actor.id) in (None, cancellation.by_role):
+        raise ApiError(403, "NOT_YOUR_STEP", "The other side rates the cancellation")
+    if cancellation.rated_at is not None:
+        raise ApiError(409, "ALREADY_RATED", "You already rated this cancellation")
+    cancellation.rating_stars = stars
+    cancellation.rating_comment = comment
+    cancellation.rated_at = now()
+    record(session, booking, actor.id, booking.role_of(actor.id) or "", "rate_cancellation")
+    return booking

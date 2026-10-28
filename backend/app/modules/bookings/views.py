@@ -13,10 +13,11 @@ from app.core import storage
 from app.core.clock import now
 from app.core.pagination import decode_offset, encode_offset
 from app.core.schemas import Page
-from app.modules.bookings.models import Booking
+from app.modules.bookings.models import Booking, Cancellation
 from app.modules.bookings.schemas import (
     BookingOut,
     BookingSummary,
+    CancellationInfo,
     NextAction,
     TimelineStep,
 )
@@ -66,6 +67,7 @@ class Facts:
     """What the next action depends on, loaded once per booking."""
 
     payments: list[PaymentView] = field(default_factory=list)
+    cancellation: Cancellation | None = None
     photos: dict[tuple[str, str], list[str]] = field(default_factory=dict)
 
     def paid(self, purpose: str) -> PaymentView | None:
@@ -78,7 +80,10 @@ class Facts:
 
 
 async def load_facts(session: AsyncSession, booking: Booking) -> Facts:
-    return Facts(payments=await payments_for_booking(booking.id))
+    facts = Facts(payments=await payments_for_booking(booking.id))
+    if booking.status == "cancelled":
+        facts.cancellation = await session.get(Cancellation, booking.id)
+    return facts
 
 
 def timeline(booking: Booking) -> list[TimelineStep]:
@@ -123,6 +128,18 @@ def timeline(booking: Booking) -> list[TimelineStep]:
     ]
 
 
+def _cancellation(facts: Facts, role: str) -> CancellationInfo | None:
+    c = facts.cancellation
+    if c is None:
+        return None
+    return CancellationInfo(
+        by=c.by_role,  # type: ignore[arg-type]
+        note=c.note,
+        at=c.at,
+        rating_due=c.by_role != role and role != "staff" and c.rated_at is None,
+    )
+
+
 def _action(key: str, label: str, by_me: bool) -> NextAction:
     return NextAction(key=key, label=label, by_me=by_me)
 
@@ -133,6 +150,11 @@ def next_action(booking: Booking, role: str, facts: Facts) -> NextAction | None:
         return None
     other = "owner" if role == "renter" else "renter"
     status = booking.status
+    if status == "cancelled":
+        c = facts.cancellation
+        if c is not None and c.by_role != role and c.rated_at is None:
+            return _action("rate_cancellation", "Read the reason and rate the cancellation", True)
+        return None
     if status == "requested":
         if role == "owner":
             return _action("decide_request", "Approve or decline the request", True)
@@ -185,12 +207,14 @@ async def booking_out(
         payments=[payment_out(p) for p in facts.payments],
         extensions=[],
         charges=None,
-        cancellation=None,
+        cancellation=_cancellation(facts, role),
         appeal=None,
         reviews=None,
         overdue_since=booking.overdue_since,
         escalation_available_at=None,
-        can_cancel=False,
+        can_cancel=booking.status == "approved"
+        and role in ("renter", "owner")
+        and not any(p.is_paid for p in facts.payments if p.purpose in ("rent", "sale")),
         can_escalate=False,
         can_appeal=False,
         server_now=now(),

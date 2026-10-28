@@ -6870,6 +6870,7 @@
     },
     "/api/v1/bookings/{booking_id}/cancellation-rating": {
       "post": {
+        "description": "The side that didn't cancel reads the note and rates the canceller.",
         "operationId": "rate_cancellation_api_v1_bookings__booking_id__cancellation_rating_post",
         "parameters": [
           {

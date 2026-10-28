@@ -137,14 +137,21 @@ async def cancel(
     session: SessionDep,
 ):
     """Either side, after approval and before the pickup OTP. The note goes to the other side."""
-    raise not_implemented()
+    booking = await service.cancel(session, booking_id, account, body.note)
+    await session.commit()
+    return await views.booking_out(session, booking, account)
 
 
 @router.post(B + "/cancellation-rating", response_model=BookingOut)
 async def rate_cancellation(
     booking_id: uuid.UUID, body: CancellationRatingIn, account: CurrentAccount, session: SessionDep
 ):
-    raise not_implemented()
+    """The side that didn't cancel reads the note and rates the canceller."""
+    booking = await service.rate_cancellation(
+        session, booking_id, account, body.stars, body.comment
+    )
+    await session.commit()
+    return await views.booking_out(session, booking, account)
 
 
 @router.post(B + "/pickup/photos", response_model=BookingOut)
