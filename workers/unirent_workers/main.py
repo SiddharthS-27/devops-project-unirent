@@ -7,7 +7,7 @@ import sys
 
 from prometheus_client import start_http_server
 
-from unirent_workers import db, logs, migrate, relay, timers
+from unirent_workers import db, logs, migrate, reconciliation_trigger, relay, timers
 from unirent_workers.backend_api import BackendApi
 from unirent_workers.config import get_settings
 from unirent_workers.consumers import matcher
@@ -17,7 +17,7 @@ from unirent_workers.kafka import start_producer
 from unirent_workers.push import PushDelivery, make_sender
 
 log = logging.getLogger("unirent.workers")
-COMPONENTS = ("relay", "push", "timers", "matcher")
+COMPONENTS = ("relay", "push", "timers", "matcher", "reconciliation")
 
 
 async def main(components: list[str]) -> None:
@@ -48,6 +48,10 @@ async def main(components: list[str]) -> None:
 
     if "timers" in components:
         tasks.append(asyncio.create_task(timers.run(backend, stop), name="timers"))
+
+    if "reconciliation" in components:
+        task = reconciliation_trigger.run(backend, stop)
+        tasks.append(asyncio.create_task(task, name="reconciliation"))
 
     log.info("workers running", extra={"components": components})
     await stop.wait()

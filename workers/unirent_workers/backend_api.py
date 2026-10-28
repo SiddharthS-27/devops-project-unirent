@@ -14,7 +14,7 @@ class BackendApi:
         self._client = httpx.AsyncClient(
             base_url=settings.api_base_url.rstrip("/"),
             headers={"X-Service-Token": settings.service_token},
-            timeout=10,
+            timeout=60,  # reconciliation pulls a day of Razorpay records
             transport=transport,
         )
 
@@ -44,4 +44,4 @@ class BackendApi:
         )
 
     async def run_reconciliation(self) -> dict:
-        return await self._json("POST", "/internal/reconciliation/run")
+        return await self._json("POST", "/internal/reconciliation/run", json={})
