@@ -332,6 +332,7 @@ async def complete_pickup(session: AsyncSession, booking: Booking, actor: Accoun
             actor_role="owner",
             action="handover",
         )
+        await transfer_asset(session, booking)
     emit(session, "PickupCompleted", booking.id, payload(booking))
 
 
@@ -342,3 +343,30 @@ async def _phase_keys(session: AsyncSession, booking_id: uuid.UUID, phase: str) 
         )
     )
     return list(rows)
+
+
+SALE_APPEAL_WINDOW = timedelta(hours=48)
+
+
+async def transfer_asset(session: AsyncSession, booking: Booking) -> None:
+    """A sale's handover: the listing is sold and the asset, with its whole history,
+    now belongs to the buyer, who can relist it. The buyer may appeal for 48 hours."""
+    listing = await session.get(Listing, booking.listing_id, with_for_update=True)
+    asset = await session.get(Asset, booking.asset_id, with_for_update=True)
+    listing.status = "sold"  # type: ignore[union-attr]
+    listing.updated_at = now()  # type: ignore[union-attr]
+    asset.owner_id = booking.renter_id  # type: ignore[union-attr]
+    session.add(
+        AssetEvent(
+            id=uuid.uuid4(),
+            asset_id=booking.asset_id,
+            at=now(),
+            kind="sold",
+            summary="Sold to a new owner",
+            amount_paise=booking.amount_paise,
+            booking_id=booking.id,
+            photo_keys=await _phase_keys(session, booking.id, "pickup"),
+        )
+    )
+    booking.appeal_window_until = now() + SALE_APPEAL_WINDOW
+    schedule(session, timers.SALE_APPEAL_CLOSE, booking.id, booking.appeal_window_until)
