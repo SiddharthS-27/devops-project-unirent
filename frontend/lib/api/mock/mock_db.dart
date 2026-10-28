@@ -1,5 +1,8 @@
 import '../generated/models.dart';
+import 'mock_booking_handlers.dart' show seedBookings;
+import 'mock_bookings.dart';
 import 'mock_listings.dart';
+import 'mock_server.dart';
 
 /// Terms version the mock backend expects (mirrors the backend constant).
 const mockTermsVersion = '2026-10';
@@ -40,6 +43,11 @@ class MockAccount {
   double? lenderRating;
   int completedTrades = 0;
   int cancellationCount = 0;
+
+  /// Renter-side trust; null while the user is New.
+  int? renterScore;
+  double? renterRating;
+  int renterReviews = 0;
 
   /// Razorpay linked account state; listings need it `activated`.
   PayoutAccountOutStatus payoutStatus = PayoutAccountOutStatus.none;
@@ -120,6 +128,7 @@ class MockDb {
       termsVersion: mockTermsVersion,
     );
     seedListings(db);
+    seedBookings(db);
     return db;
   }
 
@@ -152,6 +161,11 @@ class MockDb {
 
   /// Keys whose bytes were PUT to their upload URL.
   final uploadedKeys = <String>{};
+
+  final bookings = <String, MockBooking>{};
+
+  /// Replayed responses by `account:Idempotency-Key`.
+  final idempotentResponses = <String, MockResponse>{};
 
   int _sequence = 0;
 

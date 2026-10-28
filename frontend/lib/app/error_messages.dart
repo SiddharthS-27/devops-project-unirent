@@ -62,6 +62,17 @@ const _messages = {
   'EMPTY_SEARCH': 'Add a search term or a filter before saving.',
   'TOO_MANY_SAVED_SEARCHES':
       'You can save up to 20 searches. Delete one to save another.',
+  // Bookings
+  'OWN_LISTING': 'You can’t request your own listing.',
+  'REQUEST_EXISTS': 'You already have an open request for this item.',
+  'SLOT_TAKEN': 'Those times are already booked. Pick different times.',
+  'START_IN_PAST': 'Pick a start time in the future.',
+  'PERIOD_TOO_SHORT': 'Rent for at least an hour.',
+  'PERIOD_TOO_LONG': 'You can rent for at most 30 days.',
+  'PERIOD_REQUIRED': 'Pick a start and end time.',
+  'LISTING_UNAVAILABLE': 'This listing isn’t available right now.',
+  'BOOKING_STATE': 'This booking has moved on. Pull to refresh.',
+  'NOT_YOUR_STEP': 'That step is for the other person.',
   // Payouts
   'PAYOUT_ACCOUNT_EXISTS': 'You’ve already linked a payout account.',
   'NO_PAYOUT_ACCOUNT': 'Link a payout account first.',

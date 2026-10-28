@@ -38,9 +38,11 @@ abstract final class Routes {
   static String listing(String id) => '/listing/${Uri.encodeComponent(id)}';
   static String listingEdit(String id) => '${listing(id)}/edit';
   static String listingRequest(String id) => '${listing(id)}/request';
+  static String listingRequests(String id) => '${listing(id)}/requests';
   static const bookings = '/bookings';
   static const listings = '/listings';
   static const newListing = '/listings/new';
+  static const incomingRequests = '/listings/requests';
   static const payoutAccount = '/payout-account';
   static const profile = '/profile';
   static const help = '/help';

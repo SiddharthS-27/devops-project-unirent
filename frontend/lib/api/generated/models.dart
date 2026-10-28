@@ -626,6 +626,23 @@ enum UploadPurpose {
       values.firstWhere((v) => v.json == json, orElse: () => unknown);
 }
 
+enum WebhookAckStatus {
+  processed('processed'),
+  duplicate('duplicate'),
+  ignored('ignored'),
+
+  /// A value added to the API after this client was built.
+  unknown('');
+
+  const WebhookAckStatus(this.json);
+
+  /// The wire value.
+  final String json;
+
+  static WebhookAckStatus fromJson(String json) =>
+      values.firstWhere((v) => v.json == json, orElse: () => unknown);
+}
+
 /// One of [ProfileCounterparty], [ProfileOwn], [ProfilePublic], [ProfileStaff],
 /// discriminated by `view`.
 @immutable
@@ -5060,4 +5077,44 @@ class ValidationError {
     'msg': msg,
     'type': type,
   };
+}
+
+/// What Razorpay Checkout returns to the app on success.
+@immutable
+class VerifyIn {
+  const VerifyIn({
+    required this.razorpayOrderId,
+    required this.razorpayPaymentId,
+    required this.razorpaySignature,
+  });
+
+  factory VerifyIn.fromJson(Map<String, Object?> json) => VerifyIn(
+    razorpayOrderId: json['razorpay_order_id'] as String,
+    razorpayPaymentId: json['razorpay_payment_id'] as String,
+    razorpaySignature: json['razorpay_signature'] as String,
+  );
+
+  final String razorpayOrderId;
+
+  final String razorpayPaymentId;
+
+  final String razorpaySignature;
+
+  Map<String, Object?> toJson() => {
+    'razorpay_order_id': razorpayOrderId,
+    'razorpay_payment_id': razorpayPaymentId,
+    'razorpay_signature': razorpaySignature,
+  };
+}
+
+@immutable
+class WebhookAck {
+  const WebhookAck({required this.status});
+
+  factory WebhookAck.fromJson(Map<String, Object?> json) =>
+      WebhookAck(status: WebhookAckStatus.fromJson(json['status'] as String));
+
+  final WebhookAckStatus status;
+
+  Map<String, Object?> toJson() => {'status': status.json};
 }

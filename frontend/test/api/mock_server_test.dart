@@ -195,7 +195,7 @@ void main() {
 
   test('unrouted endpoints answer 501 like the backend', () async {
     await expectLater(
-      mockClient().api.bookings.getBooking('b1'),
+      mockClient().api.help.faqs(),
       throwsApiCode('NOT_IMPLEMENTED'),
     );
   });

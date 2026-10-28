@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../../api/api.dart';
 import '../../ui/ui.dart';
@@ -84,4 +85,16 @@ extension ListingCardFormat on ListingCard {
     perDayPaise: pricePerDayPaise,
     salePaise: salePricePaise,
   );
+}
+
+/// "₹50 after a 30-minute grace period, plus 2% of the rent per hour late."
+String lateFeeText(LateFeeRuleOut rule) {
+  final grace = rule.graceMinutes;
+  final graceText = grace % 60 == 0 && grace >= 60
+      ? '${grace ~/ 60}-hour'
+      : '$grace-minute';
+  final percent = NumberFormat('0.##').format(rule.hourlyPercentBp / 100);
+  return 'If you return late, you pay ${formatMoney(rule.baseFeePaise)} once '
+      'the $graceText grace period is over, plus $percent% of the rent for '
+      'every hour after that.';
 }

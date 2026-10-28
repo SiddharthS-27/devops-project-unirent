@@ -93,28 +93,13 @@ class MockSearchFilter {
   }
 }
 
-class _ListingHandlers {
-  _ListingHandlers(this.db);
+String _displayName(MockDb db, MockAccount a) =>
+    db.profiles[a.id]?.data.fullName ?? a.name ?? a.email;
 
-  final MockDb db;
-
-  MockAccount _account(MockRequest r) => mockAuthenticate(db, r);
-
-  String _name(MockAccount a) =>
-      db.profiles[a.id]?.data.fullName ?? a.name ?? a.email;
-
-  OwnerSummary _ownerSummary(String accountId) {
-    final owner = db.accounts[accountId]!;
-    return OwnerSummary(
-      accountId: owner.id,
-      fullName: _name(owner),
-      photoUrl: null,
-      lenderTrust: owner.lenderScore,
-      isNew: owner.lenderScore == null,
-    );
-  }
-
-  ListingCard card(MockListing l) => ListingCard(
+/// The search-result card for [l].
+ListingCard mockListingCard(MockDb db, MockListing l) {
+  final owner = db.accounts[l.ownerId]!;
+  return ListingCard(
     id: l.id,
     kind: l.kind,
     status: l.status,
@@ -125,9 +110,50 @@ class _ListingHandlers {
     salePricePaise: l.salePricePaise,
     photoUrl: l.photos.firstOrNull?.url,
     pickupPoint: l.pickupPoint,
-    owner: _ownerSummary(l.ownerId),
+    owner: OwnerSummary(
+      accountId: owner.id,
+      fullName: _displayName(db, owner),
+      photoUrl: null,
+      lenderTrust: owner.lenderScore,
+      isNew: owner.lenderScore == null,
+    ),
     createdAt: l.createdAt,
   );
+}
+
+/// Pending requests on [l], plus any set directly on the fixture.
+int mockPendingRequests(MockDb db, MockListing l) =>
+    l.pendingRequestCount +
+    db.bookings.values
+        .where(
+          (b) => b.listingId == l.id && b.status == BookingStatus.requested,
+        )
+        .length;
+
+/// True while a booking on [l] is approved or under way.
+bool mockListingLocked(MockDb db, MockListing l) =>
+    l.locked ||
+    db.bookings.values.any(
+      (b) =>
+          b.listingId == l.id &&
+          const {
+            BookingStatus.approved,
+            BookingStatus.active,
+            BookingStatus.overdue,
+            BookingStatus.returning,
+          }.contains(b.status),
+    );
+
+class _ListingHandlers {
+  _ListingHandlers(this.db);
+
+  final MockDb db;
+
+  MockAccount _account(MockRequest r) => mockAuthenticate(db, r);
+
+  String _name(MockAccount a) => _displayName(db, a);
+
+  ListingCard card(MockListing l) => mockListingCard(db, l);
 
   Iterable<MockListing> get _active =>
       db.listings.values.where((l) => l.status == ListingStatus.active);
@@ -239,8 +265,8 @@ class _ListingHandlers {
           : null,
       unavailable: l.unavailable,
       isMine: mine,
-      canEdit: mine && !l.locked,
-      pendingRequestCount: mine ? l.pendingRequestCount : null,
+      canEdit: mine && !mockListingLocked(db, l),
+      pendingRequestCount: mine ? mockPendingRequests(db, l) : null,
       owner: OwnerCard(
         accountId: owner.id,
         fullName: _name(owner),
@@ -464,7 +490,7 @@ class _ListingHandlers {
         'This listing is ${listing.status.json}',
       );
     }
-    if (listing.locked) {
+    if (mockListingLocked(db, listing)) {
       throw const MockApiError(
         409,
         'LISTING_LOCKED',

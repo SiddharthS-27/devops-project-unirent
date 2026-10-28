@@ -1,10 +1,12 @@
 import 'dart:convert';
 
 import '../generated/models.dart';
+import 'mock_booking_handlers.dart';
 import 'mock_db.dart';
 import 'mock_listing_handlers.dart';
 import 'mock_payout_handlers.dart';
 import 'mock_server.dart';
+import 'mock_views.dart';
 
 /// Every route the mock backend answers. Add new endpoints here as the app
 /// starts using them; anything missing answers 501 like the real backend.
@@ -12,6 +14,7 @@ Map<String, MockHandler> mockHandlers(MockDb db) {
   final h = _Handlers(db);
   return {
     ...listingHandlers(db),
+    ...bookingHandlers(db),
     ...payoutHandlers(db),
     'POST /api/v1/auth/microsoft/mock-token': h.microsoftMockToken,
     'POST /api/v1/auth/microsoft': h.microsoftSignIn,
@@ -264,33 +267,8 @@ class _Handlers {
 
   // ---- profiles ---------------------------------------------------------------
 
-  ProfileOwn _ownProfile(MockAccount account, MockProfile profile) {
-    final p = profile.data;
-    return ProfileOwn(
-      accountId: account.id,
-      fullName: p.fullName,
-      photoUrl: null,
-      photoKey: p.photoKey,
-      department: p.department,
-      year: p.year,
-      phone: account.phone,
-      lender: const TrustSummary(),
-      renter: const TrustSummary(),
-      isNew: true,
-      completedTrades: 0,
-      cancellationCount: 0,
-      memberSince: account.createdAt,
-      residence: Residence(
-        type: p.residenceType,
-        hostelName: p.hostelName,
-        roomNumber: p.roomNumber,
-        homeAddress: p.homeAddress,
-      ),
-      email: account.email,
-      rollNumber: p.rollNumber,
-      status: account.status,
-    );
-  }
+  ProfileOwn _ownProfile(MockAccount account, MockProfile profile) =>
+      mockOwnProfile(db, account);
 
   MeOut _me(MockAccount account) {
     final profile = db.profiles[account.id];
@@ -406,51 +384,7 @@ class _Handlers {
   MockResponse profile(MockRequest r) {
     final viewer = _account(r);
     final id = r.pathParams['account_id']!;
-    final account = db.accounts[id];
-    final profile = db.profiles[id];
-    if (account == null || profile == null) {
-      throw const MockApiError(404, 'NOT_FOUND', 'Profile not found');
-    }
-    final own = _ownProfile(account, profile);
-    if (viewer.id == id) return MockResponse.json(own.toJson());
-    if (viewer.isStaff) {
-      return MockResponse.json(
-        ProfileStaff(
-          accountId: own.accountId,
-          fullName: own.fullName,
-          photoUrl: own.photoUrl,
-          department: own.department,
-          year: own.year,
-          phone: own.phone,
-          lender: own.lender,
-          renter: own.renter,
-          isNew: own.isNew,
-          completedTrades: own.completedTrades,
-          cancellationCount: own.cancellationCount,
-          memberSince: own.memberSince,
-          residence: own.residence,
-          email: own.email,
-          rollNumber: own.rollNumber,
-          status: own.status,
-        ).toJson(),
-      );
-    }
-    return MockResponse.json(
-      ProfilePublic(
-        accountId: own.accountId,
-        fullName: own.fullName,
-        photoUrl: own.photoUrl,
-        department: own.department,
-        year: own.year,
-        phone: null,
-        lender: own.lender,
-        renter: own.renter,
-        isNew: own.isNew,
-        completedTrades: own.completedTrades,
-        cancellationCount: own.cancellationCount,
-        memberSince: own.memberSince,
-      ).toJson(),
-    );
+    return MockResponse.json(mockProfileFor(db, id, viewer).toJson());
   }
 
   // ---- devices & time -------------------------------------------------------

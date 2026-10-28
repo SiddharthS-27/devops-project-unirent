@@ -107,7 +107,11 @@ class _ListingDetailViewState extends ConsumerState<_ListingDetailView> {
                 _Header(detail: detail),
                 if (detail.isMine && (detail.pendingRequestCount ?? 0) > 0) ...[
                   const SizedBox(height: AppSpacing.lg),
-                  _PendingRequests(count: detail.pendingRequestCount!),
+                  _PendingRequests(
+                    count: detail.pendingRequestCount!,
+                    onTap: () =>
+                        context.push(Routes.listingRequests(detail.id)),
+                  ),
                 ],
                 if (detail.description.isNotEmpty) ...[
                   gap,
@@ -211,18 +215,6 @@ class _ListingDetailViewState extends ConsumerState<_ListingDetailView> {
   }
 }
 
-/// "₹50 after a 30-minute grace period, plus 2% of the rent per hour late."
-String lateFeeText(LateFeeRuleOut rule) {
-  final grace = rule.graceMinutes;
-  final graceText = grace % 60 == 0 && grace >= 60
-      ? '${grace ~/ 60}-hour'
-      : '$grace-minute';
-  final percent = NumberFormat('0.##').format(rule.hourlyPercentBp / 100);
-  return 'If you return late, you pay ${formatMoney(rule.baseFeePaise)} once '
-      'the $graceText grace period is over, plus $percent% of the rent for '
-      'every hour after that.';
-}
-
 String _statusLabel(ListingStatus status) => switch (status) {
   ListingStatus.active => 'Active',
   ListingStatus.paused => 'Paused',
@@ -287,25 +279,26 @@ class _Header extends StatelessWidget {
 }
 
 class _PendingRequests extends StatelessWidget {
-  const _PendingRequests({required this.count});
+  const _PendingRequests({required this.count, required this.onTap});
 
   final int count;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: scheme.primaryContainer,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-      ),
-      child: Text(
-        count == 1
-            ? '1 booking request is waiting for you'
-            : '$count booking requests are waiting for you',
-        style: TextStyle(color: scheme.onPrimaryContainer),
+    return Material(
+      color: scheme.primaryContainer,
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      child: ListTile(
+        title: Text(
+          count == 1
+              ? '1 booking request is waiting for you'
+              : '$count booking requests are waiting for you',
+          style: TextStyle(color: scheme.onPrimaryContainer),
+        ),
+        trailing: Icon(Icons.chevron_right, color: scheme.onPrimaryContainer),
+        onTap: onTap,
       ),
     );
   }

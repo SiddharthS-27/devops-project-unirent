@@ -8,6 +8,7 @@ import '../features/auth/staff_password_screen.dart';
 import '../features/auth/staff_sign_in_screen.dart';
 import '../features/bookings/booking_screen.dart';
 import '../features/bookings/bookings_screen.dart';
+import '../features/bookings/incoming_requests_screen.dart';
 import '../features/bookings/request_screen.dart';
 import '../features/help/help_screen.dart';
 import '../features/home/home_screen.dart';
@@ -104,6 +105,11 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (context, state) =>
                 RequestScreen(listingId: state.pathParameters['id']!),
           ),
+          GoRoute(
+            path: 'requests',
+            builder: (context, state) =>
+                IncomingRequestsScreen(listingId: state.pathParameters['id']!),
+          ),
         ],
       ),
       GoRoute(
@@ -160,6 +166,10 @@ final routerProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'new',
                     builder: (context, state) => const ListingFormScreen(),
+                  ),
+                  GoRoute(
+                    path: 'requests',
+                    builder: (context, state) => const IncomingRequestsScreen(),
                   ),
                 ],
               ),
