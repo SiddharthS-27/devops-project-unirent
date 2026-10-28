@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from unirent_security import rate_limit_hit
 from unirent_security.errors import ApiError
 
-from unirent_payments import db
+from unirent_payments import db, orders
 from unirent_payments.models import LIVE_STATUSES, PAID_STATUSES, Payment
 
 PURPOSES = ("rent", "extension", "return_charges", "sale")
@@ -127,12 +127,13 @@ async def _live_payment(
 
 
 async def _begin_upi(session: AsyncSession, payment: Payment) -> dict[str, Any] | None:
-    """Create the Razorpay order. Arrives with the orders module."""
-    raise ApiError(501, "UPI_NOT_AVAILABLE", "UPI payments are not available yet")
+    await orders.create_order(session, payment)
+    transition(payment, "pending")
+    return orders.checkout(payment)
 
 
 async def checkout_for(payment: Payment) -> dict[str, Any] | None:
-    return None
+    return orders.checkout(payment)
 
 
 async def start_payment(
@@ -226,7 +227,14 @@ async def start_payment(
 
 
 async def supersede(session: AsyncSession, payment: Payment) -> None:
-    """Close an unpaid attempt so a new one can start (the payer switched method)."""
+    """Close an unpaid attempt so a new one can start (the payer switched method).
+    A UPI attempt the payer already completed in Checkout is not closed: that
+    money moved, so the new attempt is refused instead."""
+    if payment.method == "upi" and await orders.captured_on_razorpay(payment):
+        await session.commit()
+        raise ApiError(
+            409, "PAYMENT_ALREADY_MADE", "Your UPI payment went through; refresh to see it"
+        )
     transition(payment, "failed", reason="superseded")
     await session.flush()
 
