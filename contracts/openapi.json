@@ -5544,6 +5544,24 @@
         ],
         "title": "VerifyIn",
         "type": "object"
+      },
+      "WebhookAck": {
+        "properties": {
+          "status": {
+            "enum": [
+              "processed",
+              "duplicate",
+              "ignored"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "WebhookAck",
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -7547,7 +7565,7 @@
     },
     "/api/v1/bookings/{booking_id}/pickup/payment": {
       "post": {
-        "description": "Renter pays rent (or the sale price): UPI opens Razorpay Checkout; cash waits\nfor the owner to mark it received.",
+        "description": "Renter pays rent (or the sale price): UPI opens Razorpay Checkout; cash waits\nfor the owner to mark it received (POST /payments/{id}/mark-cash-paid).",
         "operationId": "pickup_payment_api_v1_bookings__booking_id__pickup_payment_post",
         "parameters": [
           {
@@ -7619,6 +7637,7 @@
     },
     "/api/v1/bookings/{booking_id}/pickup/photos": {
       "post": {
+        "description": "Each side adds its own pickup photos (upload with purpose \"handover\" first).",
         "operationId": "pickup_photos_api_v1_bookings__booking_id__pickup_photos_post",
         "parameters": [
           {
@@ -9049,6 +9068,28 @@
         "summary": "Accept Terms",
         "tags": [
           "profiles"
+        ]
+      }
+    },
+    "/api/v1/payments/webhooks/razorpay": {
+      "post": {
+        "description": "Signed with X-Razorpay-Signature; replays (same event ID) do nothing.",
+        "operationId": "razorpay_webhook_api_v1_payments_webhooks_razorpay_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookAck"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Razorpay Webhook",
+        "tags": [
+          "payments"
         ]
       }
     },

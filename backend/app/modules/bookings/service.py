@@ -16,9 +16,9 @@ from app.core.outbox import emit
 from app.core.timers import cancel_timers, schedule
 from app.modules.bookings import pricing, timers
 from app.modules.bookings.events import payload
-from app.modules.bookings.models import HOLDS_SLOT, Booking, Cancellation
+from app.modules.bookings.models import HOLDS_SLOT, Booking, Cancellation, HandoverPhoto
 from app.modules.bookings.state import record, require_status, transition
-from app.modules.listings.models import Listing
+from app.modules.listings.models import Asset, AssetEvent, Listing
 from app.modules.listings.service import get_listing
 from app.modules.profiles.service import profiles_for
 
@@ -269,3 +269,49 @@ async def rate_cancellation(
     cancellation.rated_at = now()
     record(session, booking, actor.id, booking.role_of(actor.id) or "", "rate_cancellation")
     return booking
+
+
+async def complete_pickup(session: AsyncSession, booking: Booking, actor: AccountContext) -> None:
+    """The owner typed the right code: a rental becomes active; a sale moves to reviews."""
+    at = now()
+    booking.pickup_completed_at = at
+    if booking.kind == "rent":
+        transition(
+            session, booking, "active", actor_id=actor.id, actor_role="owner", action="pickup"
+        )
+        asset = await session.get(Asset, booking.asset_id, with_for_update=True)
+        asset.rental_count += 1  # type: ignore[union-attr]
+        session.add(
+            AssetEvent(
+                id=uuid.uuid4(),
+                asset_id=booking.asset_id,
+                at=at,
+                kind="rented",
+                summary="Rented out",
+                booking_id=booking.id,
+                photo_keys=await _phase_keys(session, booking.id, "pickup"),
+            )
+        )
+        await cancel_timers(session, booking.id, timers.PICKUP_REMINDER)
+        if booking.end_at and booking.end_at - REMINDER_BEFORE > at:
+            schedule(session, timers.RETURN_REMINDER, booking.id, booking.end_at - REMINDER_BEFORE)
+        schedule(session, timers.OVERDUE_START, booking.id, booking.end_at)  # type: ignore[arg-type]
+    else:
+        transition(
+            session,
+            booking,
+            "awaiting_reviews",
+            actor_id=actor.id,
+            actor_role="owner",
+            action="handover",
+        )
+    emit(session, "PickupCompleted", booking.id, payload(booking))
+
+
+async def _phase_keys(session: AsyncSession, booking_id: uuid.UUID, phase: str) -> list[str]:
+    rows = await session.scalars(
+        select(HandoverPhoto.object_key).where(
+            HandoverPhoto.booking_id == booking_id, HandoverPhoto.phase == phase
+        )
+    )
+    return list(rows)

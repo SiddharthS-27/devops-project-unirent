@@ -12,12 +12,15 @@ from unirent_security import AccountContext
 from app.core import storage
 from app.core.clock import now
 from app.core.pagination import decode_offset, encode_offset
-from app.core.schemas import Page
+from app.core.schemas import Page, PhotoOut
+from app.modules.bookings.handover import SHOWS_CODE, photo_keys
 from app.modules.bookings.models import Booking, Cancellation
 from app.modules.bookings.schemas import (
     BookingOut,
     BookingSummary,
     CancellationInfo,
+    Handover,
+    HandoverSide,
     NextAction,
     TimelineStep,
 )
@@ -80,7 +83,10 @@ class Facts:
 
 
 async def load_facts(session: AsyncSession, booking: Booking) -> Facts:
-    facts = Facts(payments=await payments_for_booking(booking.id))
+    facts = Facts(
+        payments=await payments_for_booking(booking.id),
+        photos=await photo_keys(session, booking.id),
+    )
     if booking.status == "cancelled":
         facts.cancellation = await session.get(Cancellation, booking.id)
     return facts
@@ -126,6 +132,36 @@ def timeline(booking: Booking) -> list[TimelineStep]:
         )
         for i, (key, label) in enumerate(steps)
     ]
+
+
+def _handover(booking: Booking, facts: Facts, phase: str) -> Handover | None:
+    if phase == "pickup" and booking.status in ("requested", "declined", "withdrawn", "expired"):
+        return None
+    if phase == "return" and booking.return_started_at is None:
+        return None
+
+    def side(name: str) -> HandoverSide:
+        keys = facts.photos.get((phase, name), [])
+        return HandoverSide(
+            photos=[PhotoOut(id=k, url=storage.photo_url(k) or "") for k in keys], done=bool(keys)
+        )
+
+    renter, owner = side("renter"), side("owner")
+    if phase == "pickup":
+        payment = facts.paid("rent" if booking.kind == "rent" else "sale")
+        ready = renter.done and owner.done and payment is not None and payment.is_paid
+        verified = booking.pickup_completed_at
+    else:
+        ready = renter.done and owner.done
+        verified = booking.return_completed_at
+    return Handover(
+        phase=phase,  # type: ignore[arg-type]
+        renter=renter,
+        owner=owner,
+        otp_ready=ready and verified is None,
+        otp_shown_by=SHOWS_CODE[phase],  # type: ignore[arg-type]
+        otp_verified_at=verified,
+    )
 
 
 def _cancellation(facts: Facts, role: str) -> CancellationInfo | None:
@@ -202,7 +238,7 @@ async def booking_out(
         late_fee_rule=rule,
         timeline=timeline(booking),
         next_action=next_action(booking, role, facts),
-        pickup=None,
+        pickup=_handover(booking, facts, "pickup"),
         **{"return": None},
         payments=[payment_out(p) for p in facts.payments],
         extensions=[],

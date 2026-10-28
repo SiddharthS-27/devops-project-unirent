@@ -179,3 +179,43 @@ async def create_listing(student: Student, **overrides) -> dict:
     r = await student.post("/listings", json=body)
     assert r.status_code == 201, r.text
     return r.json()
+
+
+async def approved_booking(client, **listing_overrides):
+    """An owner, a renter and an approved rental between them."""
+    from datetime import timedelta
+
+    from app.core.clock import now
+
+    owner = await lister(client)
+    listing = await create_listing(owner, **listing_overrides)
+    renter = await onboard(client)
+    start = (now() + timedelta(hours=2)).replace(microsecond=0)
+    period = {"start_at": start.isoformat(), "end_at": (start + timedelta(days=1)).isoformat()}
+    if listing["kind"] == "sale":
+        period = {}
+    r = await renter.post("/bookings", json={"listing_id": listing["id"], **period})
+    assert r.status_code == 201, r.text
+    booking = r.json()
+    r = await owner.post(f"/bookings/{booking['id']}/approve")
+    assert r.status_code == 200, r.text
+    return owner, renter, r.json()
+
+
+async def pickup_photos(owner, renter, booking_id) -> None:
+    for user in (owner, renter):
+        key = await upload_photo(user, "handover")
+        r = await user.post(f"/bookings/{booking_id}/pickup/photos", json={"object_keys": [key]})
+        assert r.status_code == 200, r.text
+
+
+async def pay_cash_and_hand_over(owner, renter, booking_id) -> dict:
+    payment = (
+        await renter.post(f"/bookings/{booking_id}/pickup/payment", json={"method": "cash"})
+    ).json()
+    r = await owner.post(f"/payments/{payment['id']}/mark-cash-paid")
+    assert r.status_code == 200, r.text
+    code = (await renter.post(f"/bookings/{booking_id}/pickup/otp")).json()["code"]
+    r = await owner.post(f"/bookings/{booking_id}/pickup/otp/verify", json={"code": code})
+    assert r.status_code == 200, r.text
+    return r.json()

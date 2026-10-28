@@ -3,12 +3,13 @@ from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Query
+from unirent_payments.api import payment_out
 from unirent_security import ActiveAccount, CurrentAccount
 
 from app.core.deps import IdempotencyKey, SessionDep
 from app.core.errors import not_implemented
 from app.core.schemas import Page
-from app.modules.bookings import pricing, service, views
+from app.modules.bookings import handover, pricing, service, views
 from app.modules.bookings.schemas import (
     AppealCreate,
     AppealOut,
@@ -158,7 +159,10 @@ async def rate_cancellation(
 async def pickup_photos(
     booking_id: uuid.UUID, body: PhotosIn, account: CurrentAccount, session: SessionDep
 ):
-    raise not_implemented()
+    """Each side adds its own pickup photos (upload with purpose "handover" first)."""
+    booking = await handover.add_photos(session, booking_id, account, "pickup", body.object_keys)
+    await session.commit()
+    return await views.booking_out(session, booking, account)
 
 
 @router.post(B + "/pickup/payment", response_model=PaymentOut)
@@ -170,14 +174,19 @@ async def pickup_payment(
     session: SessionDep,
 ):
     """Renter pays rent (or the sale price): UPI opens Razorpay Checkout; cash waits
-    for the owner to mark it received."""
-    raise not_implemented()
+    for the owner to mark it received (POST /payments/{id}/mark-cash-paid)."""
+    payment = await handover.pickup_payment(session, booking_id, account, body.method, key)
+    return payment_out(payment)
 
 
 @router.post(B + "/pickup/otp", response_model=OtpOut)
 async def pickup_otp(booking_id: uuid.UUID, account: CurrentAccount, session: SessionDep):
     """Renter's phone shows this code once photos and payment are done."""
-    raise not_implemented()
+    booking = await service.get_booking(session, booking_id, account)
+    ready = await handover.pickup_ready(session, booking)
+    code, otp = await handover.show_code(session, booking_id, account, "pickup", ready)
+    await session.commit()
+    return OtpOut(code=code, expires_at=otp.expires_at)
 
 
 @router.post(B + "/pickup/otp/verify", response_model=BookingOut)
@@ -189,7 +198,11 @@ async def verify_pickup_otp(
     session: SessionDep,
 ):
     """Owner types the renter's code. The rental becomes Active (a sale completes)."""
-    raise not_implemented()
+    booking = await service.get_booking(session, booking_id, account, lock=True)
+    await handover.check_code(session, booking, account, "pickup", body.code)
+    await service.complete_pickup(session, booking, account)
+    await session.commit()
+    return await views.booking_out(session, booking, account)
 
 
 @router.post(B + "/extensions", response_model=ExtensionOut, status_code=201)
