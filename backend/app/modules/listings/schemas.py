@@ -144,6 +144,14 @@ class AssetHistoryEntry(BaseModel):
 class AssetOut(BaseModel):
     id: uuid.UUID
     owner_id: uuid.UUID
+    title: str = Field(description="From the item's latest listing")
+    category: Category
+    description: str
+    photo_url: str | None = Field(description="Cover photo of the latest listing")
+    listing_id: uuid.UUID | None = Field(
+        description="The current owner's latest listing of the item, if they listed it"
+    )
+    listing_status: ListingStatus | None
     condition: Condition
     manufacture_date: date | None
     serial_number: str | None = Field(

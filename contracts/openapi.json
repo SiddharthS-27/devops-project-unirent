@@ -360,6 +360,21 @@
       },
       "AssetOut": {
         "properties": {
+          "category": {
+            "enum": [
+              "electronics",
+              "cameras",
+              "cycles",
+              "books",
+              "instruments",
+              "sports",
+              "hostel",
+              "events",
+              "other"
+            ],
+            "title": "Category",
+            "type": "string"
+          },
           "condition": {
             "enum": [
               "new",
@@ -369,6 +384,10 @@
               "poor"
             ],
             "title": "Condition",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
             "type": "string"
           },
           "history": {
@@ -382,6 +401,36 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "listing_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The current owner's latest listing of the item, if they listed it",
+            "title": "Listing Id"
+          },
+          "listing_status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "active",
+                  "paused",
+                  "sold",
+                  "removed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listing Status"
           },
           "manufacture_date": {
             "anyOf": [
@@ -400,6 +449,18 @@
             "title": "Owner Id",
             "type": "string"
           },
+          "photo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Cover photo of the latest listing",
+            "title": "Photo Url"
+          },
           "rental_count": {
             "title": "Rental Count",
             "type": "integer"
@@ -415,11 +476,22 @@
             ],
             "description": "Masked to the last 4 characters except for the owner and staff",
             "title": "Serial Number"
+          },
+          "title": {
+            "description": "From the item's latest listing",
+            "title": "Title",
+            "type": "string"
           }
         },
         "required": [
           "id",
           "owner_id",
+          "title",
+          "category",
+          "description",
+          "photo_url",
+          "listing_id",
+          "listing_status",
           "condition",
           "manufacture_date",
           "serial_number",

@@ -143,9 +143,23 @@ async def asset_out(session: AsyncSession, asset: Asset, viewer: AccountContext)
         select(AssetEvent).where(AssetEvent.asset_id == asset.id).order_by(AssetEvent.at)
     )
     full_serial = asset.owner_id == viewer.id or viewer.is_staff
+    latest = await session.scalar(
+        select(Listing)
+        .where(Listing.asset_id == asset.id)
+        .order_by(Listing.created_at.desc())
+        .limit(1)
+    )
+    cover = (await _photos(session, [latest.id])).get(latest.id, [None])[0] if latest else None
+    own = latest if latest is not None and latest.owner_id == asset.owner_id else None
     return AssetOut(
         id=asset.id,
         owner_id=asset.owner_id,
+        title=latest.title if latest else "Item",
+        category=latest.category if latest else "other",  # type: ignore[arg-type]
+        description=latest.description if latest else "",
+        photo_url=storage.photo_url(cover.object_key) if cover else None,
+        listing_id=own.id if own else None,
+        listing_status=own.status if own else None,  # type: ignore[arg-type]
         condition=asset.condition,  # type: ignore[arg-type]
         manufacture_date=asset.manufacture_date,
         serial_number=asset.serial_number if full_serial else mask_serial(asset.serial_number),

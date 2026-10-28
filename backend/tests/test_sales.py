@@ -10,6 +10,9 @@ async def test_a_sale_moves_the_asset_and_its_history_to_the_buyer(api):
     [asset] = (await buyer.get("/assets/mine")).json()
     assert [h["kind"] for h in asset["history"]] == ["listed", "sold"]
     assert asset["serial_number"] == "CN1500D-778812"  # the new owner sees it in full
+    # Enough to show the item and prefill a relist; the seller's listing isn't the buyer's.
+    assert asset["title"] == listing["title"] and asset["category"] == listing["category"]
+    assert asset["photo_url"] and asset["listing_id"] is None and asset["listing_status"] is None
 
     seen = (await buyer.get(f"/bookings/{booking['id']}")).json()
     assert seen["status"] == "awaiting_reviews"
@@ -38,3 +41,6 @@ async def test_the_buyer_can_relist_what_they_bought(api):
     assert r.status_code == 201, r.text
     history = r.json()["asset"]["history"]
     assert [h["kind"] for h in history] == ["listed", "sold", "listed"]
+    [asset] = (await buyer.get("/assets/mine")).json()
+    assert asset["title"] == "Canon camera, now mine"
+    assert asset["listing_id"] == r.json()["id"] and asset["listing_status"] == "active"
