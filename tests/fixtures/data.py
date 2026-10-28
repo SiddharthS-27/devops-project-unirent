@@ -132,6 +132,8 @@ def pay_upi(
     from fixtures.client import sim
 
     payment = renter.ok("POST", f"/bookings/{booking_id}/{path}", json={"method": "upi"})
+    if "checkout" not in payment:  # an extension: the payment sits inside it
+        payment = payment["payment"]
     order_id = payment["checkout"]["order_id"]
     with sim() as s:
         checkout = s.post(f"/sim/orders/{order_id}/pay", json=sim_options).json()
