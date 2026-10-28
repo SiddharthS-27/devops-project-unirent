@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,6 +12,8 @@ import '../../ui/ui.dart' hide TimelineStep, TimelineStepState;
 import '../../ui/widgets/status_timeline.dart' as ui;
 import '../listings/listing_providers.dart';
 import '../listings/widgets/listing_photo.dart';
+import '../reviews/pending_reviews.dart';
+import '../reviews/widgets/booking_reviews.dart';
 import 'booking_format.dart';
 import 'booking_providers.dart';
 import 'widgets/active_rental_section.dart';
@@ -36,6 +40,8 @@ class BookingScreen extends ConsumerWidget {
       if (link != null &&
           deepLinkToLocation(link)?.path == Routes.booking(bookingId)) {
         ref.invalidate(bookingProvider(bookingId));
+        // e.g. ReviewsRevealed, or a step that opened reviews.
+        unawaited(ref.read(pendingReviewsProvider.notifier).refresh());
       }
     });
     final booking = ref.watch(bookingProvider(bookingId));
@@ -145,6 +151,10 @@ class _BookingView extends ConsumerWidget {
                 ? null
                 : () => ref.read(phoneCallerProvider)(phone),
           ),
+        ],
+        if (BookingReviews.appliesTo(booking)) ...[
+          gap,
+          BookingReviews(booking: booking),
         ],
         if (booking.payments.isNotEmpty) ...[
           gap,

@@ -7,6 +7,7 @@ import 'mock_db.dart';
 import 'mock_handlers.dart';
 import 'mock_listings.dart';
 import 'mock_payment_handlers.dart';
+import 'mock_review_handlers.dart';
 import 'mock_server.dart';
 
 /// Booking routes of the mock backend.
@@ -106,6 +107,7 @@ class MockBookingHandlers {
   /// expire after 24 hours; a rental is overdue once its end time plus the
   /// grace period has passed.
   void applyTimers(MockBooking b) {
+    mockApplyReviewRelease(db, b);
     if (b.status == BookingStatus.requested &&
         now.difference(b.createdAt) > const Duration(hours: 24)) {
       moveTo(b, BookingStatus.expired);

@@ -341,7 +341,7 @@ class _ListingFormState extends ConsumerState<_ListingForm> {
               ),
               gap,
             ],
-            if (_error != null) ...[InlineError(_error!), gap],
+            OptionalInlineError(_error),
             _photoSection(theme, enabled),
             gap,
             if (_isEdit)

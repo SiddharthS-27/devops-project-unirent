@@ -2,6 +2,7 @@ import '../generated/models.dart';
 import 'mock_db.dart';
 import 'mock_listing_handlers.dart' show mockListingCard;
 import 'mock_listings.dart';
+import 'mock_review_handlers.dart';
 import 'mock_views.dart';
 
 // The mock booking lifecycle mirrors backend/app/modules/bookings: the same
@@ -423,6 +424,18 @@ class MockBookingViews {
             : _action('rental_active', 'Rental in progress', false);
       case BookingStatus.returning:
         return _returnAction(b, role);
+      case BookingStatus.awaitingReviews:
+        final mine = mockReviewsOf(
+          db,
+          b.id,
+        ).any((r) => r.reviewerId == (renter ? b.renterId : b.ownerId));
+        return mine
+            ? _action('waiting_review', 'Waiting for their review', false)
+            : _action(
+                'write_review',
+                'Review the other side to continue',
+                true,
+              );
       case BookingStatus.inAppeal:
         return _action(
           'waiting_ruling',
@@ -645,7 +658,7 @@ class MockBookingViews {
       charges: charges(b),
       cancellation: cancellation(b, role),
       appeal: null,
-      reviews: null,
+      reviews: mockReviewState(db, b, viewer.id),
       overdueSince: b.overdueSince,
       escalationAvailableAt: b.escalationAvailableAt,
       canCancel:

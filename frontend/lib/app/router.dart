@@ -21,6 +21,8 @@ import '../features/onboarding/profile_form_screen.dart';
 import '../features/onboarding/terms_screen.dart';
 import '../features/payouts/payout_account_screen.dart';
 import '../features/profile/profile_screen.dart';
+import '../features/reviews/pending_reviews.dart';
+import '../features/reviews/review_screen.dart';
 import '../features/search/saved_searches_screen.dart';
 import '../features/search/search_filters.dart';
 import '../features/search/search_results_screen.dart';
@@ -36,14 +38,19 @@ import 'student_shell.dart';
 /// The app router. Session changes re-run [redirectFor] without rebuilding
 /// the router, so navigation state survives sign-in and role changes.
 final routerProvider = Provider<GoRouter>((ref) {
-  final sessionChanges = ValueNotifier(ref.read(sessionProvider));
-  ref.listen(sessionProvider, (_, next) => sessionChanges.value = next);
+  final changes = _RouterRefresh();
+  ref
+    ..listen(sessionProvider, (_, _) => changes.ping())
+    ..listen(pendingReviewsProvider, (_, _) => changes.ping());
 
   final router = GoRouter(
     navigatorKey: GlobalKey<NavigatorState>(debugLabel: 'root'),
-    refreshListenable: sessionChanges,
-    redirect: (context, state) =>
-        redirectFor(ref.read(sessionProvider), state.uri),
+    refreshListenable: changes,
+    redirect: (context, state) => redirectFor(
+      ref.read(sessionProvider),
+      state.uri,
+      pendingReviews: [for (final b in ref.read(pendingReviewsProvider)) b.id],
+    ),
     errorBuilder: (context, state) => const NotFoundScreen(),
     routes: [
       GoRoute(
@@ -89,6 +96,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/bookings/:id',
         builder: (context, state) =>
             BookingScreen(bookingId: state.pathParameters['id']!),
+        routes: [
+          GoRoute(
+            path: 'review',
+            builder: (context, state) =>
+                ReviewScreen(bookingId: state.pathParameters['id']!),
+          ),
+        ],
       ),
       GoRoute(
         path: '/listing/:id',
@@ -207,7 +221,12 @@ final routerProvider = Provider<GoRouter>((ref) {
 
   ref.onDispose(() {
     router.dispose();
-    sessionChanges.dispose();
+    changes.dispose();
   });
   return router;
 });
+
+/// Re-runs redirects when the session or pending reviews change.
+class _RouterRefresh extends ChangeNotifier {
+  void ping() => notifyListeners();
+}

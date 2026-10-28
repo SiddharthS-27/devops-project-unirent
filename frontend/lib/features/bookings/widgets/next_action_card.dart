@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../api/api.dart';
+import '../../../app/routes.dart';
 import '../../../ui/ui.dart';
 import '../booking_actions.dart';
 import 'cancellation_rating_form.dart';
@@ -40,6 +42,10 @@ const nextActionHints = {
   'proceed': 'Everything is settled. Tap Proceed to finish.',
   'waiting_proceed': 'The owner will finish the rental.',
   'waiting_ruling': 'A moderator is reviewing the appeal.',
+  'write_review':
+      'Reviews are blind: they see yours after reviewing you, or 24 hours '
+      'after the first review.',
+  'waiting_review': 'Both reviews show once they review you.',
 };
 
 /// The single card telling this user what happens next, with the controls
@@ -105,6 +111,14 @@ class _NextActionCardState extends ConsumerState<NextActionCard>
       ],
     ),
     'rate_cancellation' => CancellationRatingForm(booking: booking),
+    'write_review' => AppButton(
+      label: 'Write your review',
+      icon: Icons.rate_review_outlined,
+      onPressed: () => context.push(Routes.bookingReview(booking.id)),
+    ),
+    'waiting_review' when booking.reviews?.releaseAt != null => Text(
+      'Or on ${formatIstDateTime(booking.reviews!.releaseAt!)} at the latest.',
+    ),
     _ => null,
   };
 
