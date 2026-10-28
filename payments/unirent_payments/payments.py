@@ -7,6 +7,7 @@ pending -> marked_paid  the payee marks cash received
 captured | marked_paid -> refunded | partly_refunded
 """
 
+import logging
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -18,8 +19,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from unirent_security import rate_limit_hit
 from unirent_security.errors import ApiError
 
-from unirent_payments import db, orders
+from unirent_payments import db, ledger, orders, outbox
+from unirent_payments.metrics import PAYMENTS
 from unirent_payments.models import LIVE_STATUSES, PAID_STATUSES, Payment
+
+log = logging.getLogger(__name__)
 
 PURPOSES = ("rent", "extension", "return_charges", "sale")
 METHODS = ("upi", "cash")
@@ -254,6 +258,51 @@ async def payments_for_booking(booking_ref: uuid.UUID) -> list[PaymentView]:
             select(Payment).where(Payment.booking_ref == booking_ref).order_by(Payment.created_at)
         )
         return [view(p) for p in rows]
+
+
+def event_payload(payment: Payment) -> dict[str, Any]:
+    return {
+        "payment_id": str(payment.id),
+        "booking_id": str(payment.booking_ref),
+        "purpose": payment.purpose,
+        "purpose_ref": str(payment.purpose_ref) if payment.purpose_ref else None,
+        "payer_id": str(payment.payer_id),
+        "payee_id": str(payment.payee_id),
+        "amount_paise": payment.amount_paise,
+        "method": payment.method,
+    }
+
+
+async def capture(session: AsyncSession, payment: Payment, razorpay_payment_id: str) -> bool:
+    """Record a UPI payment as captured. Verify and webhook both call this, in
+    either order; the second call finds it captured and does nothing."""
+    if payment.status in PAID_STATUSES:
+        return False
+    if payment.status == "failed":
+        # A later attempt in the same Checkout succeeded after one failed.
+        live = await _live_payment(
+            session, payment.booking_ref, payment.purpose, payment.purpose_ref
+        )
+        if live is not None and live.id != payment.id:
+            payment.failure_reason = f"captured late as {razorpay_payment_id}; needs a refund"
+            log.warning("late capture on a replaced payment", extra={"payment": str(payment.id)})
+            return False
+        payment.status = "pending"
+    transition(payment, "captured")
+    payment.razorpay_payment_id = razorpay_payment_id
+    ledger.record_payment(session, payment)
+    outbox.emit(session, "PaymentCaptured", payment.booking_ref, event_payload(payment))
+    PAYMENTS.labels(method="upi", outcome="captured").inc()
+    return True
+
+
+async def fail(session: AsyncSession, payment: Payment, reason: str) -> bool:
+    if payment.status != "pending":
+        return False
+    transition(payment, "failed", reason=reason)
+    outbox.emit(session, "PaymentFailed", payment.booking_ref, event_payload(payment))
+    PAYMENTS.labels(method=payment.method, outcome="failed").inc()
+    return True
 
 
 async def get_payment(session: AsyncSession, payment_id: uuid.UUID, *, lock: bool = False):
