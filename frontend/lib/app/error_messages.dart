@@ -77,6 +77,20 @@ const _messages = {
       'It’s already paid for. Finish the handover, or ask Help to sort it out.',
   'ALREADY_RATED': 'You’ve already rated this cancellation.',
   'NOT_CANCELLED': 'This booking wasn’t cancelled.',
+  // Handover and payments
+  'STEP_LOCKED': 'Finish the earlier steps first.',
+  'CODE_EXPIRED': 'That code expired. Ask for a new one.',
+  'PAYEE_NOT_PAYOUT_READY':
+      'The owner can’t receive UPI payments yet. Pay in cash instead.',
+  'PAYMENT_ALREADY_MADE': 'Your UPI payment went through. Refreshing…',
+  'ORDER_MISMATCH':
+      'We couldn’t confirm that payment. If money left your account, ask '
+      'Help.',
+  'INVALID_SIGNATURE':
+      'We couldn’t confirm that payment. If money left your account, ask '
+      'Help.',
+  'NOT_CASH': 'Only cash payments are confirmed by the owner.',
+  'IDEMPOTENCY_KEY_REUSED': 'Something went wrong. Please try again.',
   // Payouts
   'PAYOUT_ACCOUNT_EXISTS': 'You’ve already linked a payout account.',
   'NO_PAYOUT_ACCOUNT': 'Link a payout account first.',

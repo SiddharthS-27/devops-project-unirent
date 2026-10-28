@@ -17,6 +17,14 @@ enum PhoneAuthMode {
   firebase,
 }
 
+enum RazorpayMode {
+  /// Real Razorpay Checkout (razorpay_flutter) with test or live keys.
+  checkout,
+
+  /// A "Simulated UPI" sheet that pays through the local Razorpay simulator.
+  sim,
+}
+
 /// Build-time configuration from `--dart-define`s. Mock modes are the
 /// default in debug builds, real ones in release builds.
 class AppEnv {
@@ -30,11 +38,14 @@ class AppEnv {
     this.firebaseAppId = '',
     this.firebaseProjectId = '',
     this.firebaseSenderId = '',
+    this.razorpayMode = RazorpayMode.sim,
+    this.razorpaySimUrl = 'http://10.0.2.2:8090',
   });
 
   factory AppEnv.fromEnvironment() {
     const authMode = String.fromEnvironment('AUTH_MODE');
     const phoneMode = String.fromEnvironment('PHONE_AUTH_MODE');
+    const razorpayMode = String.fromEnvironment('RAZORPAY_MODE');
     return AppEnv(
       authMode: switch (authMode) {
         'mock' => AuthMode.mock,
@@ -53,6 +64,15 @@ class AppEnv {
       firebaseAppId: const String.fromEnvironment('FIREBASE_APP_ID'),
       firebaseProjectId: const String.fromEnvironment('FIREBASE_PROJECT_ID'),
       firebaseSenderId: const String.fromEnvironment('FIREBASE_SENDER_ID'),
+      razorpayMode: switch (razorpayMode) {
+        'checkout' => RazorpayMode.checkout,
+        'sim' => RazorpayMode.sim,
+        _ => kDebugMode ? RazorpayMode.sim : RazorpayMode.checkout,
+      },
+      razorpaySimUrl: const String.fromEnvironment(
+        'RAZORPAY_SIM_URL',
+        defaultValue: 'http://10.0.2.2:8090',
+      ),
     );
   }
 
@@ -65,6 +85,8 @@ class AppEnv {
   final String firebaseAppId;
   final String firebaseProjectId;
   final String firebaseSenderId;
+  final RazorpayMode razorpayMode;
+  final String razorpaySimUrl;
 }
 
 final appEnvProvider = Provider<AppEnv>((ref) => AppEnv.fromEnvironment());

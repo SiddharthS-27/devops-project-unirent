@@ -17,6 +17,7 @@ import 'widgets/cancellation_card.dart';
 import 'widgets/counterparty_card.dart';
 import 'widgets/next_action_card.dart';
 import 'widgets/payments_list.dart';
+import 'widgets/pickup_checklist.dart';
 
 /// One booking, shared by the renter (Bookings tab) and owner (Listings).
 class BookingScreen extends ConsumerWidget {
@@ -97,6 +98,10 @@ class _BookingView extends ConsumerWidget {
         ],
         NextActionCard(booking: booking),
         if (booking.nextAction != null) gap,
+        if (PickupChecklist.appliesTo(booking)) ...[
+          PickupChecklist(booking: booking),
+          gap,
+        ],
         if (BookingManageActions.appliesTo(booking)) ...[
           BookingManageActions(booking: booking),
           gap,

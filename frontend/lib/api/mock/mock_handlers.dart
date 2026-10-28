@@ -4,6 +4,7 @@ import '../generated/models.dart';
 import 'mock_booking_handlers.dart';
 import 'mock_db.dart';
 import 'mock_listing_handlers.dart';
+import 'mock_payment_handlers.dart';
 import 'mock_payout_handlers.dart';
 import 'mock_server.dart';
 import 'mock_views.dart';
@@ -15,6 +16,7 @@ Map<String, MockHandler> mockHandlers(MockDb db) {
   return {
     ...listingHandlers(db),
     ...bookingHandlers(db),
+    ...paymentHandlers(db),
     ...payoutHandlers(db),
     'POST /api/v1/auth/microsoft/mock-token': h.microsoftMockToken,
     'POST /api/v1/auth/microsoft': h.microsoftSignIn,

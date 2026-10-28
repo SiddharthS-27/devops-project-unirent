@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:math';
 
 import '../generated/models.dart';
 import 'mock_bookings.dart';
 import 'mock_db.dart';
 import 'mock_handlers.dart';
 import 'mock_listings.dart';
+import 'mock_payment_handlers.dart';
 import 'mock_server.dart';
 
 /// Booking routes of the mock backend.
@@ -21,6 +23,14 @@ Map<String, MockHandler> bookingHandlers(MockDb db) {
     'POST /api/v1/bookings/{booking_id}/cancel': h.idempotent(h.cancel),
     'POST /api/v1/bookings/{booking_id}/cancellation-rating':
         h.rateCancellation,
+    'POST /api/v1/bookings/{booking_id}/pickup/photos': h.pickupPhotos,
+    'POST /api/v1/bookings/{booking_id}/pickup/payment': h.idempotent(
+      h.pickupPayment,
+    ),
+    'POST /api/v1/bookings/{booking_id}/pickup/otp': h.pickupOtp,
+    'POST /api/v1/bookings/{booking_id}/pickup/otp/verify': h.idempotent(
+      h.verifyPickupOtp,
+    ),
   };
 }
 
@@ -458,6 +468,206 @@ class MockBookingHandlers {
       ..ratingComment = body.comment.trim()
       ..ratedAt = now;
     return view(b, actor);
+  }
+
+  // ---- handovers (shared by pickup and return) --------------------------------
+
+  static const maxHandoverPhotos = 8;
+  static final _random = Random();
+
+  static BookingStatus _phaseStatus(MockPhase phase) =>
+      phase == MockPhase.pickup
+      ? BookingStatus.approved
+      : BookingStatus.returning;
+
+  /// The side that shows the code: the renter at pickup, the owner at return.
+  static TradeRole shower(MockPhase phase) =>
+      phase == MockPhase.pickup ? TradeRole.renter : TradeRole.owner;
+
+  static MockApiError stepLocked(String message) =>
+      MockApiError(409, 'STEP_LOCKED', message);
+
+  MockResponse addPhotos(MockRequest r, MockPhase phase) {
+    final actor = account(r);
+    final b = booking(r, actor);
+    final side = b.roleOf(actor.id);
+    if (side == null) {
+      throw const MockApiError(
+        403,
+        'NOT_YOUR_STEP',
+        'Only the two sides upload handover photos',
+      );
+    }
+    requireStatus(b, {_phaseStatus(phase)});
+    if (phase == MockPhase.returnPhase &&
+        side == TradeRole.owner &&
+        !b.hasPhotos(phase, TradeRole.renter)) {
+      throw stepLocked('The renter uploads return photos first');
+    }
+    final keys = mockParse(r, PhotosIn.fromJson).objectKeys;
+    final list = b.photos.putIfAbsent((phase, side), () => []);
+    if (keys.isEmpty || list.length + keys.length > maxHandoverPhotos) {
+      throw const MockApiError(
+        422,
+        'TOO_MANY_PHOTOS',
+        'Up to $maxHandoverPhotos photos each',
+      );
+    }
+    for (final key in keys) {
+      if (db.uploadOwners[key] != actor.id) {
+        throw const MockApiError(
+          422,
+          'INVALID_PHOTO',
+          "That photo upload isn't yours",
+        );
+      }
+      if (!db.uploadedKeys.contains(key)) {
+        throw const MockApiError(
+          422,
+          'PHOTO_NOT_UPLOADED',
+          'Upload the photo before confirming it',
+        );
+      }
+    }
+    for (final key in keys) {
+      final colour = (key.hashCode & 0xFFFFFF)
+          .toRadixString(16)
+          .padLeft(6, '0');
+      list.add(MockPhoto(id: key, key: key, url: 'mock://photo/$colour'));
+    }
+    b.updatedAt = now;
+    return view(b, actor);
+  }
+
+  bool pickupReady(MockBooking b) =>
+      b.hasPhotos(MockPhase.pickup, TradeRole.renter) &&
+      b.hasPhotos(MockPhase.pickup, TradeRole.owner) &&
+      (b.paymentFor(b.handoverPurpose)?.isPaid ?? false);
+
+  MockResponse showCode(MockRequest r, MockPhase phase, {required bool ready}) {
+    final actor = account(r);
+    final b = booking(r, actor);
+    requireParty(b, actor, shower(phase));
+    requireStatus(b, {_phaseStatus(phase)});
+    if (!ready) throw stepLocked('Finish the earlier steps first');
+    final code = _random.nextInt(1000000).toString().padLeft(6, '0');
+    final otp = b.otps[phase] = MockOtp(code, now.add(mockOtpTtl));
+    return MockResponse.json(
+      OtpOut(code: otp.code, expiresAt: otp.expiresAt).toJson(),
+    );
+  }
+
+  /// Checks the typed code; 5 tries per code, then a new one is needed.
+  void checkCode(
+    MockRequest r,
+    MockBooking b,
+    MockAccount actor,
+    MockPhase phase,
+  ) {
+    final typer = shower(phase) == TradeRole.renter
+        ? TradeRole.owner
+        : TradeRole.renter;
+    requireParty(b, actor, typer);
+    requireStatus(b, {_phaseStatus(phase)});
+    final otp = b.otps[phase];
+    if (otp == null || otp.used) {
+      throw stepLocked('Ask the other side to show their code');
+    }
+    if (otp.expiresAt.isBefore(now)) {
+      throw const MockApiError(
+        409,
+        'CODE_EXPIRED',
+        'The code expired; ask for a new one',
+      );
+    }
+    if (otp.tries >= mockOtpMaxTries) {
+      throw const MockApiError(
+        429,
+        'RATE_LIMITED',
+        'Too many attempts. Please wait a moment and try again.',
+      );
+    }
+    otp.tries++;
+    if (mockParse(r, OtpIn.fromJson).code != otp.code) {
+      throw const MockApiError(422, 'WRONG_CODE', 'That code is not right');
+    }
+    otp.used = true;
+  }
+
+  // ---- pickup ------------------------------------------------------------------
+
+  MockResponse pickupPhotos(MockRequest r) => addPhotos(r, MockPhase.pickup);
+
+  FutureOr<MockResponse> pickupPayment(MockRequest r) {
+    final renter = account(r);
+    final b = booking(r, renter);
+    requireParty(b, renter, TradeRole.renter);
+    requireStatus(b, {BookingStatus.approved});
+    if (renter.status == 'suspended') {
+      throw const MockApiError(
+        403,
+        'ACCOUNT_SUSPENDED',
+        'Your account is suspended',
+      );
+    }
+    if (!b.hasPhotos(MockPhase.pickup, TradeRole.renter) ||
+        !b.hasPhotos(MockPhase.pickup, TradeRole.owner)) {
+      throw stepLocked('Both of you upload pickup photos first');
+    }
+    final method = mockParse(r, PaymentStartIn.fromJson).method;
+    final label = b.kind == TradeKind.rent ? 'Rent' : 'Sale price';
+    final payment = mockStartPayment(
+      db,
+      b,
+      purpose: b.handoverPurpose,
+      method: method,
+      amountPaise: b.amountPaise,
+      items: [PaymentItem(label: label, amountPaise: b.amountPaise)],
+      payerId: b.renterId,
+      payeeId: b.ownerId,
+    );
+    b.updatedAt = now;
+    return MockResponse.json(views.paymentOut(payment).toJson());
+  }
+
+  MockResponse pickupOtp(MockRequest r) {
+    final actor = account(r);
+    final b = booking(r, actor);
+    return showCode(r, MockPhase.pickup, ready: pickupReady(b));
+  }
+
+  FutureOr<MockResponse> verifyPickupOtp(MockRequest r) {
+    final owner = account(r);
+    final b = booking(r, owner);
+    checkCode(r, b, owner, MockPhase.pickup);
+    b.pickupCompletedAt = now;
+    final listing = db.listings[b.listingId]!;
+    final asset = db.assets[listing.assetId];
+    if (b.kind == TradeKind.rent) {
+      moveTo(b, BookingStatus.active);
+      asset
+        ?..rentalCount += 1
+        ..history.add(
+          AssetHistoryEntry(
+            at: now,
+            kind: AssetEventKind.rented,
+            summary: 'Rented out',
+            amountPaise: b.amountPaise,
+          ),
+        );
+    } else {
+      moveTo(b, BookingStatus.awaitingReviews);
+      listing.status = ListingStatus.sold;
+      asset?.history.add(
+        AssetHistoryEntry(
+          at: now,
+          kind: AssetEventKind.sold,
+          summary: 'Sold',
+          amountPaise: b.amountPaise,
+        ),
+      );
+    }
+    return view(b, owner);
   }
 }
 

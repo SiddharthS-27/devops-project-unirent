@@ -104,6 +104,9 @@ class MockPayment {
   PaymentStatus status = PaymentStatus.pending;
   DateTime? capturedAt;
 
+  /// Set when the payer completed (simulated) Checkout; captured on verify.
+  String? razorpayPaymentId;
+
   bool get isPaid =>
       status == PaymentStatus.captured || status == PaymentStatus.markedPaid;
 }

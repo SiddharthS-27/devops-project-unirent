@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 
 import 'mock_db.dart';
 import 'mock_handlers.dart';
+import 'mock_payment_handlers.dart';
 
 /// A request as seen by a mock handler.
 class MockRequest {
@@ -91,6 +92,12 @@ class MockServer {
 
   final MockDb db;
   final _routes = <_Route>[];
+
+  /// Completes Checkout for [orderId] like the Razorpay simulator does.
+  Future<Map<String, Object?>> simulatePayment(
+    String orderId, {
+    required bool fail,
+  }) async => mockSimulatePayment(db, orderId, fail: fail);
 
   /// Adds or replaces the handler for [route], e.g. `'GET /api/v1/me'`.
   void on(String route, MockHandler handler) {

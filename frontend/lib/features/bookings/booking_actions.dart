@@ -44,20 +44,26 @@ mixin BookingActionRunner<T extends ConsumerStatefulWidget>
       final result = await call(action.key);
       action.reset();
       if (done != null) {
-        messenger.showSnackBar(SnackBar(content: Text(done)));
+        messenger
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text(done)));
       }
       refreshBooking(bookingId, listingId: listingId);
       return result;
     } on ApiException catch (error) {
       if (!error.isConnectivityProblem) action.reset();
-      messenger.showSnackBar(SnackBar(content: Text(friendlyMessage(error))));
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(friendlyMessage(error))));
       // The booking moved on elsewhere: show its current state.
       if (error.code == 'BOOKING_STATE' || error.code == 'STEP_LOCKED') {
         refreshBooking(bookingId, listingId: listingId);
       }
       return null;
     } on Object catch (error) {
-      messenger.showSnackBar(SnackBar(content: Text(friendlyMessage(error))));
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(friendlyMessage(error))));
       return null;
     } finally {
       if (mounted) setState(() => busyAction = null);
