@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.clock import now
 from app.core.errors import ApiError
+from app.core.metrics import BOOKING_TRANSITIONS
 from app.modules.bookings.models import Booking, BookingEvent
 
 # from -> allowed targets, for rentals. Sales skip active, overdue and return:
@@ -80,6 +81,7 @@ def transition(
             details={"status": booking.status},
         )
     record(session, booking, actor_id, actor_role, action, to=to, details=details)
+    BOOKING_TRANSITIONS.labels(booking.status, to).inc()
     booking.status = to
     booking.updated_at = now()
 

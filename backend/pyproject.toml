@@ -16,6 +16,7 @@ dependencies = [
     "pydantic-settings>=2.3",
     "redis>=5.0",
     "minio>=7.2",
+    "prometheus-client>=0.20",
     "unirent-security",
     "unirent-payments",
 ]
