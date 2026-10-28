@@ -136,3 +136,19 @@ class WebhookEvent(Base):
     event: Mapped[str] = mapped_column(String(50))
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
+
+
+class LateFeeRule(Base):
+    """The platform's late-fee rule. Versioned: a change adds a row, and each
+    booking keeps the rule that was current when it was approved."""
+
+    __tablename__ = "late_fee_rules"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
+    version: Mapped[int] = mapped_column(Integer, unique=True)
+    grace_minutes: Mapped[int] = mapped_column(Integer)
+    base_fee_paise: Mapped[int] = mapped_column(BigInteger)
+    hourly_percent_bp: Mapped[int] = mapped_column(Integer)  # basis points: 200 = 2%
+    effective_from: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    set_by: Mapped[uuid.UUID | None] = mapped_column(UUID)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

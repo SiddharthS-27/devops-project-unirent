@@ -7,11 +7,12 @@ from fastapi import APIRouter, Request
 from unirent_security import CurrentAccount, audit, require_owner
 from unirent_security.errors import ApiError
 
-from unirent_payments import linked_accounts, payments, webhooks
+from unirent_payments import late_fees, linked_accounts, payments, webhooks
 from unirent_payments.db import SessionDep
 from unirent_payments.models import LinkedAccount
 from unirent_payments.payments import PaymentView
 from unirent_payments.schemas import (
+    LateFeeRuleOut,
     PaymentOut,
     PayoutAccountIn,
     PayoutAccountOut,
@@ -79,6 +80,13 @@ async def refresh_payout_account(account: CurrentAccount, session: SessionDep) -
     linked = await linked_accounts.refresh_status(session, account.id)
     await session.commit()
     return _payout_out(linked)
+
+
+@router.get("/late-fee-rule", response_model=LateFeeRuleOut)
+async def late_fee_rule(account: CurrentAccount) -> LateFeeRuleOut:
+    """The platform rule every rent listing shows."""
+    rule = await late_fees.current_late_fee_rule()
+    return LateFeeRuleOut(**{k: getattr(rule, k) for k in LateFeeRuleOut.model_fields})
 
 
 @router.get("/payments/{payment_id}", response_model=PaymentOut)
