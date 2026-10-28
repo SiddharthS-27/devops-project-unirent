@@ -16,7 +16,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from unirent_security import rate_limit_hit
+from unirent_security import audit, rate_limit_hit
 from unirent_security.errors import ApiError
 
 from unirent_payments import db, ledger, orders, outbox
@@ -303,6 +303,28 @@ async def fail(session: AsyncSession, payment: Payment, reason: str) -> bool:
     outbox.emit(session, "PaymentFailed", payment.booking_ref, event_payload(payment))
     PAYMENTS.labels(method=payment.method, outcome="failed").inc()
     return True
+
+
+async def mark_cash_paid(payment_id: uuid.UUID, by: uuid.UUID) -> PaymentView:
+    """The payee confirms cash in hand. Only the payee can; the payer doesn't confirm."""
+    async with db.sessionmaker()() as session:
+        payment = await get_payment(session, payment_id, lock=True)
+        if payment.payee_id != by:
+            raise ApiError(404, "NOT_FOUND", "Payment not found")
+        if payment.method != "cash":
+            raise ApiError(409, "NOT_CASH", "Only cash payments are marked as paid")
+        if payment.status == "marked_paid":
+            return view(payment)
+        transition(payment, "marked_paid")
+        payment.marked_by = by
+        ledger.record_payment(session, payment)
+        outbox.emit(session, "CashMarkedPaid", payment.booking_ref, event_payload(payment))
+        await audit.record(
+            by, "payment.cash_marked_paid", audit.target("payment", payment.id), session=session
+        )
+        PAYMENTS.labels(method="cash", outcome="marked_paid").inc()
+        await session.commit()
+        return view(payment)
 
 
 async def get_payment(session: AsyncSession, payment_id: uuid.UUID, *, lock: bool = False):

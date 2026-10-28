@@ -106,6 +106,12 @@ async def verify_payment(
     return payment_out(payments.view(payment))
 
 
+@router.post("/payments/{payment_id}/mark-cash-paid", response_model=PaymentOut)
+async def mark_cash_paid(payment_id: uuid.UUID, account: CurrentAccount):
+    """The owner (payee) taps "Mark cash received"."""
+    return payment_out(await payments.mark_cash_paid(payment_id, account.id))
+
+
 @webhook_router.post("/payments/webhooks/razorpay", response_model=WebhookAck)
 async def razorpay_webhook(request: Request, session: SessionDep) -> WebhookAck:
     """Signed with X-Razorpay-Signature; replays (same event ID) do nothing."""
