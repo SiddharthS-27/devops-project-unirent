@@ -67,6 +67,25 @@ class PaymentView:
         return self.status in PAID_STATUSES
 
 
+def check_items(
+    purpose: str,
+    amount_paise: int,
+    items: list[dict[str, Any]] | None,
+    purpose_ref: uuid.UUID | None,
+) -> None:
+    """Extensions name the extension they pay for. Return charges are itemised
+    (late fee, damage charge, extensions paid in cash) and the items add up."""
+    if purpose == "extension" and purpose_ref is None:
+        raise ApiError(422, "INVALID_PAYMENT", "An extension payment names its extension")
+    if purpose == "return_charges" and not items:
+        raise ApiError(422, "INVALID_PAYMENT", "Return charges are itemised")
+    if items:
+        if any(item.get("amount_paise", 0) < 0 for item in items):
+            raise ApiError(422, "INVALID_PAYMENT", "Item amounts can't be negative")
+        if sum(item.get("amount_paise", 0) for item in items) != amount_paise:
+            raise ApiError(422, "INVALID_PAYMENT", "The items don't add up to the amount")
+
+
 def _label(purpose: str) -> str:
     return {
         "rent": "Rent",
@@ -163,6 +182,7 @@ async def start_payment(
         raise ApiError(422, "INVALID_AMOUNT", "Nothing to pay")
     if payer == payee:
         raise ApiError(422, "INVALID_PAYMENT", "You can't pay yourself")
+    check_items(purpose, amount_paise, items, purpose_ref)
 
     async with db.sessionmaker()() as session:
         existing = await session.scalar(
