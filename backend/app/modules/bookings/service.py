@@ -22,6 +22,7 @@ from app.modules.bookings.state import record, require_status, transition
 from app.modules.listings.models import Asset, AssetEvent, Listing
 from app.modules.listings.service import get_listing
 from app.modules.profiles.service import profiles_for
+from app.modules.reviews.models import Review
 
 REQUEST_TTL = timedelta(hours=24)
 REMINDER_BEFORE = timedelta(hours=1)
@@ -270,6 +271,22 @@ async def rate_cancellation(
     cancellation.rating_stars = stars
     cancellation.rating_comment = comment
     cancellation.rated_at = now()
+    session.add(
+        Review(
+            id=uuid.uuid4(),
+            booking_id=booking.id,
+            reviewer_id=actor.id,
+            reviewee_id=cancellation.by_id,
+            review_type="cancellation",
+            # Counts toward the canceller's rating in the role they cancelled from.
+            reviewee_role="renter" if cancellation.by_role == "renter" else "lender",
+            ratings={"overall": stars},
+            overall=stars,
+            comment=comment,
+            created_at=now(),
+            revealed_at=now(),
+        )
+    )
     record(session, booking, actor.id, booking.role_of(actor.id) or "", "rate_cancellation")
     return booking
 

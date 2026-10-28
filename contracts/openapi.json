@@ -8074,6 +8074,7 @@
     },
     "/api/v1/bookings/{booking_id}/review-form": {
       "get": {
+        "description": "The parameters this side rates, which depend on rental or sale and the role.",
         "operationId": "review_form_api_v1_bookings__booking_id__review_form_get",
         "parameters": [
           {
@@ -9452,7 +9453,7 @@
     },
     "/api/v1/profiles/{account_id}/reviews": {
       "get": {
-        "description": "Revealed reviews only.",
+        "description": "Revealed reviews only, newest first.",
         "operationId": "reviews_of_api_v1_profiles__account_id__reviews_get",
         "parameters": [
           {

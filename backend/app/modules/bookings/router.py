@@ -34,10 +34,12 @@ from app.modules.bookings.schemas import (
     QuoteOut,
     ReviewForm,
     ReviewIn,
+    ReviewParameter,
     ReviewState,
 )
 from app.modules.listings.service import current_late_fee_rule, get_listing
-from app.modules.profiles.service import OnboardedStudent
+from app.modules.profiles.service import OnboardedStudent, profiles_for
+from app.modules.reviews import service as reviews
 
 router = APIRouter(prefix="/bookings", tags=["bookings"])
 B = "/{booking_id}"
@@ -376,7 +378,20 @@ async def file_appeal(
 
 @router.get(B + "/review-form", response_model=ReviewForm)
 async def review_form(booking_id: uuid.UUID, account: CurrentAccount, session: SessionDep):
-    raise not_implemented()
+    """The parameters this side rates, which depend on rental or sale and the role."""
+    booking = await service.get_booking(session, booking_id, account)
+    role = booking.role_of(account.id)
+    if role is None:
+        raise ApiError(403, "NOT_YOUR_STEP", "Only the two sides review")
+    review_type = reviews.review_type_for(booking, role)
+    other_id = booking.owner_id if role == "renter" else booking.renter_id
+    other = (await profiles_for(session, [other_id])).get(other_id)
+    return ReviewForm(
+        review_type=review_type,  # type: ignore[arg-type]
+        parameters=[ReviewParameter(key=k, label=v) for k, v in reviews.PARAMETERS[review_type]],
+        counterparty_id=other_id,
+        counterparty_name=other.full_name if other else "UniRent user",
+    )
 
 
 @router.post(B + "/reviews", response_model=ReviewState, status_code=201)
@@ -384,4 +399,6 @@ async def submit_review(
     booking_id: uuid.UUID, body: ReviewIn, account: CurrentAccount, session: SessionDep
 ):
     """Blind: hidden until both sides submit or 24 hours pass."""
-    raise not_implemented()
+    booking = await reviews.submit(session, booking_id, account, body.ratings, body.comment)
+    await session.commit()
+    return await views.review_state(session, booking, account)

@@ -25,12 +25,15 @@ from app.modules.bookings.schemas import (
     Handover,
     HandoverSide,
     NextAction,
+    ReviewState,
     TimelineStep,
 )
 from app.modules.bookings.state import GROUPS
 from app.modules.listings.models import Listing, ListingPhoto
 from app.modules.listings.service import cards, current_late_fee_rule
 from app.modules.profiles.service import profile_for_viewer, profiles_for
+from app.modules.reviews.models import Review
+from app.modules.reviews.service import RELEASE_AFTER, reviews_of
 
 RENT_STEPS = [
     ("requested", "Requested"),
@@ -77,6 +80,7 @@ class Facts:
     extensions: list[Extension] = field(default_factory=list)
     late_fee_paise: int = 0
     cash_extensions_paise: int = 0
+    reviews: list[Review] = field(default_factory=list)
     photos: dict[tuple[str, str], list[str]] = field(default_factory=dict)
 
     def paid(self, purpose: str) -> PaymentView | None:
@@ -105,6 +109,10 @@ async def load_facts(session: AsyncSession, booking: Booking) -> Facts:
     )
     if booking.status == "cancelled":
         facts.cancellation = await session.get(Cancellation, booking.id)
+    if booking.status in ("awaiting_reviews", "completed", "in_appeal"):
+        facts.reviews = list(
+            await session.scalars(select(Review).where(Review.booking_id == booking.id))
+        )
     if booking.kind == "rent" and booking.pickup_completed_at is not None:
         facts.extensions = list(
             await session.scalars(
@@ -282,6 +290,11 @@ def next_action(booking: Booking, role: str, facts: Facts) -> NextAction | None:
         return _action("rental_active", "Rental in progress", False)
     if status == "returning":
         return _return_action(booking, role, facts)
+    if status == "awaiting_reviews":
+        me = booking.renter_id if role == "renter" else booking.owner_id
+        if not any(r.reviewer_id == me for r in facts.reviews):
+            return _action("write_review", "Review the other side to continue", True)
+        return _action("waiting_review", "Waiting for their review", False)
     if status == "overdue":
         if role == "renter":
             return _action("return_now", "Overdue: return the item now", True)
@@ -358,7 +371,7 @@ async def booking_out(
         charges=_charges(booking, facts),
         cancellation=_cancellation(facts, role),
         appeal=None,
-        reviews=None,
+        reviews=_review_state(booking, viewer, facts.reviews),
         overdue_since=booking.overdue_since,
         escalation_available_at=rental.escalation_available_at(booking),
         can_cancel=booking.status == "approved"
@@ -445,4 +458,26 @@ async def extension_out(extension: Extension) -> ExtensionOut:
         payment=payment_out(payment) if payment else None,
         pay_in_cash_at_return=extension.pay_in_cash_at_return,
         created_at=extension.created_at,
+    )
+
+
+async def review_state(session: AsyncSession, booking: Booking, viewer: AccountContext):
+    return _review_state(booking, viewer, await reviews_of(session, booking.id))
+
+
+def _review_state(
+    booking: Booking, viewer: AccountContext, reviews: list[Review]
+) -> ReviewState | None:
+    if booking.status not in ("awaiting_reviews", "completed", "in_appeal"):
+        return None
+    mine = any(r.reviewer_id == viewer.id for r in reviews)
+    theirs = any(r.reviewer_id != viewer.id for r in reviews)
+    first = min((r.created_at for r in reviews), default=None)
+    return ReviewState(
+        mine_submitted=mine,
+        theirs_submitted=theirs,
+        revealed=any(r.revealed_at is not None for r in reviews),
+        release_at=first + RELEASE_AFTER
+        if first and booking.status == "awaiting_reviews"
+        else None,
     )
