@@ -7,5 +7,5 @@ Configuration for the monitoring stack that Compose runs in the `staging` profil
 | Folder | What |
 |---|---|
 | `prometheus/` | Scrape config for the api, workers and exporters |
-| `grafana/` | Provisioned data sources and five dashboards: API, Payments, Events, Infrastructure, Business |
+| `grafana/` | Provisioned data sources and five dashboards: API, Payments, Events, Infrastructure, Business (`grafana/dashboards/*.json`, in IST) |
 | `METRICS.md` | The metric list every owner codes against |
