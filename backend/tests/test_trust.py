@@ -43,3 +43,18 @@ def test_new_accounts_and_low_ratings():
 def test_penalties_and_clamping():
     lender, renter = scores(_inputs(lender_penalty=30, renter_penalty=500))
     assert lender == 70 and renter == 0
+
+
+async def test_a_cancellation_shows_on_the_cancellers_profile(api):
+    from tests.conftest import approved_booking
+
+    owner, renter, booking = await approved_booking(api)
+    await owner.post(f"/bookings/{booking['id']}/cancel", json={"note": "Lens broke"})
+    await renter.post(
+        f"/bookings/{booking['id']}/cancellation-rating",
+        json={"stars": 2, "comment": "Late notice"},
+    )
+    profile = (await renter.get(f"/profiles/{owner.id}")).json()
+    assert profile["cancellation_count"] == 1
+    assert profile["lender"]["rating"] == 2.0  # the owner cancelled as the lender
+    assert (await renter.get(f"/profiles/{renter.id}")).json()["cancellation_count"] == 0
