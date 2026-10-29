@@ -14,6 +14,7 @@ import sys
 import uuid
 from pathlib import Path
 
+import gevent
 from locust import FastHttpUser, between, events, task
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -69,8 +70,11 @@ class Browsers(Student):
 
     @task(4)
     def type_ahead(self):
+        # The app asks for suggestions 250 ms after the last keystroke. A slow
+        # typist (300 ms a key) is the worst case: every keystroke asks.
         term = random.choice(SEARCH_TERMS)
         for n in range(1, len(term) + 1):
+            gevent.sleep(0.3)
             self.api("GET", f"/search/suggest?q={term[:n]}", name="/search/suggest")
 
     @task(3)
