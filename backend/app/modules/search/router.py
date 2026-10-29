@@ -3,12 +3,21 @@ from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Query, Response
+from sqlalchemy import select
 from unirent_security import CurrentAccount
 
 from app.core.deps import SessionDep
-from app.core.errors import not_implemented
 from app.core.schemas import Page
-from app.modules.listings.schemas import Category, ListingCard, ListingKind
+from app.modules.listings.models import Listing
+from app.modules.listings.schemas import (
+    CATEGORY_LABELS,
+    Category,
+    CategoryOut,
+    ListingCard,
+    ListingKind,
+)
+from app.modules.listings.service import cards
+from app.modules.search import saved, service
 from app.modules.search.schemas import (
     HomeOut,
     SavedSearchIn,
@@ -18,6 +27,7 @@ from app.modules.search.schemas import (
 )
 
 router = APIRouter(tags=["search"])
+RECENT_LIMIT = 10
 
 
 @router.get("/search", response_model=Page[ListingCard])
@@ -37,7 +47,22 @@ async def search(
 ):
     """Active listings. Sorted by the owner's lender trust by default; New owners
     rank at the campus median."""
-    raise not_implemented()
+    if available_from or available_to:
+        kind = "rent"
+    return await service.search(
+        session,
+        account,
+        q=q,
+        sort=sort,
+        cursor=cursor,
+        limit=limit,
+        category=category,
+        kind=kind,
+        min_price_paise=min_price_paise,
+        max_price_paise=max_price_paise,
+        available_from=available_from,
+        available_to=available_to,
+    )
 
 
 @router.get("/search/suggest", response_model=list[Suggestion])
@@ -47,26 +72,45 @@ async def suggest(
     q: Annotated[str, Query(min_length=1, max_length=100)],
 ):
     """Type-ahead suggestions as the user types."""
-    raise not_implemented()
+    return await service.suggest(session, q)
 
 
 @router.get("/home", response_model=HomeOut)
 async def home(account: CurrentAccount, session: SessionDep):
-    raise not_implemented()
+    """Category shortcuts, recently listed, and new matches for saved searches."""
+    recent = await session.scalars(
+        select(Listing)
+        .where(Listing.status == "active", Listing.owner_id != account.id)
+        .order_by(Listing.created_at.desc())
+        .limit(RECENT_LIMIT)
+    )
+    return HomeOut(
+        categories=[CategoryOut(key=k, label=v) for k, v in CATEGORY_LABELS.items()],  # type: ignore[arg-type]
+        recent=await cards(session, list(recent)),
+        saved_search_matches=await cards(session, await saved.recent_matches(session, account)),
+    )
 
 
 @router.get("/saved-searches", response_model=list[SavedSearchOut])
 async def list_saved_searches(account: CurrentAccount, session: SessionDep):
-    raise not_implemented()
+    """With the number of new matches since you last looked."""
+    out = await saved.list_saved(session, account)
+    await session.commit()
+    return out
 
 
 @router.post("/saved-searches", response_model=SavedSearchOut, status_code=201)
 async def create_saved_search(body: SavedSearchIn, account: CurrentAccount, session: SessionDep):
-    raise not_implemented()
+    """You get a push when a new listing matches."""
+    out = await saved.create(session, account, body)
+    await session.commit()
+    return out
 
 
 @router.delete("/saved-searches/{saved_search_id}", status_code=204)
 async def delete_saved_search(
     saved_search_id: uuid.UUID, account: CurrentAccount, session: SessionDep
 ) -> Response:
-    raise not_implemented()
+    await saved.remove(session, account, saved_search_id)
+    await session.commit()
+    return Response(status_code=204)

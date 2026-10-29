@@ -32,6 +32,6 @@ async def test_stubs_use_the_error_format(api):
     from tests.conftest import sign_in
 
     student = await sign_in(api)
-    r = await student.get("/home")
+    r = await student.get("/help/faqs")
     assert r.status_code == 501
     assert r.json()["error"]["code"] == "NOT_IMPLEMENTED"
