@@ -17,6 +17,8 @@ from app.modules.bookings import rental
 from app.modules.bookings.handover import SHOWS_CODE, photo_keys
 from app.modules.bookings.models import Booking, Cancellation, Extension
 from app.modules.bookings.schemas import (
+    AppealOut,
+    AppealRef,
     BookingOut,
     BookingSummary,
     CancellationInfo,
@@ -31,6 +33,8 @@ from app.modules.bookings.schemas import (
 from app.modules.bookings.state import GROUPS
 from app.modules.listings.models import Listing, ListingPhoto
 from app.modules.listings.service import cards, current_late_fee_rule
+from app.modules.moderation.appeals import can_file
+from app.modules.moderation.models import Appeal
 from app.modules.profiles.service import profile_for_viewer, profiles_for
 from app.modules.reviews.models import Review
 from app.modules.reviews.service import RELEASE_AFTER, reviews_of
@@ -81,6 +85,7 @@ class Facts:
     late_fee_paise: int = 0
     cash_extensions_paise: int = 0
     reviews: list[Review] = field(default_factory=list)
+    appeal: Appeal | None = None
     photos: dict[tuple[str, str], list[str]] = field(default_factory=dict)
 
     def paid(self, purpose: str) -> PaymentView | None:
@@ -109,6 +114,9 @@ async def load_facts(session: AsyncSession, booking: Booking) -> Facts:
     )
     if booking.status == "cancelled":
         facts.cancellation = await session.get(Cancellation, booking.id)
+    facts.appeal = await session.scalar(
+        select(Appeal).where(Appeal.booking_id == booking.id).order_by(Appeal.created_at.desc())
+    )
     if booking.status in ("awaiting_reviews", "completed", "in_appeal"):
         facts.reviews = list(
             await session.scalars(select(Review).where(Review.booking_id == booking.id))
@@ -290,6 +298,8 @@ def next_action(booking: Booking, role: str, facts: Facts) -> NextAction | None:
         return _action("rental_active", "Rental in progress", False)
     if status == "returning":
         return _return_action(booking, role, facts)
+    if status == "in_appeal":
+        return _action("waiting_ruling", "A moderator is looking at the appeal", False)
     if status == "awaiting_reviews":
         me = booking.renter_id if role == "renter" else booking.owner_id
         if not any(r.reviewer_id == me for r in facts.reviews):
@@ -370,7 +380,9 @@ async def booking_out(
         extensions=[await extension_out(e) for e in facts.extensions],
         charges=_charges(booking, facts),
         cancellation=_cancellation(facts, role),
-        appeal=None,
+        appeal=AppealRef(id=facts.appeal.id, status=facts.appeal.status)  # type: ignore[arg-type]
+        if facts.appeal
+        else None,
         reviews=_review_state(booking, viewer, facts.reviews),
         overdue_since=booking.overdue_since,
         escalation_available_at=rental.escalation_available_at(booking),
@@ -378,7 +390,8 @@ async def booking_out(
         and role in ("renter", "owner")
         and not any(p.is_paid for p in facts.payments if p.purpose in ("rent", "sale")),
         can_escalate=role == "owner" and booking.escalated_at is None and _can_escalate(booking),
-        can_appeal=False,
+        can_appeal=can_file(booking, booking.role_of(viewer.id))
+        and (facts.appeal is None or facts.appeal.status != "open"),
         server_now=now(),
         created_at=booking.created_at,
     )
@@ -480,4 +493,16 @@ def _review_state(
         release_at=first + RELEASE_AFTER
         if first and booking.status == "awaiting_reviews"
         else None,
+    )
+
+
+def appeal_out(appeal: Appeal) -> AppealOut:
+    return AppealOut(
+        id=appeal.id,
+        booking_id=appeal.booking_id,
+        status=appeal.status,  # type: ignore[arg-type]
+        reason=appeal.reason,
+        notes=appeal.notes,
+        filed_by=appeal.filed_by_role,  # type: ignore[arg-type]
+        created_at=appeal.created_at,
     )

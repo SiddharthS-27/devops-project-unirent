@@ -21,6 +21,7 @@ from unirent_security import get_account
 from app.core.clock import now
 from app.core.config import get_settings
 from app.modules.bookings.models import Booking, Cancellation
+from app.modules.moderation.models import TrustPenalty
 from app.modules.reviews.models import Review
 from app.modules.trust.models import TrustScore
 
@@ -72,8 +73,14 @@ def scores(i: Inputs) -> tuple[int | None, int | None]:
 
 
 async def penalties(session: AsyncSession, account_id: uuid.UUID) -> tuple[int, int]:
-    """(lender, renter) points moderators have taken off. Filled in by moderation."""
-    return 0, 0
+    """(lender, renter) points moderators have taken off, unless overruled."""
+    rows = await session.execute(
+        select(TrustPenalty.role, func.coalesce(func.sum(TrustPenalty.points), 0))
+        .where(TrustPenalty.account_id == account_id, TrustPenalty.revoked_at.is_(None))
+        .group_by(TrustPenalty.role)
+    )
+    totals = dict(rows.all())
+    return int(totals.get("lender", 0)), int(totals.get("renter", 0))
 
 
 async def _ratings(session: AsyncSession, account_id: uuid.UUID, role: str) -> list[float]:

@@ -1803,6 +1803,36 @@
         "title": "HomeOut",
         "type": "object"
       },
+      "LateFeeRuleIn": {
+        "properties": {
+          "base_fee_paise": {
+            "maximum": 1000000.0,
+            "minimum": 0.0,
+            "title": "Base Fee Paise",
+            "type": "integer"
+          },
+          "grace_minutes": {
+            "maximum": 1440.0,
+            "minimum": 0.0,
+            "title": "Grace Minutes",
+            "type": "integer"
+          },
+          "hourly_percent_bp": {
+            "description": "200 = 2% of the rent per hour",
+            "maximum": 10000.0,
+            "minimum": 0.0,
+            "title": "Hourly Percent Bp",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "grace_minutes",
+          "base_fee_paise",
+          "hourly_percent_bp"
+        ],
+        "title": "LateFeeRuleIn",
+        "type": "object"
+      },
       "LateFeeRuleOut": {
         "properties": {
           "base_fee_paise": {
@@ -1837,6 +1867,47 @@
           "effective_from"
         ],
         "title": "LateFeeRuleOut",
+        "type": "object"
+      },
+      "LateFeeRuleVersion": {
+        "properties": {
+          "base_fee_paise": {
+            "title": "Base Fee Paise",
+            "type": "integer"
+          },
+          "effective_from": {
+            "format": "date-time",
+            "title": "Effective From",
+            "type": "string"
+          },
+          "grace_minutes": {
+            "title": "Grace Minutes",
+            "type": "integer"
+          },
+          "hourly_percent_bp": {
+            "description": "Basis points of the rent per hour: 200 = 2%",
+            "title": "Hourly Percent Bp",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "grace_minutes",
+          "base_fee_paise",
+          "hourly_percent_bp",
+          "effective_from",
+          "version"
+        ],
+        "title": "LateFeeRuleVersion",
         "type": "object"
       },
       "ListingCard": {
@@ -6120,7 +6191,7 @@
   "paths": {
     "/api/v1/admin/appeals/{appeal_id}/overrule": {
       "post": {
-        "description": "Replace a moderator's ruling. Its effects are reversed where possible.",
+        "description": "Replace a moderator's ruling. Its effects are reversed where possible\n(a refund already paid out stays paid).",
         "operationId": "overrule_api_v1_admin_appeals__appeal_id__overrule_post",
         "parameters": [
           {
@@ -6344,6 +6415,82 @@
         "summary": "Set Clock",
         "tags": [
           "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/late-fee-rule": {
+      "get": {
+        "description": "Every version, newest first; the first is in force.",
+        "operationId": "late_fee_rule_history_api_v1_admin_late_fee_rule_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/LateFeeRuleVersion"
+                  },
+                  "title": "Response Late Fee Rule History Api V1 Admin Late Fee Rule Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Late Fee Rule History",
+        "tags": [
+          "payments"
+        ]
+      },
+      "post": {
+        "description": "Set the grace period, base fee and hourly percentage for new approvals.",
+        "operationId": "set_late_fee_rule_api_v1_admin_late_fee_rule_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LateFeeRuleIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LateFeeRuleVersion"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Set Late Fee Rule",
+        "tags": [
+          "payments"
         ]
       }
     },
@@ -7347,7 +7494,7 @@
     },
     "/api/v1/bookings/{booking_id}/appeals": {
       "post": {
-        "description": "Handover photos attach automatically.",
+        "description": "Handover photos attach automatically; add notes and extra photos (purpose \"appeal\").",
         "operationId": "file_appeal_api_v1_bookings__booking_id__appeals_post",
         "parameters": [
           {
@@ -10711,7 +10858,8 @@
     },
     "/api/v1/staff/appeals": {
       "get": {
-        "operationId": "appeals_api_v1_staff_appeals_get",
+        "description": "Oldest open appeal first.",
+        "operationId": "appeals_queue_api_v1_staff_appeals_get",
         "parameters": [
           {
             "in": "query",
@@ -10737,7 +10885,7 @@
                   "items": {
                     "$ref": "#/components/schemas/AppealSummary"
                   },
-                  "title": "Response Appeals Api V1 Staff Appeals Get",
+                  "title": "Response Appeals Queue Api V1 Staff Appeals Get",
                   "type": "array"
                 }
               }
@@ -10760,7 +10908,7 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Appeals",
+        "summary": "Appeals Queue",
         "tags": [
           "staff"
         ]
@@ -10768,6 +10916,7 @@
     },
     "/api/v1/staff/appeals/{appeal_id}": {
       "get": {
+        "description": "The booking's timeline, both sides' handover photos, notes and any rulings.",
         "operationId": "appeal_api_v1_staff_appeals__appeal_id__get",
         "parameters": [
           {
@@ -10816,6 +10965,7 @@
     },
     "/api/v1/staff/appeals/{appeal_id}/ruling": {
       "post": {
+        "description": "Any of: a charge or refund, a trust penalty, removing the listing, a\nsuspension or ban. Both sides are notified and the booking moves on.",
         "operationId": "rule_api_v1_staff_appeals__appeal_id__ruling_post",
         "parameters": [
           {
