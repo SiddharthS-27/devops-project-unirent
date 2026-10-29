@@ -195,7 +195,7 @@ void main() {
 
   test('unrouted endpoints answer 501 like the backend', () async {
     await expectLater(
-      mockClient().api.help.faqs(),
+      mockClient().api.admin.getClock(),
       throwsApiCode('NOT_IMPLEMENTED'),
     );
   });

@@ -57,7 +57,7 @@ class BookingScreen extends ConsumerWidget {
           IconButton(
             tooltip: 'Help',
             icon: const Icon(Icons.help_outline),
-            onPressed: () => context.push(Routes.help),
+            onPressed: () => context.push(Routes.helpFor(bookingId: bookingId)),
           ),
         ],
       ),
@@ -174,7 +174,7 @@ class _BookingView extends ConsumerWidget {
         AppButton.secondary(
           label: 'Get help with this booking',
           icon: Icons.support_agent_outlined,
-          onPressed: () => context.push(Routes.help),
+          onPressed: () => context.push(Routes.helpFor(bookingId: booking.id)),
         ),
       ],
     );

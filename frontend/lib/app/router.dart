@@ -11,6 +11,7 @@ import '../features/bookings/bookings_screen.dart';
 import '../features/bookings/incoming_requests_screen.dart';
 import '../features/bookings/request_screen.dart';
 import '../features/help/help_screen.dart';
+import '../features/help/support_thread_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/listings/listing_detail_screen.dart';
 import '../features/listings/listing_form_screen.dart';
@@ -145,7 +146,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: Routes.help,
-        builder: (context, state) => const HelpScreen(),
+        builder: (context, state) =>
+            HelpScreen(bookingId: state.uri.queryParameters['booking']),
+        routes: [
+          GoRoute(
+            path: 'threads/:id',
+            builder: (context, state) =>
+                SupportThreadScreen(threadId: state.pathParameters['id']!),
+          ),
+        ],
       ),
 
       StatefulShellRoute.indexedStack(

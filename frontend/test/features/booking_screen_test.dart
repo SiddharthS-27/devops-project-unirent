@@ -98,7 +98,7 @@ void main() {
     expect(calls, ['+919876500002']);
 
     await app.tap(find.byTooltip('Help'));
-    expect(app.location, Routes.help);
+    expect(app.location, Routes.helpFor(bookingId: 'b-asha-gopro'));
   });
 
   testWidgets('owner approves from the card; residence then shows', (

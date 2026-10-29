@@ -81,7 +81,7 @@ void main() {
     final app = await openBookingAs(tester, server, asha, b.id);
     expect(find.text('Not what was described?'), findsOneWidget);
     await app.tapText('Get help with this purchase');
-    expect(app.location, Routes.help);
+    expect(app.location, Routes.helpFor(bookingId: b.id));
 
     b.pickupCompletedAt = DateTime.now().toUtc().subtract(
       const Duration(hours: 49),

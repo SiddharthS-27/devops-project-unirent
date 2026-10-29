@@ -60,6 +60,10 @@ const _messages = {
   'PAYOUT_ACCOUNT_REQUIRED':
       'Link your payout account before listing your first item.',
   'ONBOARDING_INCOMPLETE': 'Finish setting up your profile first.',
+  // Help
+  'THREAD_CLOSED':
+      'This conversation is closed. Start a new one from Help if you still '
+      'need a hand.',
   // Saved searches
   'EMPTY_SEARCH': 'Add a search term or a filter before saving.',
   'TOO_MANY_SAVED_SEARCHES':

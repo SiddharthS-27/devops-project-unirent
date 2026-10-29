@@ -56,6 +56,14 @@ abstract final class Routes {
       '/people/${Uri.encodeComponent(accountId)}';
   static const help = '/help';
 
+  /// Help, with [bookingId] attached to any conversation started there.
+  static String helpFor({String? bookingId}) => Uri(
+    path: help,
+    queryParameters: bookingId == null ? null : {'booking': bookingId},
+  ).toString();
+  static String helpThread(String id) =>
+      '/help/threads/${Uri.encodeComponent(id)}';
+
   static String booking(String id) => '/bookings/${Uri.encodeComponent(id)}';
   static String bookingReview(String id) => '${booking(id)}/review';
 

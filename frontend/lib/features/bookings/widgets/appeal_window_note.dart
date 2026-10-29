@@ -44,7 +44,8 @@ class AppealWindowNote extends StatelessWidget {
           Align(
             alignment: Alignment.centerLeft,
             child: TextButton(
-              onPressed: () => context.push(Routes.help),
+              onPressed: () =>
+                  context.push(Routes.helpFor(bookingId: booking.id)),
               child: const Text('Get help with this purchase'),
             ),
           ),

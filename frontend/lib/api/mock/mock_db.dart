@@ -1,6 +1,7 @@
 import '../generated/models.dart';
 import 'mock_booking_handlers.dart' show seedBookings;
 import 'mock_bookings.dart';
+import 'mock_help_handlers.dart' show MockSupportThread;
 import 'mock_listings.dart';
 import 'mock_review_handlers.dart' show MockReview;
 import 'mock_server.dart';
@@ -165,6 +166,7 @@ class MockDb {
 
   final bookings = <String, MockBooking>{};
   final reviews = <MockReview>[];
+  final supportThreads = <String, MockSupportThread>{};
 
   /// Replayed responses by `account:Idempotency-Key`.
   final idempotentResponses = <String, MockResponse>{};
