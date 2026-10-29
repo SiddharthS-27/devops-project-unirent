@@ -17,3 +17,5 @@ Owner: Sasvat. The pipeline is GitHub Actions (`.github/workflows/ci.yml`); this
 Branch protection requires only `ci-ok`, which fails if any stage failed.
 
 The deploy job needs these repository secrets: `STAGING_HOST`, `STAGING_USER`, `STAGING_SSH_KEY`, `SMOKE_STAFF_EMAIL`, `SMOKE_STAFF_PASSWORD`. The staging host has the repo at `~/unirent`, Docker logged in to GHCR, and `infra/env/.env` filled in with `ENVIRONMENT=staging`.
+
+On master the `android` job also builds a release APK pointed at staging (repository variables `STAGING_API_URL`, `STAGING_SIM_URL` and, for real sign-in, `AUTH_MODE`, `MS_CLIENT_ID`, `MS_TENANT_ID`) and attaches it to the run for 14 days.

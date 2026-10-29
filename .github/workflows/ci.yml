@@ -336,6 +336,42 @@ jobs:
           SMOKE_STAFF_EMAIL: ${{ secrets.SMOKE_STAFF_EMAIL }}
           SMOKE_STAFF_PASSWORD: ${{ secrets.SMOKE_STAFF_PASSWORD }}
 
+  # On master: an Android build pointed at staging, so testers always have the latest APK.
+  android:
+    needs: [changes, lint-flutter, unit-flutter]
+    if: always() && github.ref == 'refs/heads/master' && github.event_name == 'push' && !contains(needs.*.result, 'failure')
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.3"
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Build the APK
+        run: >
+          flutter build apk --release
+          --dart-define=API_BASE_URL=${{ vars.STAGING_API_URL }}
+          --dart-define=AUTH_MODE=${{ vars.AUTH_MODE || 'mock' }}
+          --dart-define=PHONE_AUTH_MODE=${{ vars.PHONE_AUTH_MODE || 'mock' }}
+          --dart-define=RAZORPAY_MODE=${{ vars.RAZORPAY_MODE || 'sim' }}
+          --dart-define=RAZORPAY_SIM_URL=${{ vars.STAGING_SIM_URL }}
+          --dart-define=MS_CLIENT_ID=${{ vars.MS_CLIENT_ID }}
+          --dart-define=MS_TENANT_ID=${{ vars.MS_TENANT_ID }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unirent-android-${{ github.sha }}
+          path: frontend/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 14
+
   # Branch protection requires only this job. The jobs above are skipped when their
   # folders didn't change, so they can't be required checks themselves.
   ci-ok:
