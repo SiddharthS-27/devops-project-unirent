@@ -2205,6 +2205,34 @@ class HomeOut {
 }
 
 @immutable
+class LateFeeRuleIn {
+  const LateFeeRuleIn({
+    required this.baseFeePaise,
+    required this.graceMinutes,
+    required this.hourlyPercentBp,
+  });
+
+  factory LateFeeRuleIn.fromJson(Map<String, Object?> json) => LateFeeRuleIn(
+    baseFeePaise: (json['base_fee_paise'] as num).toInt(),
+    graceMinutes: (json['grace_minutes'] as num).toInt(),
+    hourlyPercentBp: (json['hourly_percent_bp'] as num).toInt(),
+  );
+
+  final int baseFeePaise;
+
+  final int graceMinutes;
+
+  /// 200 = 2% of the rent per hour
+  final int hourlyPercentBp;
+
+  Map<String, Object?> toJson() => {
+    'base_fee_paise': baseFeePaise,
+    'grace_minutes': graceMinutes,
+    'hourly_percent_bp': hourlyPercentBp,
+  };
+}
+
+@immutable
 class LateFeeRuleOut {
   const LateFeeRuleOut({
     required this.baseFeePaise,
@@ -2239,6 +2267,50 @@ class LateFeeRuleOut {
     'grace_minutes': graceMinutes,
     'hourly_percent_bp': hourlyPercentBp,
     'id': id,
+  };
+}
+
+@immutable
+class LateFeeRuleVersion {
+  const LateFeeRuleVersion({
+    required this.baseFeePaise,
+    required this.effectiveFrom,
+    required this.graceMinutes,
+    required this.hourlyPercentBp,
+    required this.id,
+    required this.version,
+  });
+
+  factory LateFeeRuleVersion.fromJson(Map<String, Object?> json) =>
+      LateFeeRuleVersion(
+        baseFeePaise: (json['base_fee_paise'] as num).toInt(),
+        effectiveFrom: DateTime.parse(json['effective_from'] as String),
+        graceMinutes: (json['grace_minutes'] as num).toInt(),
+        hourlyPercentBp: (json['hourly_percent_bp'] as num).toInt(),
+        id: json['id'] as String,
+        version: (json['version'] as num).toInt(),
+      );
+
+  final int baseFeePaise;
+
+  final DateTime effectiveFrom;
+
+  final int graceMinutes;
+
+  /// Basis points of the rent per hour: 200 = 2%
+  final int hourlyPercentBp;
+
+  final String id;
+
+  final int version;
+
+  Map<String, Object?> toJson() => {
+    'base_fee_paise': baseFeePaise,
+    'effective_from': effectiveFrom.toUtc().toIso8601String(),
+    'grace_minutes': graceMinutes,
+    'hourly_percent_bp': hourlyPercentBp,
+    'id': id,
+    'version': version,
   };
 }
 

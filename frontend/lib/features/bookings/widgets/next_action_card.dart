@@ -143,59 +143,77 @@ class _NextActionCardState extends ConsumerState<NextActionCard>
     if (action == null) return const SizedBox.shrink();
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final background = action.byMe
-        ? scheme.primaryContainer
-        : scheme.surfaceContainerHigh;
-    final foreground = action.byMe
-        ? scheme.onPrimaryContainer
-        : scheme.onSurface;
+    final accent = AppSurfaces.of(context).accent;
+    final mine = action.byMe;
     final hint = nextActionHint(action.key, booking.kind);
     final controls = _controls(action.key);
-    return Semantics(
-      container: true,
-      label: action.byMe ? 'Your next step' : 'Waiting on the other side',
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        decoration: BoxDecoration(
-          color: background,
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  action.byMe
-                      ? Icons.touch_app_outlined
-                      : Icons.hourglass_empty,
-                  color: foreground,
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: Text(
-                    action.label,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: foreground,
-                    ),
+    final body = Padding(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                mine ? Icons.touch_app_outlined : Icons.hourglass_empty,
+                size: AppSizes.iconMd - 2,
+                color: mine ? accent : scheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  action.label,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: scheme.onSurface,
                   ),
                 ),
-              ],
-            ),
-            if (hint != null) ...[
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                hint,
-                style: theme.textTheme.bodyMedium?.copyWith(color: foreground),
               ),
             ],
-            if (controls != null) ...[
-              const SizedBox(height: AppSpacing.lg),
-              controls,
-            ],
+          ),
+          if (hint != null) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              hint,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: mine ? scheme.onSurface : scheme.onSurfaceVariant,
+              ),
+            ),
           ],
+          if (controls != null) ...[
+            const SizedBox(height: AppSpacing.lg),
+            controls,
+          ],
+        ],
+      ),
+    );
+    return Semantics(
+      container: true,
+      label: mine ? 'Your next step' : 'Waiting on the other side',
+      child: Container(
+        width: double.infinity,
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: mine ? scheme.surface : scheme.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: mine ? Border.all(color: scheme.outlineVariant) : null,
         ),
+        child: mine
+            ? Stack(
+                children: [
+                  Padding(
+                    padding: const EdgeInsetsDirectional.only(start: 4),
+                    child: body,
+                  ),
+                  PositionedDirectional(
+                    start: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: 4,
+                    child: ColoredBox(color: accent),
+                  ),
+                ],
+              )
+            : body,
       ),
     );
   }

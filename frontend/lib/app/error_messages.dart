@@ -60,6 +60,19 @@ const _messages = {
   'PAYOUT_ACCOUNT_REQUIRED':
       'Link your payout account before listing your first item.',
   'ONBOARDING_INCOMPLETE': 'Finish setting up your profile first.',
+  // Appeals
+  'APPEAL_RULED': 'This appeal already has a ruling.',
+  'APPEAL_OPEN': 'This appeal has no ruling to overrule yet.',
+  'REFUND_TOO_LARGE':
+      'That refund is more than was paid. Check the payments and try a '
+      'smaller amount.',
+  'NOT_A_PARTY': 'Rulings can only apply to the two sides of this booking.',
+  'ROLE_NOT_ALLOWED': 'Your role can’t do this.',
+  'APPEAL_NOT_OPEN': 'This booking can’t be appealed now.',
+  // Help
+  'THREAD_CLOSED':
+      'This conversation is closed. Start a new one from Help if you still '
+      'need a hand.',
   // Saved searches
   'EMPTY_SEARCH': 'Add a search term or a filter before saving.',
   'TOO_MANY_SAVED_SEARCHES':

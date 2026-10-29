@@ -210,11 +210,19 @@ class _Requester extends ConsumerWidget {
           children: [
             InkWell(
               onTap: () => context.push(Routes.person(p.accountId)),
-              child: Text(
-                p.fullName,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  decoration: TextDecoration.underline,
-                ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(p.fullName, style: theme.textTheme.titleMedium),
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Icon(
+                    Icons.chevron_right,
+                    size: AppSizes.iconSm,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: AppSpacing.xs),

@@ -1,13 +1,17 @@
 import 'dart:convert';
 
 import '../generated/models.dart';
+import 'mock_admin_handlers.dart';
+import 'mock_appeal_handlers.dart';
 import 'mock_booking_handlers.dart';
 import 'mock_db.dart';
+import 'mock_help_handlers.dart';
 import 'mock_listing_handlers.dart';
 import 'mock_payment_handlers.dart';
 import 'mock_payout_handlers.dart';
 import 'mock_review_handlers.dart';
 import 'mock_server.dart';
+import 'mock_staff_handlers.dart';
 import 'mock_views.dart';
 
 /// Every route the mock backend answers. Add new endpoints here as the app
@@ -17,8 +21,12 @@ Map<String, MockHandler> mockHandlers(MockDb db) {
   return {
     ...listingHandlers(db),
     ...bookingHandlers(db),
+    ...appealHandlers(db),
     ...paymentHandlers(db),
     ...reviewHandlers(db),
+    ...helpHandlers(db),
+    ...staffHandlers(db),
+    ...adminHandlers(db),
     ...payoutHandlers(db),
     'POST /api/v1/auth/microsoft/mock-token': h.microsoftMockToken,
     'POST /api/v1/auth/microsoft': h.microsoftSignIn,
@@ -193,6 +201,7 @@ class _Handlers {
   MockResponse staffLogin(MockRequest r) {
     final body = mockParse(r, StaffLogin.fromJson);
     final account = _staffAuthenticate(body.email, body.password);
+    account.lastLoginAt = db.clock().toUtc();
     return MockResponse.json(db.issueTokens(account).toJson());
   }
 

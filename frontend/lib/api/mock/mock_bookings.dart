@@ -1,4 +1,5 @@
 import '../generated/models.dart';
+import 'mock_appeal_handlers.dart';
 import 'mock_db.dart';
 import 'mock_listing_handlers.dart' show mockListingCard;
 import 'mock_listings.dart';
@@ -252,11 +253,15 @@ class MockBooking {
     return minutes < 0 ? 0 : minutes;
   }
 
-  int liveLateFee(DateTime now) {
+  int liveLateFee(DateTime now, MockDb db) {
     final frozen = frozenLateFeePaise;
     if (frozen != null) return frozen;
     if (kind != TradeKind.rent) return 0;
-    return mockLateFee(mockLateFeeRule(now), amountPaise, overdueMinutes(now));
+    return mockLateFee(
+      mockLateFeeRule(now, db),
+      amountPaise,
+      overdueMinutes(now),
+    );
   }
 
   /// Approved extensions not paid by UPI: owed at the return (backend
@@ -345,6 +350,8 @@ class MockBookingViews {
     }
     final keys = [for (final (k, _) in steps) k];
     var index = keys.indexOf(_currentStep[b.status]!);
+    // A sale has no "proceed" step; its appeal comes after the handover.
+    if (index < 0) index = keys.indexOf('reviews');
     if (b.status == BookingStatus.completed) index = keys.length;
     final stamps = {
       'requested': b.createdAt,
@@ -586,7 +593,7 @@ class MockBookingViews {
 
   Charges? charges(MockBooking b) {
     if (b.kind != TradeKind.rent || b.pickupCompletedAt == null) return null;
-    final late = b.liveLateFee(now);
+    final late = b.liveLateFee(now, db);
     final total = late + b.damagePaise + b.cashExtensionsPaise;
     if (total == 0 && b.returnStartedAt == null) return null;
     final payment = b.paymentFor(PaymentPurpose.returnCharges);
@@ -673,7 +680,7 @@ class MockBookingViews {
       startAt: b.startAt,
       endAt: b.endAt,
       amountPaise: b.amountPaise,
-      lateFeeRule: b.kind == TradeKind.rent ? mockLateFeeRule(now) : null,
+      lateFeeRule: b.kind == TradeKind.rent ? mockLateFeeRule(now, db) : null,
       timeline: timeline(b),
       nextAction: nextAction(b, role),
       pickup: handover(b, MockPhase.pickup),
@@ -685,7 +692,10 @@ class MockBookingViews {
       ],
       charges: charges(b),
       cancellation: cancellation(b, role),
-      appeal: null,
+      appeal: switch (mockLatestAppeal(db, b.id)) {
+        null => null,
+        final a => AppealRef(id: a.id, status: a.status),
+      },
       reviews: mockReviewState(db, b, viewer.id),
       overdueSince: b.overdueSince,
       escalationAvailableAt: b.escalationAvailableAt,
@@ -702,16 +712,7 @@ class MockBookingViews {
           role == TradeRole.owner &&
           b.escalatedAt == null &&
           b.canEscalate(now),
-      // Buyers can appeal a sale for 48 hours after the handover.
-      canAppeal:
-          b.kind == TradeKind.sale &&
-          role == TradeRole.renter &&
-          b.pickupCompletedAt != null &&
-          now.difference(b.pickupCompletedAt!) < const Duration(hours: 48) &&
-          const {
-            BookingStatus.awaitingReviews,
-            BookingStatus.completed,
-          }.contains(b.status),
+      canAppeal: mockCanAppeal(db, b, role, now),
       serverNow: now,
       createdAt: b.createdAt,
     );

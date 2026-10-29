@@ -56,10 +56,32 @@ abstract final class Routes {
       '/people/${Uri.encodeComponent(accountId)}';
   static const help = '/help';
 
+  /// Help, with [bookingId] attached to any conversation started there.
+  static String helpFor({String? bookingId}) => Uri(
+    path: help,
+    queryParameters: bookingId == null ? null : {'booking': bookingId},
+  ).toString();
+  static String helpThread(String id) =>
+      '/help/threads/${Uri.encodeComponent(id)}';
+
   static String booking(String id) => '/bookings/${Uri.encodeComponent(id)}';
   static String bookingReview(String id) => '${booking(id)}/review';
+  static String bookingAppeal(String id) => '${booking(id)}/appeal';
 
   static final String staffHome = StaffTab.appeals.path;
+  static String staffAppeal(String id) =>
+      '${StaffTab.appeals.path}/${Uri.encodeComponent(id)}';
+  static String staffAppealRule(String id) => '${staffAppeal(id)}/rule';
+  static String staffAppealOverrule(String id) => '${staffAppeal(id)}/overrule';
+  static final String staffSupport = StaffTab.support.path;
+  static String staffThread(String id) =>
+      '$staffSupport/${Uri.encodeComponent(id)}';
+  static final String staffReports = StaffTab.reports.path;
+  static String staffReconciliationRun(String id) =>
+      '$staffReports/runs/${Uri.encodeComponent(id)}';
+  static final String staffUsers = StaffTab.users.path;
+  static String staffUser(String id) =>
+      '$staffUsers/${Uri.encodeComponent(id)}';
 }
 
 /// Custom URL scheme for deep links, e.g. `unirent://bookings/42`.

@@ -1,9 +1,14 @@
 import '../generated/models.dart';
+import 'mock_admin_handlers.dart'
+    show MockAuditEntry, MockReconciliationRun, seedReconciliation;
+import 'mock_appeal_handlers.dart' show MockAppeal;
 import 'mock_booking_handlers.dart' show seedBookings;
 import 'mock_bookings.dart';
+import 'mock_help_handlers.dart' show MockSupportThread;
 import 'mock_listings.dart';
 import 'mock_review_handlers.dart' show MockReview;
 import 'mock_server.dart';
+import 'mock_staff_handlers.dart' show MockRuling, MockTrustPenalty;
 
 /// Terms version the mock backend expects (mirrors the backend constant).
 const mockTermsVersion = '2026-10';
@@ -37,6 +42,7 @@ class MockAccount {
   String? name;
   String? phone;
   DateTime? phoneVerifiedAt;
+  DateTime? lastLoginAt;
   final DateTime createdAt;
 
   /// Lender trust score; null while the user is New.
@@ -130,6 +136,7 @@ class MockDb {
     );
     seedListings(db);
     seedBookings(db);
+    seedReconciliation(db);
     return db;
   }
 
@@ -165,6 +172,16 @@ class MockDb {
 
   final bookings = <String, MockBooking>{};
   final reviews = <MockReview>[];
+  final supportThreads = <String, MockSupportThread>{};
+  final appeals = <String, MockAppeal>{};
+  final rulings = <MockRuling>[];
+  final trustPenalties = <MockTrustPenalty>[];
+  final auditLog = <MockAuditEntry>[];
+
+  /// Late-fee rule versions the admin set, oldest first (the seed rule is
+  /// version 1 and isn't stored).
+  final lateFeeRules = <LateFeeRuleVersion>[];
+  final reconciliationRuns = <String, MockReconciliationRun>{};
 
   /// Replayed responses by `account:Idempotency-Key`.
   final idempotentResponses = <String, MockResponse>{};

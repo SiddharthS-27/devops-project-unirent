@@ -21,6 +21,25 @@ String formatCountdown(Duration duration) {
   ].join(' ');
 }
 
+/// The countdown in words for screen readers: "2 days 3 hours 4 minutes",
+/// with seconds only in the last hour.
+String spokenCountdown(Duration duration) {
+  final total = duration.inSeconds.abs();
+  final days = total ~/ Duration.secondsPerDay;
+  final hours = total % Duration.secondsPerDay ~/ Duration.secondsPerHour;
+  final minutes = total % Duration.secondsPerHour ~/ Duration.secondsPerMinute;
+  final seconds = total % Duration.secondsPerMinute;
+  String unit(int n, String name) => '$n $name${n == 1 ? '' : 's'}';
+  final parts = [
+    if (days > 0) unit(days, 'day'),
+    if (hours > 0) unit(hours, 'hour'),
+    if (minutes > 0) unit(minutes, 'minute'),
+    if (total < Duration.secondsPerHour && (seconds > 0 || total == 0))
+      unit(seconds, 'second'),
+  ];
+  return parts.join(' ');
+}
+
 /// Offset to add to the device clock to get server time, computed from a
 /// server-reported `now`.
 Duration serverClockOffset(DateTime serverNow, {DateTime? deviceNow}) =>
@@ -111,21 +130,30 @@ class _CountdownState extends State<Countdown> {
         : Duration(seconds: (_remaining.inMilliseconds + 999) ~/ 1000);
 
     final String text;
+    final String spoken;
     if (overdue) {
       text =
           widget.overdueText ??
           '${widget.overdueLabel} ${formatCountdown(shown)}';
+      spoken =
+          widget.overdueText ??
+          '${widget.overdueLabel} ${spokenCountdown(shown)}';
     } else {
       final label = widget.label;
       text = label == null
           ? formatCountdown(shown)
           : '$label ${formatCountdown(shown)}';
+      spoken = label == null
+          ? spokenCountdown(shown)
+          : '$label ${spokenCountdown(shown)}';
     }
 
     final base =
         widget.style ?? theme.textTheme.bodyMedium ?? const TextStyle();
     return Text(
       text,
+      // "4m 5s" reads badly aloud; say the units in full.
+      semanticsLabel: spoken,
       style: base.copyWith(
         fontFeatures: AppTypography.tabularFigures,
         color: overdue ? theme.colorScheme.error : null,

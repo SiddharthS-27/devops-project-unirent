@@ -6,11 +6,13 @@ import '../features/auth/college_email_screen.dart';
 import '../features/auth/sign_in_screen.dart';
 import '../features/auth/staff_password_screen.dart';
 import '../features/auth/staff_sign_in_screen.dart';
+import '../features/bookings/appeal_screen.dart';
 import '../features/bookings/booking_screen.dart';
 import '../features/bookings/bookings_screen.dart';
 import '../features/bookings/incoming_requests_screen.dart';
 import '../features/bookings/request_screen.dart';
 import '../features/help/help_screen.dart';
+import '../features/help/support_thread_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/listings/listing_detail_screen.dart';
 import '../features/listings/listing_form_screen.dart';
@@ -29,7 +31,7 @@ import '../features/reviews/review_screen.dart';
 import '../features/search/saved_searches_screen.dart';
 import '../features/search/search_filters.dart';
 import '../features/search/search_results_screen.dart';
-import '../features/staff/staff_section_screen.dart';
+import '../features/staff/staff_routes.dart';
 import '../features/staff/staff_shell.dart';
 import '../features/staff/staff_tab.dart';
 import 'not_found_screen.dart';
@@ -46,8 +48,10 @@ final routerProvider = Provider<GoRouter>((ref) {
     ..listen(sessionProvider, (_, _) => changes.ping())
     ..listen(pendingReviewsProvider, (_, _) => changes.ping());
 
+  // Staff detail pages cover the staff shell's tab bar.
+  final rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
   final router = GoRouter(
-    navigatorKey: GlobalKey<NavigatorState>(debugLabel: 'root'),
+    navigatorKey: rootNavigatorKey,
     refreshListenable: changes,
     redirect: (context, state) => redirectFor(
       ref.read(sessionProvider),
@@ -105,6 +109,11 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (context, state) =>
                 ReviewScreen(bookingId: state.pathParameters['id']!),
           ),
+          GoRoute(
+            path: 'appeal',
+            builder: (context, state) =>
+                AppealScreen(bookingId: state.pathParameters['id']!),
+          ),
         ],
       ),
       GoRoute(
@@ -145,7 +154,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: Routes.help,
-        builder: (context, state) => const HelpScreen(),
+        builder: (context, state) =>
+            HelpScreen(bookingId: state.uri.queryParameters['booking']),
+        routes: [
+          GoRoute(
+            path: 'threads/:id',
+            builder: (context, state) =>
+                SupportThreadScreen(threadId: state.pathParameters['id']!),
+          ),
+        ],
       ),
 
       StatefulShellRoute.indexedStack(
@@ -238,7 +255,8 @@ final routerProvider = Provider<GoRouter>((ref) {
               routes: [
                 GoRoute(
                   path: tab.path,
-                  builder: (context, state) => StaffSectionScreen(tab: tab),
+                  builder: (context, state) => staffTabScreen(tab),
+                  routes: staffTabRoutes(tab, rootNavigatorKey),
                 ),
               ],
             ),

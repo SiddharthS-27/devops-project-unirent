@@ -264,7 +264,7 @@ class _Header extends StatelessWidget {
             salePaise: detail.salePricePaise,
           ),
           style: theme.textTheme.titleLarge?.copyWith(
-            color: theme.colorScheme.primary,
+            fontWeight: FontWeight.w700,
           ),
         ),
         const SizedBox(height: AppSpacing.sm),

@@ -12,8 +12,8 @@ TrustBand trustBandFor(int score) {
   return TrustBand.low;
 }
 
-/// Pill showing a user's trust score coloured by band, or "New" when the
-/// user has no score yet.
+/// Tag showing a user's trust score in its band's pale tint, or "New" when
+/// the user has no score yet.
 class TrustBadge extends StatelessWidget {
   const TrustBadge({super.key, required this.score});
 
@@ -43,12 +43,12 @@ class TrustBadge extends StatelessWidget {
         child: DecoratedBox(
           decoration: BoxDecoration(
             color: background,
-            borderRadius: BorderRadius.circular(AppRadius.pill),
+            borderRadius: BorderRadius.circular(AppRadius.xs),
           ),
           child: Padding(
             padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.sm,
-              vertical: AppSpacing.xxs,
+              horizontal: AppSpacing.sm - 2,
+              vertical: AppSpacing.xxs + 1,
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -56,8 +56,8 @@ class TrustBadge extends StatelessWidget {
                 Icon(
                   score == null
                       ? Icons.fiber_new_outlined
-                      : Icons.verified_user,
-                  size: AppSizes.iconSm,
+                      : Icons.verified_user_outlined,
+                  size: AppSizes.iconXs,
                   color: foreground,
                 ),
                 const SizedBox(width: AppSpacing.xs),

@@ -465,7 +465,8 @@ class _DamageDialogState extends State<_DamageDialog> {
           children: [
             const Text(
               'Agree the amount with the renter first. If you can’t agree, '
-              'either of you can appeal from Help.',
+              'either of you can appeal from the booking once the item is '
+              'back.',
             ),
             const SizedBox(height: AppSpacing.lg),
             AppTextField(

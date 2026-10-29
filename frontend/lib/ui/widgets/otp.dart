@@ -148,25 +148,27 @@ class _OtpEntryState extends State<OtpEntry> {
                       ),
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
-                        color: scheme.surfaceContainerHighest.withValues(
-                          alpha: 0.5,
-                        ),
-                        borderRadius: BorderRadius.circular(AppRadius.md),
+                        color: scheme.surface,
+                        borderRadius: BorderRadius.circular(AppRadius.sm),
                         border: Border.all(
                           color: hasError
                               ? scheme.error
                               : _focusNode.hasFocus && i == activeIndex
-                              ? scheme.primary
-                              : scheme.outlineVariant,
+                              ? scheme.onSurface
+                              : scheme.outline,
                           width: _focusNode.hasFocus && i == activeIndex
-                              ? 2
+                              ? 1.5
                               : 1,
                         ),
                       ),
-                      child: Text(
-                        i < text.length ? text[i] : '',
-                        style: theme.textTheme.titleLarge?.copyWith(
-                          fontFeatures: AppTypography.tabularFigures,
+                      // Digits shrink to fit the box with large text.
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          i < text.length ? text[i] : '',
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontFeatures: AppTypography.tabularFigures,
+                          ),
                         ),
                       ),
                     ),

@@ -42,7 +42,8 @@ class AdminApi {
 
   /// Overrule
   ///
-  /// Replace a moderator's ruling. Its effects are reversed where possible.
+  /// Replace a moderator's ruling. Its effects are reversed where possible
+  /// (a refund already paid out stays paid).
   ///
   /// `POST /api/v1/admin/appeals/{appeal_id}/overrule`
   Future<AppealDetail> overrule(String appealId, RulingIn body) async {
@@ -55,6 +56,8 @@ class AdminApi {
   }
 
   /// Audit Log
+  ///
+  /// Every staff action, newest first. Read only: the log can't be edited.
   ///
   /// `GET /api/v1/admin/audit-log`
   Future<AuditEntryOutPage> auditLog({
@@ -86,7 +89,8 @@ class AdminApi {
 
   /// Set Clock
   ///
-  /// Staging only: move the clock forward for the demo (for example to an overdue rental).
+  /// Staging only: move the clock forward for the demo (for example to an overdue
+  /// rental). Timers that fall due fire on the timer runner's next pass.
   ///
   /// `POST /api/v1/admin/clock`
   Future<ClockOut> setClock(ClockIn body) async {
@@ -99,6 +103,8 @@ class AdminApi {
   }
 
   /// Metrics
+  ///
+  /// Platform health for the admin's metrics screen.
   ///
   /// `GET /api/v1/admin/metrics`
   Future<MetricsOut> metrics() async {
@@ -338,7 +344,7 @@ class BookingsApi {
 
   /// File Appeal
   ///
-  /// Handover photos attach automatically.
+  /// Handover photos attach automatically; add notes and extra photos (purpose "appeal").
   ///
   /// `POST /api/v1/bookings/{booking_id}/appeals`
   Future<AppealOut> fileAppeal(
@@ -1049,6 +1055,32 @@ class PaymentsApi {
 
   final ApiTransport _transport;
 
+  /// Late Fee Rule History
+  ///
+  /// Every version, newest first; the first is in force.
+  ///
+  /// `GET /api/v1/admin/late-fee-rule`
+  Future<List<LateFeeRuleVersion>> lateFeeRuleHistory() async {
+    final json = await _transport.send('GET', '/api/v1/admin/late-fee-rule');
+    return (json as List<Object?>)
+        .map((e0) => LateFeeRuleVersion.fromJson(e0! as Map<String, Object?>))
+        .toList();
+  }
+
+  /// Set Late Fee Rule
+  ///
+  /// Set the grace period, base fee and hourly percentage for new approvals.
+  ///
+  /// `POST /api/v1/admin/late-fee-rule`
+  Future<LateFeeRuleVersion> setLateFeeRule(LateFeeRuleIn body) async {
+    final json = await _transport.send(
+      'POST',
+      '/api/v1/admin/late-fee-rule',
+      body: body.toJson(),
+    );
+    return LateFeeRuleVersion.fromJson(json as Map<String, Object?>);
+  }
+
   /// Run Reconciliation Now
   ///
   /// Ledger against Razorpay payments, transfers and refunds for one IST day.
@@ -1424,10 +1456,12 @@ class StaffApi {
 
   final ApiTransport _transport;
 
-  /// Appeals
+  /// Appeals Queue
+  ///
+  /// Oldest open appeal first.
   ///
   /// `GET /api/v1/staff/appeals`
-  Future<List<AppealSummary>> appeals({AppealFilter? status}) async {
+  Future<List<AppealSummary>> appealsQueue({AppealFilter? status}) async {
     final json = await _transport.send(
       'GET',
       '/api/v1/staff/appeals',
@@ -1440,6 +1474,8 @@ class StaffApi {
 
   /// Appeal
   ///
+  /// The booking's timeline, both sides' handover photos, notes and any rulings.
+  ///
   /// `GET /api/v1/staff/appeals/{appeal_id}`
   Future<AppealDetail> appeal(String appealId) async {
     final json = await _transport.send(
@@ -1450,6 +1486,9 @@ class StaffApi {
   }
 
   /// Rule
+  ///
+  /// Any of: a charge or refund, a trust penalty, removing the listing, a
+  /// suspension or ban. Both sides are notified and the booking moves on.
   ///
   /// `POST /api/v1/staff/appeals/{appeal_id}/ruling`
   Future<AppealDetail> rule(String appealId, RulingIn body) async {
@@ -1463,7 +1502,8 @@ class StaffApi {
 
   /// Escalations
   ///
-  /// Overdue by an hour or more, owner escalations and stalled Proceeds.
+  /// Overdue by an hour or more, owner escalations and stalled Proceeds, with
+  /// residence details for following up in person.
   ///
   /// `GET /api/v1/staff/escalations`
   Future<List<EscalationOut>> escalations() async {
@@ -1509,6 +1549,8 @@ class StaffApi {
 
   /// Remove Review
   ///
+  /// Hide an abusive review; the reviewee's trust is recomputed without it.
+  ///
   /// `POST /api/v1/staff/reviews/{review_id}/remove`
   Future<void> removeReview(String reviewId, ReasonIn body) async {
     await _transport.send(
@@ -1519,6 +1561,8 @@ class StaffApi {
   }
 
   /// Support Inbox
+  ///
+  /// Chats handed off from the help bot, latest activity first.
   ///
   /// `GET /api/v1/staff/support/threads`
   Future<List<SupportThreadSummary>> supportInbox({
@@ -1558,6 +1602,8 @@ class StaffApi {
 
   /// Support Reply
   ///
+  /// Answer in the same chat; the student gets a push.
+  ///
   /// `POST /api/v1/staff/support/threads/{thread_id}/messages`
   Future<SupportMessage> supportReply(
     String threadId,
@@ -1573,7 +1619,7 @@ class StaffApi {
 
   /// Users
   ///
-  /// Search users; `flagged` lists only those with risk flags.
+  /// Search by name, roll number or email; `flagged` lists only those with risk flags.
   ///
   /// `GET /api/v1/staff/users`
   Future<StaffUserRowPage> users({
@@ -1597,6 +1643,8 @@ class StaffApi {
 
   /// User
   ///
+  /// Profile with email and roll number, history, risk flags and penalties.
+  ///
   /// `GET /api/v1/staff/users/{account_id}`
   Future<StaffUserDetail> user(String accountId) async {
     final json = await _transport.send(
@@ -1607,6 +1655,9 @@ class StaffApi {
   }
 
   /// Set Status
+  ///
+  /// Suspend (can't list, request or pay, can finish open handovers), ban (can't
+  /// sign in) or reactivate.
   ///
   /// `POST /api/v1/staff/users/{account_id}/status`
   Future<StaffUserDetail> setStatus(

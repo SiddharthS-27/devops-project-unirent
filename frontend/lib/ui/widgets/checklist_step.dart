@@ -39,7 +39,7 @@ class ChecklistStep extends StatelessWidget {
       ),
       ChecklistStepState.available => (
         Icons.radio_button_unchecked,
-        scheme.primary,
+        AppSurfaces.of(context).accent,
         'to do',
       ),
       ChecklistStepState.done => (
@@ -50,55 +50,69 @@ class ChecklistStep extends StatelessWidget {
     };
 
     final actionLabel = this.actionLabel;
+    final action = state == ChecklistStepState.available && actionLabel != null
+        ? FilledButton(
+            onPressed: onAction,
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(0, AppSizes.minTouchTarget),
+            ),
+            child: Text(actionLabel),
+          )
+        : null;
+    // With large text the button goes under the step so neither is cramped.
+    final stacked = MediaQuery.textScalerOf(context).scale(10) > 13;
+
+    final step = MergeSemantics(
+      child: Row(
+        children: [
+          Icon(icon, color: iconColor, semanticLabel: stateLabel),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: isLocked
+                        ? scheme.onSurfaceVariant
+                        : scheme.onSurface,
+                  ),
+                ),
+                if (subtitle != null)
+                  Text(
+                    subtitle!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-      child: Row(
-        children: [
-          Expanded(
-            child: MergeSemantics(
-              child: Row(
-                children: [
-                  Icon(icon, color: iconColor, semanticLabel: stateLabel),
-                  const SizedBox(width: AppSpacing.md),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            color: isLocked
-                                ? scheme.onSurfaceVariant
-                                : scheme.onSurface,
-                          ),
-                        ),
-                        if (subtitle != null)
-                          Text(
-                            subtitle!,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: scheme.onSurfaceVariant,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+      child: action == null
+          ? step
+          : stacked
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                step,
+                const SizedBox(height: AppSpacing.sm),
+                Align(alignment: AlignmentDirectional.centerEnd, child: action),
+              ],
+            )
+          : Row(
+              children: [
+                Expanded(child: step),
+                const SizedBox(width: AppSpacing.sm),
+                action,
+              ],
             ),
-          ),
-          if (state == ChecklistStepState.available && actionLabel != null) ...[
-            const SizedBox(width: AppSpacing.sm),
-            FilledButton.tonal(
-              onPressed: onAction,
-              style: FilledButton.styleFrom(
-                minimumSize: const Size(0, AppSizes.minTouchTarget),
-              ),
-              child: Text(actionLabel),
-            ),
-          ],
-        ],
-      ),
     );
   }
 }

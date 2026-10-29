@@ -17,7 +17,7 @@ import '../reviews/widgets/booking_reviews.dart';
 import 'booking_format.dart';
 import 'booking_providers.dart';
 import 'widgets/active_rental_section.dart';
-import 'widgets/appeal_window_note.dart';
+import 'widgets/appeal_card.dart';
 import 'widgets/booking_manage_actions.dart';
 import 'widgets/cancellation_card.dart';
 import 'widgets/counterparty_card.dart';
@@ -57,7 +57,7 @@ class BookingScreen extends ConsumerWidget {
           IconButton(
             tooltip: 'Help',
             icon: const Icon(Icons.help_outline),
-            onPressed: () => context.push(Routes.help),
+            onPressed: () => context.push(Routes.helpFor(bookingId: bookingId)),
           ),
         ],
       ),
@@ -112,6 +112,10 @@ class _BookingView extends ConsumerWidget {
         ],
         NextActionCard(booking: booking),
         if (booking.nextAction != null) gap,
+        if (AppealCard.appliesTo(booking)) ...[
+          AppealCard(booking: booking),
+          gap,
+        ],
         if (ReturnChecklist.appliesTo(booking)) ...[
           ReturnChecklist(booking: booking),
           gap,
@@ -154,10 +158,6 @@ class _BookingView extends ConsumerWidget {
                 : () => ref.read(phoneCallerProvider)(phone),
           ),
         ],
-        if (AppealWindowNote.appliesTo(booking)) ...[
-          gap,
-          AppealWindowNote(booking: booking),
-        ],
         if (BookingReviews.appliesTo(booking)) ...[
           gap,
           BookingReviews(booking: booking),
@@ -174,7 +174,7 @@ class _BookingView extends ConsumerWidget {
         AppButton.secondary(
           label: 'Get help with this booking',
           icon: Icons.support_agent_outlined,
-          onPressed: () => context.push(Routes.help),
+          onPressed: () => context.push(Routes.helpFor(bookingId: booking.id)),
         ),
       ],
     );

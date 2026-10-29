@@ -49,14 +49,14 @@ class EmptyState extends StatelessWidget {
           size: AppSizes.iconLg,
           color: theme.colorScheme.onSurfaceVariant,
         ),
-        const SizedBox(height: AppSpacing.lg),
+        const SizedBox(height: AppSpacing.md),
         Text(
           title,
           style: theme.textTheme.titleMedium,
           textAlign: TextAlign.center,
         ),
         if (message != null) ...[
-          const SizedBox(height: AppSpacing.sm),
+          const SizedBox(height: AppSpacing.xs),
           Text(
             message!,
             style: theme.textTheme.bodyMedium?.copyWith(
@@ -82,7 +82,10 @@ class LoadingState extends StatelessWidget {
     final theme = Theme.of(context);
     return _StateLayout(
       children: [
-        const CircularProgressIndicator(),
+        const SizedBox.square(
+          dimension: 28,
+          child: CircularProgressIndicator(strokeWidth: 2.5),
+        ),
         if (message != null) ...[
           const SizedBox(height: AppSpacing.lg),
           Text(
@@ -123,14 +126,14 @@ class ErrorState extends StatelessWidget {
           size: AppSizes.iconLg,
           color: theme.colorScheme.error,
         ),
-        const SizedBox(height: AppSpacing.lg),
+        const SizedBox(height: AppSpacing.md),
         Text(
           title,
           style: theme.textTheme.titleMedium,
           textAlign: TextAlign.center,
         ),
         if (message != null) ...[
-          const SizedBox(height: AppSpacing.sm),
+          const SizedBox(height: AppSpacing.xs),
           Text(
             message!,
             style: theme.textTheme.bodyMedium?.copyWith(
@@ -143,7 +146,7 @@ class ErrorState extends StatelessWidget {
           const SizedBox(height: AppSpacing.xl),
           OutlinedButton.icon(
             onPressed: onRetry,
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh, size: AppSizes.iconSm),
             label: Text(retryLabel),
           ),
         ],
@@ -174,7 +177,11 @@ class InlineError extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.error_outline, color: scheme.onErrorContainer),
+            Icon(
+              Icons.error_outline,
+              size: AppSizes.iconMd - 2,
+              color: scheme.onErrorContainer,
+            ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(

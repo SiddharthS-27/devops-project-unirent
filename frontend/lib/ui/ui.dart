@@ -5,6 +5,7 @@ export 'format.dart';
 export 'theme.dart';
 export 'tokens.dart';
 export 'widgets/app_card.dart';
+export 'widgets/brand.dart';
 export 'widgets/buttons.dart';
 export 'widgets/checklist_step.dart';
 export 'widgets/countdown.dart';
