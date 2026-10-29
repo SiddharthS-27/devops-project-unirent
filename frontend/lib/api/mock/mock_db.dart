@@ -6,6 +6,7 @@ import 'mock_help_handlers.dart' show MockSupportThread;
 import 'mock_listings.dart';
 import 'mock_review_handlers.dart' show MockReview;
 import 'mock_server.dart';
+import 'mock_staff_handlers.dart' show MockRuling, MockTrustPenalty;
 
 /// Terms version the mock backend expects (mirrors the backend constant).
 const mockTermsVersion = '2026-10';
@@ -169,6 +170,8 @@ class MockDb {
   final reviews = <MockReview>[];
   final supportThreads = <String, MockSupportThread>{};
   final appeals = <String, MockAppeal>{};
+  final rulings = <MockRuling>[];
+  final trustPenalties = <MockTrustPenalty>[];
 
   /// Replayed responses by `account:Idempotency-Key`.
   final idempotentResponses = <String, MockResponse>{};

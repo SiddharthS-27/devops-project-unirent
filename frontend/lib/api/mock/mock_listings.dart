@@ -59,6 +59,9 @@ class MockListing {
   final String assetId;
   TradeKind kind;
   ListingStatus status;
+
+  /// Why staff removed it.
+  String? removedReason;
   String title;
   String description;
   ListingCategory category;

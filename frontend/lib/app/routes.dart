@@ -69,6 +69,9 @@ abstract final class Routes {
   static String bookingAppeal(String id) => '${booking(id)}/appeal';
 
   static final String staffHome = StaffTab.appeals.path;
+  static String staffAppeal(String id) =>
+      '${StaffTab.appeals.path}/${Uri.encodeComponent(id)}';
+  static String staffAppealRule(String id) => '${staffAppeal(id)}/rule';
 }
 
 /// Custom URL scheme for deep links, e.g. `unirent://bookings/42`.
