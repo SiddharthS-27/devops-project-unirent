@@ -12,6 +12,7 @@ from app.modules.bookings import rental, service, timers
 from app.modules.bookings.events import payload
 from app.modules.bookings.models import Booking
 from app.modules.bookings.state import record
+from app.modules.reviews import service as reviews
 
 Rule = Callable[[AsyncSession, Booking], Awaitable[bool]]
 
@@ -55,4 +56,5 @@ RULES: dict[str, Rule] = {
     timers.OVERDUE_ALERT: rental.overdue_alert,
     timers.ESCALATION_UNLOCK: _escalation_unlock,
     timers.STALLED_PROCEED: _stalled_proceed,
+    timers.REVIEW_RELEASE: reviews.release,
 }
