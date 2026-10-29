@@ -1,0 +1,8 @@
+# Local web development: the dev server forwards API and simulator calls to the
+# Compose stack, so the browser talks to one origin and needs no CORS.
+server:
+  proxy:
+    - prefix: "/api/"
+      target: "http://localhost:8000"
+    - prefix: "/sim/"
+      target: "http://localhost:8090"
