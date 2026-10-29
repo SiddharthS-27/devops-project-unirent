@@ -40,6 +40,31 @@ const _messages = {
   'TERMS_OUTDATED': 'The terms were just updated. Please review them again.',
   'PROFILE_REQUIRED': 'Fill in your profile first.',
   'STUDENTS_ONLY': 'Only students can do this.',
+  // Listings
+  'NOT_FOUND': 'This isn’t available any more.',
+  'LISTING_LOCKED':
+      'You can’t edit this listing while a booking is approved or active.',
+  'LISTING_CLOSED': 'This listing is closed and can’t be changed.',
+  'INVALID_PRICE':
+      'Check the prices: rentals have hourly or daily prices, '
+      'sales have one fixed price.',
+  'LAST_PHOTO':
+      'A listing needs at least one photo. Add another before removing this '
+      'one.',
+  'TOO_MANY_PHOTOS': 'A listing can have up to 8 photos.',
+  'INVALID_PHOTO': 'That photo didn’t upload properly. Try adding it again.',
+  'PHOTO_NOT_UPLOADED':
+      'That photo didn’t upload properly. Try adding it again.',
+  'PAYOUT_ACCOUNT_REQUIRED':
+      'Link your payout account before listing your first item.',
+  'ONBOARDING_INCOMPLETE': 'Finish setting up your profile first.',
+  // Saved searches
+  'EMPTY_SEARCH': 'Add a search term or a filter before saving.',
+  'TOO_MANY_SAVED_SEARCHES':
+      'You can save up to 20 searches. Delete one to save another.',
+  // Payouts
+  'PAYOUT_ACCOUNT_EXISTS': 'You’ve already linked a payout account.',
+  'NO_PAYOUT_ACCOUNT': 'Link a payout account first.',
   // Client-side
   ApiException.networkError:
       'Can’t reach UniRent. Check your internet connection.',

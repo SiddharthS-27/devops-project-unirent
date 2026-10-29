@@ -1,3 +1,4 @@
+import '../features/search/search_filters.dart';
 import '../features/staff/staff_tab.dart';
 import 'session.dart';
 
@@ -22,8 +23,25 @@ abstract final class Routes {
   };
 
   static const home = '/home';
+  static const search = '/home/search';
+  static const savedSearches = '/home/saved';
+
+  /// The results screen for [filters].
+  static String searchFor(SearchFilters filters) {
+    final query = filters.toQuery();
+    return Uri(
+      path: search,
+      queryParameters: query.isEmpty ? null : query,
+    ).toString();
+  }
+
+  static String listing(String id) => '/listing/${Uri.encodeComponent(id)}';
+  static String listingEdit(String id) => '${listing(id)}/edit';
+  static String listingRequest(String id) => '${listing(id)}/request';
   static const bookings = '/bookings';
   static const listings = '/listings';
+  static const newListing = '/listings/new';
+  static const payoutAccount = '/payout-account';
   static const profile = '/profile';
   static const help = '/help';
 

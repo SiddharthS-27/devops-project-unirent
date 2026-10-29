@@ -402,6 +402,26 @@ enum PaymentStatus {
       values.firstWhere((v) => v.json == json, orElse: () => unknown);
 }
 
+enum PayoutAccountOutStatus {
+  none('none'),
+  created('created'),
+  underReview('under_review'),
+  needsClarification('needs_clarification'),
+  activated('activated'),
+  suspended('suspended'),
+
+  /// A value added to the API after this client was built.
+  unknown('');
+
+  const PayoutAccountOutStatus(this.json);
+
+  /// The wire value.
+  final String json;
+
+  static PayoutAccountOutStatus fromJson(String json) =>
+      values.firstWhere((v) => v.json == json, orElse: () => unknown);
+}
+
 enum PhotoContentType {
   imageJpeg('image/jpeg'),
   imagePng('image/png'),
@@ -2934,6 +2954,86 @@ class PaymentStartIn {
   final PaymentMethod method;
 
   Map<String, Object?> toJson() => {'method': method.json};
+}
+
+/// Sent to Razorpay to create the linked account; never stored by UniRent.
+@immutable
+class PayoutAccountIn {
+  const PayoutAccountIn({
+    required this.accountNumber,
+    required this.beneficiaryName,
+    required this.email,
+    required this.ifsc,
+    required this.legalName,
+    required this.phone,
+  });
+
+  factory PayoutAccountIn.fromJson(Map<String, Object?> json) =>
+      PayoutAccountIn(
+        accountNumber: json['account_number'] as String,
+        beneficiaryName: json['beneficiary_name'] as String,
+        email: json['email'] as String,
+        ifsc: json['ifsc'] as String,
+        legalName: json['legal_name'] as String,
+        phone: json['phone'] as String,
+      );
+
+  final String accountNumber;
+
+  final String beneficiaryName;
+
+  final String email;
+
+  final String ifsc;
+
+  final String legalName;
+
+  final String phone;
+
+  Map<String, Object?> toJson() => {
+    'account_number': accountNumber,
+    'beneficiary_name': beneficiaryName,
+    'email': email,
+    'ifsc': ifsc,
+    'legal_name': legalName,
+    'phone': phone,
+  };
+}
+
+@immutable
+class PayoutAccountOut {
+  const PayoutAccountOut({
+    this.razorpayAccountId,
+    required this.ready,
+    required this.status,
+    this.updatedAt,
+  });
+
+  factory PayoutAccountOut.fromJson(Map<String, Object?> json) =>
+      PayoutAccountOut(
+        razorpayAccountId: json['razorpay_account_id'] as String?,
+        ready: json['ready'] as bool,
+        status: PayoutAccountOutStatus.fromJson(json['status'] as String),
+        updatedAt: json['updated_at'] == null
+            ? null
+            : DateTime.parse(json['updated_at'] as String),
+      );
+
+  final String? razorpayAccountId;
+
+  /// True when listings can be posted
+  final bool ready;
+
+  final PayoutAccountOutStatus status;
+
+  final DateTime? updatedAt;
+
+  Map<String, Object?> toJson() => {
+    'razorpay_account_id': ?razorpayAccountId,
+    'ready': ready,
+    'status': status.json,
+    'updated_at': ?updatedAt?.toUtc().toIso8601String(),
+  };
 }
 
 @immutable

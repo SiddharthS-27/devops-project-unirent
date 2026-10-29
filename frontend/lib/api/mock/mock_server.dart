@@ -101,7 +101,11 @@ class MockServer {
   }
 
   Future<MockResponse> handle(MockRequest request) async {
-    for (final route in _routes) {
+    // Literal routes win over parameterised ones (`/listings/mine` before
+    // `/listings/{listing_id}`), like the real router.
+    final routes = [..._routes]
+      ..sort((a, b) => a.paramCount.compareTo(b.paramCount));
+    for (final route in routes) {
       if (route.method != request.method) continue;
       final params = route.match(request.path);
       if (params == null) continue;
@@ -142,6 +146,8 @@ class _Route {
   final MockHandler handler;
   final List<String> _names;
   final RegExp _pattern;
+
+  int get paramCount => _names.length;
 
   Map<String, String>? match(String path) {
     final m = _pattern.firstMatch(path);

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:unirent/api/api.dart';
@@ -109,6 +110,7 @@ Future<TestApp> pumpTestApp(
   AuthTokens? storedTokens,
   FakePushService? push,
   AppEnv env = const AppEnv(),
+  List<Override> overrides = const [],
 }) async {
   // A tall phone so long forms fit without scrolling.
   tester.view
@@ -121,6 +123,7 @@ Future<TestApp> pumpTestApp(
   final fakePush = push ?? FakePushService();
   await tester.pumpWidget(
     ProviderScope(
+      retry: (_, _) => null,
       overrides: [
         apiConfigProvider.overrideWithValue(
           const ApiConfig(baseUrl: 'http://mock', mode: ApiMode.mock),
@@ -129,10 +132,29 @@ Future<TestApp> pumpTestApp(
         tokenStoreProvider.overrideWithValue(tokens),
         appEnvProvider.overrideWithValue(env),
         pushServiceProvider.overrideWithValue(fakePush),
+        ...overrides,
       ],
       child: const UniRentApp(),
     ),
   );
   await tester.pumpAndSettle();
   return TestApp(tester, mock, tokens, fakePush);
+}
+
+/// The app restored with a stored session for [email].
+Future<TestApp> pumpSignedIn(
+  WidgetTester tester,
+  String email, {
+  MockServer? server,
+  FakePushService? push,
+  List<Override> overrides = const [],
+}) {
+  final mock = server ?? MockServer();
+  return pumpTestApp(
+    tester,
+    server: mock,
+    push: push,
+    overrides: overrides,
+    storedTokens: tokensFor(mock, email),
+  );
 }

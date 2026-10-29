@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import '../generated/models.dart';
 import 'mock_db.dart';
+import 'mock_listing_handlers.dart';
+import 'mock_payout_handlers.dart';
 import 'mock_server.dart';
 
 /// Every route the mock backend answers. Add new endpoints here as the app
@@ -9,6 +11,8 @@ import 'mock_server.dart';
 Map<String, MockHandler> mockHandlers(MockDb db) {
   final h = _Handlers(db);
   return {
+    ...listingHandlers(db),
+    ...payoutHandlers(db),
     'POST /api/v1/auth/microsoft/mock-token': h.microsoftMockToken,
     'POST /api/v1/auth/microsoft': h.microsoftSignIn,
     'POST /api/v1/auth/refresh': h.refresh,
@@ -29,19 +33,21 @@ Map<String, MockHandler> mockHandlers(MockDb db) {
 
 const _minPasswordLength = 10;
 
-MockApiError _unauthenticated([
+/// A 401 in the backend's shape.
+MockApiError mockUnauthenticated([
   String code = 'UNAUTHENTICATED',
   String message = 'Sign in again',
 ]) => MockApiError(401, code, message);
 
-MockApiError _validation(String field, String message) =>
+/// A 422 for one field, in the backend's shape.
+MockApiError mockValidation(String field, String message) =>
     MockApiError(422, 'VALIDATION_ERROR', 'The request is not valid', [
       {'field': field, 'message': message},
     ]);
 
 /// Decodes a request body with the generated model, turning shape errors
 /// into the backend's 422.
-T _parse<T>(MockRequest r, T Function(Map<String, Object?>) fromJson) {
+T mockParse<T>(MockRequest r, T Function(Map<String, Object?>) fromJson) {
   try {
     return fromJson(r.json);
   } on TypeError {
@@ -53,6 +59,30 @@ T _parse<T>(MockRequest r, T Function(Map<String, Object?>) fromJson) {
   }
 }
 
+/// The signed-in account, enforcing the same token rules as the backend.
+MockAccount mockAuthenticate(MockDb db, MockRequest r) {
+  final token = r.bearerToken;
+  if (token == null) throw mockUnauthenticated();
+  if (db.expiredAccessTokens.contains(token)) {
+    throw mockUnauthenticated('TOKEN_EXPIRED', 'The access token has expired');
+  }
+  final account = db.accounts[db.accessTokens[token]];
+  if (account == null) {
+    throw mockUnauthenticated('INVALID_TOKEN', 'The access token is not valid');
+  }
+  if (account.mustChangePassword) {
+    throw const MockApiError(
+      403,
+      'PASSWORD_CHANGE_REQUIRED',
+      'Set a new password first',
+    );
+  }
+  if (account.status == 'banned') {
+    throw mockUnauthenticated('ACCOUNT_DISABLED', "This account can't sign in");
+  }
+  return account;
+}
+
 class _Handlers {
   _Handlers(this.db);
 
@@ -60,41 +90,19 @@ class _Handlers {
 
   DateTime get _now => db.clock().toUtc();
 
-  /// The signed-in account, enforcing the same token rules as the backend.
-  MockAccount _account(MockRequest r) {
-    final token = r.bearerToken;
-    if (token == null) throw _unauthenticated();
-    if (db.expiredAccessTokens.contains(token)) {
-      throw _unauthenticated('TOKEN_EXPIRED', 'The access token has expired');
-    }
-    final account = db.accounts[db.accessTokens[token]];
-    if (account == null) {
-      throw _unauthenticated('INVALID_TOKEN', 'The access token is not valid');
-    }
-    if (account.mustChangePassword) {
-      throw const MockApiError(
-        403,
-        'PASSWORD_CHANGE_REQUIRED',
-        'Set a new password first',
-      );
-    }
-    if (account.status == 'banned') {
-      throw _unauthenticated('ACCOUNT_DISABLED', "This account can't sign in");
-    }
-    return account;
-  }
+  MockAccount _account(MockRequest r) => mockAuthenticate(db, r);
 
   // ---- auth -----------------------------------------------------------------
 
   MockResponse microsoftMockToken(MockRequest r) {
-    final body = _parse(r, MockTokenRequest.fromJson);
+    final body = mockParse(r, MockTokenRequest.fromJson);
     final claims = {'email': body.email.toLowerCase(), 'name': body.name};
     final token = base64Url.encode(utf8.encode(jsonEncode(claims)));
     return MockResponse.json(MockTokenOut(idToken: 'mock-ms.$token').toJson());
   }
 
   MockResponse microsoftSignIn(MockRequest r) {
-    final body = _parse(r, MicrosoftSignIn.fromJson);
+    final body = mockParse(r, MicrosoftSignIn.fromJson);
     final Map<String, Object?> claims;
     try {
       if (!body.idToken.startsWith('mock-ms.')) throw const FormatException();
@@ -103,7 +111,10 @@ class _Handlers {
           jsonDecode(utf8.decode(base64Url.decode(payload)))
               as Map<String, Object?>;
     } on FormatException {
-      throw _unauthenticated('INVALID_ID_TOKEN', 'The ID token is not valid');
+      throw mockUnauthenticated(
+        'INVALID_ID_TOKEN',
+        'The ID token is not valid',
+      );
     }
     final email = claims['email']! as String;
     if (!email.endsWith('@$mockCollegeDomain')) {
@@ -138,16 +149,16 @@ class _Handlers {
   }
 
   MockResponse refresh(MockRequest r) {
-    final token = _parse(r, RefreshRequest.fromJson).refreshToken;
+    final token = mockParse(r, RefreshRequest.fromJson).refreshToken;
     if (db.usedRefreshTokens.contains(token)) {
       // Reuse means the token leaked: revoke everything for that account.
       final accountId = db.refreshTokens.remove(token);
       db.refreshTokens.removeWhere((_, id) => id == accountId);
-      throw _unauthenticated('REFRESH_TOKEN_REUSED');
+      throw mockUnauthenticated('REFRESH_TOKEN_REUSED');
     }
     final accountId = db.refreshTokens.remove(token);
     final account = db.accounts[accountId];
-    if (account == null) throw _unauthenticated('INVALID_REFRESH_TOKEN');
+    if (account == null) throw mockUnauthenticated('INVALID_REFRESH_TOKEN');
     db
       ..usedRefreshTokens.add(token)
       ..refreshCount += 1;
@@ -155,7 +166,7 @@ class _Handlers {
   }
 
   MockResponse logout(MockRequest r) {
-    final token = _parse(r, RefreshRequest.fromJson).refreshToken;
+    final token = mockParse(r, RefreshRequest.fromJson).refreshToken;
     db.refreshTokens.remove(token);
     return const MockResponse.noContent();
   }
@@ -173,13 +184,13 @@ class _Handlers {
   }
 
   MockResponse staffLogin(MockRequest r) {
-    final body = _parse(r, StaffLogin.fromJson);
+    final body = mockParse(r, StaffLogin.fromJson);
     final account = _staffAuthenticate(body.email, body.password);
     return MockResponse.json(db.issueTokens(account).toJson());
   }
 
   MockResponse staffChangePassword(MockRequest r) {
-    final body = _parse(r, StaffPasswordChange.fromJson);
+    final body = mockParse(r, StaffPasswordChange.fromJson);
     final account = _staffAuthenticate(body.email, body.currentPassword);
     final next = body.newPassword;
     if (next == body.currentPassword) {
@@ -212,9 +223,9 @@ class _Handlers {
   }
 
   MockResponse phoneMockToken(MockRequest r) {
-    final body = _parse(r, PhoneMockTokenRequest.fromJson);
+    final body = mockParse(r, PhoneMockTokenRequest.fromJson);
     if (!RegExp(r'^\+[1-9]\d{7,14}$').hasMatch(body.phone)) {
-      throw _validation('phone', 'Enter the number in +91XXXXXXXXXX form');
+      throw mockValidation('phone', 'Enter the number in +91XXXXXXXXXX form');
     }
     if (body.code != mockOtpCode) {
       throw const MockApiError(400, 'WRONG_CODE', 'That code is not right');
@@ -226,7 +237,7 @@ class _Handlers {
 
   MockResponse verifyPhone(MockRequest r) {
     final account = _account(r);
-    final token = _parse(r, PhoneVerify.fromJson).firebaseIdToken;
+    final token = mockParse(r, PhoneVerify.fromJson).firebaseIdToken;
     if (!token.startsWith('mock-phone.+')) {
       throw const MockApiError(
         401,
@@ -316,7 +327,7 @@ class _Handlers {
         'Only students have profiles',
       );
     }
-    var data = _parse(r, ProfileIn.fromJson);
+    var data = mockParse(r, ProfileIn.fromJson);
     _validateProfile(data);
     if (data.residenceType == ResidenceType.dayScholar) {
       data = ProfileIn(
@@ -342,7 +353,7 @@ class _Handlers {
     void length(String field, String? value, int min, int max) {
       final n = value?.length ?? 0;
       if (value != null && (n < min || n > max)) {
-        throw _validation(field, 'Must be $min-$max characters');
+        throw mockValidation(field, 'Must be $min-$max characters');
       }
     }
 
@@ -353,26 +364,26 @@ class _Handlers {
     length('room_number', p.roomNumber, 0, 20);
     length('home_address', p.homeAddress, 0, 500);
     if (p.year < 1 || p.year > 6) {
-      throw _validation('year', 'Must be between 1 and 6');
+      throw mockValidation('year', 'Must be between 1 and 6');
     }
     final hostelGiven =
         (p.hostelName?.isNotEmpty ?? false) &&
         (p.roomNumber?.isNotEmpty ?? false);
     if (p.residenceType == ResidenceType.hostel && !hostelGiven) {
-      throw _validation(
+      throw mockValidation(
         '',
         'hostel students give a hostel name and room number',
       );
     }
     if (p.residenceType == ResidenceType.dayScholar &&
         !(p.homeAddress?.isNotEmpty ?? false)) {
-      throw _validation('', 'day scholars give a home address');
+      throw mockValidation('', 'day scholars give a home address');
     }
   }
 
   MockResponse acceptTerms(MockRequest r) {
     final account = _account(r);
-    final version = _parse(r, TermsIn.fromJson).version;
+    final version = mockParse(r, TermsIn.fromJson).version;
     if (version != mockTermsVersion) {
       throw const MockApiError(
         409,
@@ -446,9 +457,9 @@ class _Handlers {
 
   MockResponse registerPushToken(MockRequest r) {
     final account = _account(r);
-    final body = _parse(r, PushTokenIn.fromJson);
+    final body = mockParse(r, PushTokenIn.fromJson);
     if (body.token.length < 10) {
-      throw _validation('token', 'Must be at least 10 characters');
+      throw mockValidation('token', 'Must be at least 10 characters');
     }
     db.pushTokens[body.token] = account.id;
     return const MockResponse.noContent();

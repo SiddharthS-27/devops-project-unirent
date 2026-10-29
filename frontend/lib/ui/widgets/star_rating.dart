@@ -70,8 +70,10 @@ class StarRatingDisplay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final rounded = (rating.clamp(0, 5) * 2).round() / 2;
-    final ratingText = rounded.toStringAsFixed(1);
+    final clamped = rating.clamp(0, 5).toDouble();
+    // Icons snap to half stars; the text keeps the real average.
+    final rounded = (clamped * 2).round() / 2;
+    final ratingText = clamped.toStringAsFixed(1);
     final countText = count == null
         ? ''
         : ' from $count ${count == 1 ? 'rating' : 'ratings'}';

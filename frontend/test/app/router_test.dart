@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -303,7 +305,10 @@ void main() {
     ) async {
       final app = await signedInAs(tester, 'asha@college.edu');
       await app.tap(find.widgetWithText(NavigationDestination, 'Listings'));
-      await app.tapText('Open sample booking');
+      expect(app.location, Routes.listings);
+      // Owners reach bookings from their listings (wired up with bookings).
+      unawaited(app.router.push(Routes.booking('sample')));
+      await tester.pumpAndSettle();
       expect(app.location, '/bookings/sample');
       expect(find.byType(BookingScreen), findsOneWidget);
 

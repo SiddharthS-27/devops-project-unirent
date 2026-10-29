@@ -1,4 +1,5 @@
 import '../generated/models.dart';
+import 'mock_listings.dart';
 
 /// Terms version the mock backend expects (mirrors the backend constant).
 const mockTermsVersion = '2026-10';
@@ -34,6 +35,19 @@ class MockAccount {
   DateTime? phoneVerifiedAt;
   final DateTime createdAt;
 
+  /// Lender trust score; null while the user is New.
+  int? lenderScore;
+  double? lenderRating;
+  int completedTrades = 0;
+  int cancellationCount = 0;
+
+  /// Razorpay linked account state; listings need it `activated`.
+  PayoutAccountOutStatus payoutStatus = PayoutAccountOutStatus.none;
+  String? razorpayAccountId;
+  DateTime? payoutUpdatedAt;
+
+  bool get payoutReady => payoutStatus == PayoutAccountOutStatus.activated;
+
   bool get isStaff => role == 'moderator' || role == 'admin';
 }
 
@@ -54,6 +68,9 @@ class MockDb {
   /// - `moderator@unirent.in` / `temporary-password` (moderator, must change
   ///   password on first sign-in)
   /// - `asha@college.edu` (student, fully onboarded; phone +919876500001)
+  /// - `karan@`, `meera@` (New owner) and `dev@college.edu`: more students
+  ///
+  /// plus ~20 listings across every category (see `seedListings`).
   factory MockDb.seeded({DateTime Function()? clock}) {
     final db = MockDb(clock: clock);
     final now = db.clock().toUtc();
@@ -102,6 +119,7 @@ class MockDb {
       ),
       termsVersion: mockTermsVersion,
     );
+    seedListings(db);
     return db;
   }
 
@@ -124,6 +142,16 @@ class MockDb {
 
   /// Push token → account id.
   final pushTokens = <String, String>{};
+
+  final listings = <String, MockListing>{};
+  final assets = <String, MockAsset>{};
+  final savedSearches = <String, MockSavedSearch>{};
+
+  /// Presigned upload keys → the account that requested them.
+  final uploadOwners = <String, String>{};
+
+  /// Keys whose bytes were PUT to their upload URL.
+  final uploadedKeys = <String>{};
 
   int _sequence = 0;
 
