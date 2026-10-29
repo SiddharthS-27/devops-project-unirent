@@ -67,6 +67,8 @@ CURRENT_STEP = {
     "awaiting_reviews": "reviews",
     "completed": "completed",
 }
+# A sale has no charges step: an appeal after the handover sits at Reviews.
+SALE_CURRENT_STEP = {**CURRENT_STEP, "in_appeal": "reviews"}
 ENDED = {
     "declined": "Declined",
     "withdrawn": "Withdrawn",
@@ -152,7 +154,7 @@ def timeline(booking: Booking) -> list[TimelineStep]:
             )
         )
         return out
-    current = CURRENT_STEP[booking.status]
+    current = (CURRENT_STEP if booking.kind == "rent" else SALE_CURRENT_STEP)[booking.status]
     keys = [k for k, _ in steps]
     index = keys.index(current)
     if booking.status == "completed":

@@ -82,3 +82,21 @@ async def test_strangers_cannot_appeal(api):
         f"/bookings/{bid}/appeals", json={"reason": "other", "notes": "Not mine"}
     )
     assert r.status_code == 404
+
+
+async def test_a_buyer_appeals_a_sale_after_the_handover(api):
+    from tests.test_reviews import reviewable_sale
+
+    seller, buyer, booking = await reviewable_sale(api)
+    bid = booking["id"]
+    assert (await buyer.get(f"/bookings/{bid}")).json()["can_appeal"]
+    r = await buyer.post(
+        f"/bookings/{bid}/appeals",
+        json={"reason": "item_mismatch", "notes": "The lens has a crack it didn't show"},
+    )
+    assert r.status_code == 201, r.text
+    for who in (buyer, seller):
+        seen = await who.get(f"/bookings/{bid}")
+        assert seen.status_code == 200, seen.text
+        steps = {s["key"]: s["state"] for s in seen.json()["timeline"]}
+        assert seen.json()["status"] == "in_appeal" and steps["reviews"] == "current"
