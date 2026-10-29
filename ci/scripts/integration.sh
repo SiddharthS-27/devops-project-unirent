@@ -20,6 +20,8 @@ fi
 export STORAGE_PUBLIC_URL=http://minio:9000
 export SIGNIN_LIMIT_PER_MINUTE=100000
 mkdir -p test-results
+# The test-runner image writes its JUnit files as its own user (uid 10001).
+chmod a+rwx test-results
 compose=(docker compose -f infra/compose.yaml --env-file infra/env/.env --profile test)
 trap '"${compose[@]}" logs --no-color api > integration-api.log 2>&1 || true; "${compose[@]}" down -v' EXIT
 
