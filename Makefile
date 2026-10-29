@@ -31,7 +31,7 @@ watch: $(ENV_FILE)
 ## Expose the api over HTTPS for Razorpay webhooks and print the public URL.
 tunnel: $(ENV_FILE)
 	$(COMPOSE) --profile $(PROFILE) --profile tunnel up -d tunnel
-	@sleep 5; $(COMPOSE) --profile tunnel logs tunnel | grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' | tail -n1
+	@sleep 5; $(COMPOSE) --profile $(PROFILE) --profile tunnel logs tunnel | grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' | tail -n1
 
 ## Prometheus, Alertmanager, Grafana, Loki and the exporters next to $(PROFILE).
 monitoring: $(ENV_FILE)
