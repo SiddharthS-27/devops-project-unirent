@@ -7,6 +7,7 @@ pending -> marked_paid  the payee marks cash received
 captured | marked_paid -> refunded | partly_refunded
 """
 
+import logging
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -15,11 +16,14 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from unirent_security import rate_limit_hit
+from unirent_security import audit, rate_limit_hit
 from unirent_security.errors import ApiError
 
-from unirent_payments import db
+from unirent_payments import db, ledger, orders, outbox
+from unirent_payments.metrics import PAYMENTS
 from unirent_payments.models import LIVE_STATUSES, PAID_STATUSES, Payment
+
+log = logging.getLogger(__name__)
 
 PURPOSES = ("rent", "extension", "return_charges", "sale")
 METHODS = ("upi", "cash")
@@ -127,12 +131,13 @@ async def _live_payment(
 
 
 async def _begin_upi(session: AsyncSession, payment: Payment) -> dict[str, Any] | None:
-    """Create the Razorpay order. Arrives with the orders module."""
-    raise ApiError(501, "UPI_NOT_AVAILABLE", "UPI payments are not available yet")
+    await orders.create_order(session, payment)
+    transition(payment, "pending")
+    return orders.checkout(payment)
 
 
 async def checkout_for(payment: Payment) -> dict[str, Any] | None:
-    return None
+    return orders.checkout(payment)
 
 
 async def start_payment(
@@ -226,7 +231,14 @@ async def start_payment(
 
 
 async def supersede(session: AsyncSession, payment: Payment) -> None:
-    """Close an unpaid attempt so a new one can start (the payer switched method)."""
+    """Close an unpaid attempt so a new one can start (the payer switched method).
+    A UPI attempt the payer already completed in Checkout is not closed: that
+    money moved, so the new attempt is refused instead."""
+    if payment.method == "upi" and await orders.captured_on_razorpay(payment):
+        await session.commit()
+        raise ApiError(
+            409, "PAYMENT_ALREADY_MADE", "Your UPI payment went through; refresh to see it"
+        )
     transition(payment, "failed", reason="superseded")
     await session.flush()
 
@@ -246,6 +258,73 @@ async def payments_for_booking(booking_ref: uuid.UUID) -> list[PaymentView]:
             select(Payment).where(Payment.booking_ref == booking_ref).order_by(Payment.created_at)
         )
         return [view(p) for p in rows]
+
+
+def event_payload(payment: Payment) -> dict[str, Any]:
+    return {
+        "payment_id": str(payment.id),
+        "booking_id": str(payment.booking_ref),
+        "purpose": payment.purpose,
+        "purpose_ref": str(payment.purpose_ref) if payment.purpose_ref else None,
+        "payer_id": str(payment.payer_id),
+        "payee_id": str(payment.payee_id),
+        "amount_paise": payment.amount_paise,
+        "method": payment.method,
+    }
+
+
+async def capture(session: AsyncSession, payment: Payment, razorpay_payment_id: str) -> bool:
+    """Record a UPI payment as captured. Verify and webhook both call this, in
+    either order; the second call finds it captured and does nothing."""
+    if payment.status in PAID_STATUSES:
+        return False
+    if payment.status == "failed":
+        # A later attempt in the same Checkout succeeded after one failed.
+        live = await _live_payment(
+            session, payment.booking_ref, payment.purpose, payment.purpose_ref
+        )
+        if live is not None and live.id != payment.id:
+            payment.failure_reason = f"captured late as {razorpay_payment_id}; needs a refund"
+            log.warning("late capture on a replaced payment", extra={"payment": str(payment.id)})
+            return False
+        payment.status = "pending"
+    transition(payment, "captured")
+    payment.razorpay_payment_id = razorpay_payment_id
+    ledger.record_payment(session, payment)
+    outbox.emit(session, "PaymentCaptured", payment.booking_ref, event_payload(payment))
+    PAYMENTS.labels(method="upi", outcome="captured").inc()
+    return True
+
+
+async def fail(session: AsyncSession, payment: Payment, reason: str) -> bool:
+    if payment.status != "pending":
+        return False
+    transition(payment, "failed", reason=reason)
+    outbox.emit(session, "PaymentFailed", payment.booking_ref, event_payload(payment))
+    PAYMENTS.labels(method=payment.method, outcome="failed").inc()
+    return True
+
+
+async def mark_cash_paid(payment_id: uuid.UUID, by: uuid.UUID) -> PaymentView:
+    """The payee confirms cash in hand. Only the payee can; the payer doesn't confirm."""
+    async with db.sessionmaker()() as session:
+        payment = await get_payment(session, payment_id, lock=True)
+        if payment.payee_id != by:
+            raise ApiError(404, "NOT_FOUND", "Payment not found")
+        if payment.method != "cash":
+            raise ApiError(409, "NOT_CASH", "Only cash payments are marked as paid")
+        if payment.status == "marked_paid":
+            return view(payment)
+        transition(payment, "marked_paid")
+        payment.marked_by = by
+        ledger.record_payment(session, payment)
+        outbox.emit(session, "CashMarkedPaid", payment.booking_ref, event_payload(payment))
+        await audit.record(
+            by, "payment.cash_marked_paid", audit.target("payment", payment.id), session=session
+        )
+        PAYMENTS.labels(method="cash", outcome="marked_paid").inc()
+        await session.commit()
+        return view(payment)
 
 
 async def get_payment(session: AsyncSession, payment_id: uuid.UUID, *, lock: bool = False):

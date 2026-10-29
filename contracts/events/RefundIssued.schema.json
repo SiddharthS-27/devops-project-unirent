@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://unirent.in/contracts/events/RefundIssued.schema.json",
+  "title": "RefundIssued",
+  "description": "A refund was issued after a ruling (amount_paise is the refunded amount). Pushed to both sides.",
+  "x-topic": "payments.events",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "type",
+    "version",
+    "occurred_at",
+    "producer",
+    "aggregate_id",
+    "payload"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Consumers skip ids they have processed"
+    },
+    "type": {
+      "const": "RefundIssued"
+    },
+    "version": {
+      "const": 1
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "producer": {
+      "const": "payments"
+    },
+    "aggregate_id": {
+      "type": "string",
+      "description": "Kafka message key; keeps one aggregate's events in order"
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "payment_id",
+        "booking_id",
+        "purpose",
+        "payer_id",
+        "payee_id",
+        "amount_paise",
+        "method",
+        "refund_id"
+      ],
+      "properties": {
+        "payment_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "booking_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "purpose": {
+          "enum": [
+            "rent",
+            "extension",
+            "return_charges",
+            "sale"
+          ]
+        },
+        "purpose_ref": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "payer_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "payee_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "amount_paise": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "method": {
+          "enum": [
+            "upi",
+            "cash"
+          ]
+        },
+        "refund_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "ruling_ref": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        }
+      }
+    }
+  }
+}

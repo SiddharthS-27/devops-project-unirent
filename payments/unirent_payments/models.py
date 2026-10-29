@@ -124,3 +124,15 @@ class LedgerEntry(Base):
     channel: Mapped[str] = mapped_column(String(10))  # upi or cash
     memo: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class WebhookEvent(Base):
+    """Every Razorpay webhook delivery we accepted, by Razorpay's event ID, so a
+    replayed delivery is recognised and does nothing."""
+
+    __tablename__ = "webhook_events"
+
+    event_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    event: Mapped[str] = mapped_column(String(50))
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
