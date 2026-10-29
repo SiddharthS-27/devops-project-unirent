@@ -221,15 +221,15 @@ async def pay_cash_and_hand_over(owner, renter, booking_id) -> dict:
     return r.json()
 
 
-async def moderator(client) -> Student:
-    """A signed-in moderator (password already changed)."""
+async def moderator(client, role: str = "moderator") -> Student:
+    """A signed-in moderator, or the admin with role="admin" (password already changed)."""
     from unirent_security.staff_auth import create_staff_account
 
     from app.core.db import get_sessionmaker
 
     email = f"m{uuid.uuid4().hex[:10]}@unirent.in"
     async with get_sessionmaker()() as session:
-        await create_staff_account(session, email, "Mod", "temporary-pass-1")
+        await create_staff_account(session, email, "Mod", "temporary-pass-1", role=role)
         await session.commit()
     r = await client.post(
         "/api/v1/auth/staff/password",

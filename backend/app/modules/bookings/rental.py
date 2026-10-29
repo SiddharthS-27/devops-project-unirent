@@ -184,14 +184,17 @@ async def mark_overdue(session: AsyncSession, booking: Booking) -> bool:
     """End time plus grace has passed with the item still out."""
     if booking.status != "active" or booking.end_at is None:
         return False
-    if now() < booking.end_at + await grace(booking):
+    overdue_at = booking.end_at + await grace(booking)
+    if now() < overdue_at:
         return False  # extended since the timer was set
     transition(session, booking, "overdue", actor_id=None, actor_role="system", action="overdue")
-    booking.overdue_since = now()
+    # When the rule made it overdue, not when the timer fired: they differ after
+    # a late timer pass or a clock jump, and escalation counts from this.
+    booking.overdue_since = overdue_at
     fee = await live_late_fee(booking)
     emit(session, "RentalOverdue", booking.id, payload(booking, late_fee_paise=fee))
     schedule(session, timers.OVERDUE_ALERT, booking.id, now() + OVERDUE_ALERT_EVERY)
-    schedule(session, timers.ESCALATION_UNLOCK, booking.id, now() + ESCALATION_AFTER)
+    schedule(session, timers.ESCALATION_UNLOCK, booking.id, overdue_at + ESCALATION_AFTER)
     return True
 
 

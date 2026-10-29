@@ -4,7 +4,7 @@ from tests.conftest import create_listing, lister, onboard
 
 
 def _unique() -> str:
-    return uuid.uuid4().hex[:6]
+    return uuid.uuid4().hex[:12]
 
 
 async def test_type_ahead_finds_partly_typed_titles(api):

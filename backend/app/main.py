@@ -16,12 +16,17 @@ from app.core.logging import configure_logging
 from app.core.metrics import MetricsMiddleware, gauge_loop
 from app.core.middleware import RequestContextMiddleware
 from app.core.redis import close_redis, get_redis
+from app.modules.admin.router import load_clock_offset
 from app.modules.health.router import router as health_router
 from app.modules.internal.router import router as internal_router
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    try:
+        await load_clock_offset()
+    except Exception:  # noqa: BLE001 - Redis down at startup: run on real time
+        pass
     stop = asyncio.Event()
     gauges = asyncio.create_task(gauge_loop(stop))
     yield

@@ -28,10 +28,21 @@ def test_committed_spec_is_current():
     assert SPEC.read_text() == render(), "run: python -m app.export_openapi"
 
 
-async def test_stubs_use_the_error_format(api):
-    from tests.conftest import sign_in
+async def test_unbuilt_routes_use_the_error_format():
+    import httpx
+    from fastapi import FastAPI
 
-    student = await sign_in(api)
-    r = await student.get("/help/faqs")
+    from app.core.errors import not_implemented, register_error_handlers
+
+    app = FastAPI()
+    register_error_handlers(app)
+
+    @app.get("/later")
+    async def later():
+        raise not_implemented()
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://t") as client:
+        r = await client.get("/later")
     assert r.status_code == 501
     assert r.json()["error"]["code"] == "NOT_IMPLEMENTED"

@@ -7,7 +7,7 @@ from unirent_payments.api import payment_out
 from unirent_security import ActiveAccount, CurrentAccount
 
 from app.core.deps import IdempotencyKey, SessionDep
-from app.core.errors import ApiError, not_implemented
+from app.core.errors import ApiError
 from app.core.schemas import Page
 from app.modules.bookings import handover, pricing, rental, returns, service, views
 from app.modules.bookings.models import Extension
@@ -38,6 +38,7 @@ from app.modules.bookings.schemas import (
     ReviewState,
 )
 from app.modules.listings.service import current_late_fee_rule, get_listing
+from app.modules.moderation import appeals
 from app.modules.profiles.service import OnboardedStudent, profiles_for
 from app.modules.reviews import service as reviews
 
@@ -372,8 +373,12 @@ async def file_appeal(
     account: CurrentAccount,
     session: SessionDep,
 ):
-    """Handover photos attach automatically."""
-    raise not_implemented()
+    """Handover photos attach automatically; add notes and extra photos (purpose "appeal")."""
+    appeal = await appeals.file(
+        session, booking_id, account, body.reason, body.notes, body.photo_keys
+    )
+    await session.commit()
+    return views.appeal_out(appeal)
 
 
 @router.get(B + "/review-form", response_model=ReviewForm)

@@ -1803,6 +1803,36 @@
         "title": "HomeOut",
         "type": "object"
       },
+      "LateFeeRuleIn": {
+        "properties": {
+          "base_fee_paise": {
+            "maximum": 1000000.0,
+            "minimum": 0.0,
+            "title": "Base Fee Paise",
+            "type": "integer"
+          },
+          "grace_minutes": {
+            "maximum": 1440.0,
+            "minimum": 0.0,
+            "title": "Grace Minutes",
+            "type": "integer"
+          },
+          "hourly_percent_bp": {
+            "description": "200 = 2% of the rent per hour",
+            "maximum": 10000.0,
+            "minimum": 0.0,
+            "title": "Hourly Percent Bp",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "grace_minutes",
+          "base_fee_paise",
+          "hourly_percent_bp"
+        ],
+        "title": "LateFeeRuleIn",
+        "type": "object"
+      },
       "LateFeeRuleOut": {
         "properties": {
           "base_fee_paise": {
@@ -1837,6 +1867,47 @@
           "effective_from"
         ],
         "title": "LateFeeRuleOut",
+        "type": "object"
+      },
+      "LateFeeRuleVersion": {
+        "properties": {
+          "base_fee_paise": {
+            "title": "Base Fee Paise",
+            "type": "integer"
+          },
+          "effective_from": {
+            "format": "date-time",
+            "title": "Effective From",
+            "type": "string"
+          },
+          "grace_minutes": {
+            "title": "Grace Minutes",
+            "type": "integer"
+          },
+          "hourly_percent_bp": {
+            "description": "Basis points of the rent per hour: 200 = 2%",
+            "title": "Hourly Percent Bp",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "grace_minutes",
+          "base_fee_paise",
+          "hourly_percent_bp",
+          "effective_from",
+          "version"
+        ],
+        "title": "LateFeeRuleVersion",
         "type": "object"
       },
       "ListingCard": {
@@ -6120,7 +6191,7 @@
   "paths": {
     "/api/v1/admin/appeals/{appeal_id}/overrule": {
       "post": {
-        "description": "Replace a moderator's ruling. Its effects are reversed where possible.",
+        "description": "Replace a moderator's ruling. Its effects are reversed where possible\n(a refund already paid out stays paid).",
         "operationId": "overrule_api_v1_admin_appeals__appeal_id__overrule_post",
         "parameters": [
           {
@@ -6179,6 +6250,7 @@
     },
     "/api/v1/admin/audit-log": {
       "get": {
+        "description": "Every staff action, newest first. Read only: the log can't be edited.",
         "operationId": "audit_log_api_v1_admin_audit_log_get",
         "parameters": [
           {
@@ -6302,7 +6374,7 @@
         ]
       },
       "post": {
-        "description": "Staging only: move the clock forward for the demo (for example to an overdue rental).",
+        "description": "Staging only: move the clock forward for the demo (for example to an overdue\nrental). Timers that fall due fire on the timer runner's next pass.",
         "operationId": "set_clock_api_v1_admin_clock_post",
         "requestBody": {
           "content": {
@@ -6347,8 +6419,85 @@
         ]
       }
     },
+    "/api/v1/admin/late-fee-rule": {
+      "get": {
+        "description": "Every version, newest first; the first is in force.",
+        "operationId": "late_fee_rule_history_api_v1_admin_late_fee_rule_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/LateFeeRuleVersion"
+                  },
+                  "title": "Response Late Fee Rule History Api V1 Admin Late Fee Rule Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Late Fee Rule History",
+        "tags": [
+          "payments"
+        ]
+      },
+      "post": {
+        "description": "Set the grace period, base fee and hourly percentage for new approvals.",
+        "operationId": "set_late_fee_rule_api_v1_admin_late_fee_rule_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LateFeeRuleIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LateFeeRuleVersion"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Set Late Fee Rule",
+        "tags": [
+          "payments"
+        ]
+      }
+    },
     "/api/v1/admin/metrics": {
       "get": {
+        "description": "Platform health for the admin's metrics screen.",
         "operationId": "metrics_api_v1_admin_metrics_get",
         "responses": {
           "200": {
@@ -7347,7 +7496,7 @@
     },
     "/api/v1/bookings/{booking_id}/appeals": {
       "post": {
-        "description": "Handover photos attach automatically.",
+        "description": "Handover photos attach automatically; add notes and extra photos (purpose \"appeal\").",
         "operationId": "file_appeal_api_v1_bookings__booking_id__appeals_post",
         "parameters": [
           {
@@ -10711,7 +10860,8 @@
     },
     "/api/v1/staff/appeals": {
       "get": {
-        "operationId": "appeals_api_v1_staff_appeals_get",
+        "description": "Oldest open appeal first.",
+        "operationId": "appeals_queue_api_v1_staff_appeals_get",
         "parameters": [
           {
             "in": "query",
@@ -10737,7 +10887,7 @@
                   "items": {
                     "$ref": "#/components/schemas/AppealSummary"
                   },
-                  "title": "Response Appeals Api V1 Staff Appeals Get",
+                  "title": "Response Appeals Queue Api V1 Staff Appeals Get",
                   "type": "array"
                 }
               }
@@ -10760,7 +10910,7 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Appeals",
+        "summary": "Appeals Queue",
         "tags": [
           "staff"
         ]
@@ -10768,6 +10918,7 @@
     },
     "/api/v1/staff/appeals/{appeal_id}": {
       "get": {
+        "description": "The booking's timeline, both sides' handover photos, notes and any rulings.",
         "operationId": "appeal_api_v1_staff_appeals__appeal_id__get",
         "parameters": [
           {
@@ -10816,6 +10967,7 @@
     },
     "/api/v1/staff/appeals/{appeal_id}/ruling": {
       "post": {
+        "description": "Any of: a charge or refund, a trust penalty, removing the listing, a\nsuspension or ban. Both sides are notified and the booking moves on.",
         "operationId": "rule_api_v1_staff_appeals__appeal_id__ruling_post",
         "parameters": [
           {
@@ -10874,7 +11026,7 @@
     },
     "/api/v1/staff/escalations": {
       "get": {
-        "description": "Overdue by an hour or more, owner escalations and stalled Proceeds.",
+        "description": "Overdue by an hour or more, owner escalations and stalled Proceeds, with\nresidence details for following up in person.",
         "operationId": "escalations_api_v1_staff_escalations_get",
         "responses": {
           "200": {
@@ -11068,6 +11220,7 @@
     },
     "/api/v1/staff/reviews/{review_id}/remove": {
       "post": {
+        "description": "Hide an abusive review; the reviewee's trust is recomputed without it.",
         "operationId": "remove_review_api_v1_staff_reviews__review_id__remove_post",
         "parameters": [
           {
@@ -11119,6 +11272,7 @@
     },
     "/api/v1/staff/support/threads": {
       "get": {
+        "description": "Chats handed off from the help bot, latest activity first.",
         "operationId": "support_inbox_api_v1_staff_support_threads_get",
         "parameters": [
           {
@@ -11271,6 +11425,7 @@
     },
     "/api/v1/staff/support/threads/{thread_id}/messages": {
       "post": {
+        "description": "Answer in the same chat; the student gets a push.",
         "operationId": "support_reply_api_v1_staff_support_threads__thread_id__messages_post",
         "parameters": [
           {
@@ -11329,7 +11484,7 @@
     },
     "/api/v1/staff/users": {
       "get": {
-        "description": "Search users; `flagged` lists only those with risk flags.",
+        "description": "Search by name, roll number or email; `flagged` lists only those with risk flags.",
         "operationId": "users_api_v1_staff_users_get",
         "parameters": [
           {
@@ -11423,6 +11578,7 @@
     },
     "/api/v1/staff/users/{account_id}": {
       "get": {
+        "description": "Profile with email and roll number, history, risk flags and penalties.",
         "operationId": "user_api_v1_staff_users__account_id__get",
         "parameters": [
           {
@@ -11471,6 +11627,7 @@
     },
     "/api/v1/staff/users/{account_id}/status": {
       "post": {
+        "description": "Suspend (can't list, request or pay, can finish open handovers), ban (can't\nsign in) or reactivate.",
         "operationId": "set_status_api_v1_staff_users__account_id__status_post",
         "parameters": [
           {

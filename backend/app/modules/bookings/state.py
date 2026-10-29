@@ -19,7 +19,9 @@ TRANSITIONS: dict[str, set[str]] = {
     "active": {"overdue", "returning"},
     "overdue": {"returning"},
     "returning": {"in_appeal", "awaiting_reviews"},
-    "in_appeal": {"awaiting_reviews", "completed"},
+    # A rental's ruling returns it to the return, where the renter pays the ruled
+    # charge and the owner taps Proceed; a sale goes back to where it was.
+    "in_appeal": {"returning", "awaiting_reviews", "completed"},
     "awaiting_reviews": {"completed", "in_appeal"},
     "completed": {"in_appeal"},
     "declined": set(),
@@ -28,11 +30,13 @@ TRANSITIONS: dict[str, set[str]] = {
     "cancelled": set(),
 }
 SALE_ONLY = {
+    ("in_appeal", "awaiting_reviews"),
+    ("in_appeal", "completed"),
     ("approved", "awaiting_reviews"),
     ("awaiting_reviews", "in_appeal"),
     ("completed", "in_appeal"),
 }
-RENT_ONLY = {("approved", "active")}
+RENT_ONLY = {("approved", "active"), ("in_appeal", "returning")}
 
 GROUPS: dict[str, tuple[str, ...]] = {
     "pending": ("requested",),

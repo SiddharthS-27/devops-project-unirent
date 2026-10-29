@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://unirent.in/contracts/events/AccountStatusChanged.schema.json",
+  "title": "AccountStatusChanged",
+  "description": "A moderator suspended, banned or reactivated an account. Pushed to that student.",
+  "x-topic": "moderation.events",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "type",
+    "version",
+    "occurred_at",
+    "producer",
+    "aggregate_id",
+    "payload"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Consumers skip ids they have processed"
+    },
+    "type": {
+      "const": "AccountStatusChanged"
+    },
+    "version": {
+      "const": 1
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "producer": {
+      "const": "backend"
+    },
+    "aggregate_id": {
+      "type": "string",
+      "description": "Kafka message key; keeps one aggregate's events in order"
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "account_id",
+        "status",
+        "reason"
+      ],
+      "properties": {
+        "account_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "status": {
+          "enum": [
+            "active",
+            "suspended",
+            "banned",
+            "deactivated"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

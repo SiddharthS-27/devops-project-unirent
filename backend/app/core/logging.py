@@ -6,6 +6,8 @@ import sys
 from contextvars import ContextVar
 from datetime import UTC, datetime
 
+from unirent_security import log_masking
+
 request_id_var: ContextVar[str | None] = ContextVar("request_id", default=None)
 
 _RESERVED = set(logging.makeLogRecord({}).__dict__) | {"message", "asctime"}
@@ -35,5 +37,7 @@ def configure_logging(level: str = "INFO") -> None:
     root = logging.getLogger()
     root.handlers[:] = [handler]
     root.setLevel(level)
+    # Emails, phones, tokens and residence details never reach the log files.
+    log_masking.install(root)
     # Our middleware writes the access log, with the request ID.
     logging.getLogger("uvicorn.access").disabled = True
