@@ -85,3 +85,15 @@ async def test_overdue_after_grace_with_a_growing_late_fee(api, time_travel):
     assert seen["can_escalate"]
     r = await owner.post(f"/bookings/{booking['id']}/escalate", json={"note": "Not answering"})
     assert r.status_code == 200 and not r.json()["can_escalate"]
+
+
+async def test_overdue_found_late_counts_from_end_plus_grace(api, time_travel):
+    # The demo jumps the clock straight past the grace: the timer fires late,
+    # but escalation still opens an hour after the rental became overdue.
+    owner, renter, booking = await active_rental(api)
+    end = datetime.fromisoformat(booking["end_at"])
+    time_travel(end - clock.now() + timedelta(hours=2, minutes=30))
+    assert await _run(rental.mark_overdue, booking["id"]) is True
+    seen = (await owner.get(f"/bookings/{booking['id']}")).json()
+    assert datetime.fromisoformat(seen["overdue_since"]) == end + timedelta(minutes=30)
+    assert seen["can_escalate"]
