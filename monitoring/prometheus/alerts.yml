@@ -1,0 +1,61 @@
+groups:
+  - name: unirent
+    rules:
+      - alert: ApiLatencyHigh
+        expr: histogram_quantile(0.95, sum by (le) (rate(unirent_http_request_duration_seconds_bucket[5m]))) > 1
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: API p95 latency above 1 second for 5 minutes
+          description: "p95 is {{ $value | humanizeDuration }}. Check the API dashboard's slowest routes."
+
+      - alert: PaymentSuccessLow
+        expr: |
+          (
+            sum(increase(unirent_payments_total{method="upi",outcome="captured"}[15m]))
+            /
+            sum(increase(unirent_payments_total{method="upi",outcome=~"captured|failed"}[15m]))
+          ) < 0.9
+          and sum(increase(unirent_payments_total{method="upi",outcome=~"captured|failed"}[15m])) >= 5
+        labels: {severity: critical}
+        annotations:
+          summary: UPI payment success below 90% over 15 minutes
+          description: "Success rate {{ $value | humanizePercentage }}. Check Razorpay status and the payments dashboard."
+
+      - alert: ConsumerLagHigh
+        expr: sum by (consumergroup) (kafka_consumergroup_lag) > 1000
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "Consumer {{ $labels.consumergroup }} lag above 1,000 for 10 minutes"
+          description: Pushes and saved-search alerts are running late. Check the workers container.
+
+      - alert: DeadLetter
+        expr: sum by (topic) (increase(unirent_dlq_messages_total[5m])) > 0
+        labels: {severity: warning}
+        annotations:
+          summary: "An event was dead-lettered on {{ $labels.topic }}"
+          description: See workers.dead_letters for the event and its error, fix, then replay.
+
+      - alert: ReconciliationMismatch
+        expr: unirent_reconciliation_mismatches > 0
+        labels: {severity: critical}
+        annotations:
+          summary: The ledger and Razorpay disagree
+          description: "{{ $value }} mismatches in the latest reconciliation run. Open the admin reconciliation report."
+
+      - alert: ContainerDown
+        expr: up == 0
+        for: 1m
+        labels: {severity: critical}
+        annotations:
+          summary: "{{ $labels.job }} is down"
+          description: "Prometheus can't scrape {{ $labels.instance }}."
+
+      - alert: OutboxBacklog
+        expr: unirent_outbox_backlog > 500
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "Outbox {{ $labels.source }} has {{ $value }} unsent events"
+          description: The relay may be failing to reach Kafka. Events are safe in the outbox meanwhile.

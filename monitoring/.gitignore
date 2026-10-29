@@ -1,0 +1,2 @@
+# The alert webhook URL, mounted at deploy time
+alertmanager/secrets/
