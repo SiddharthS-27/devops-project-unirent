@@ -117,7 +117,8 @@ def _lowest_score(row: TrustScore | None) -> int | None:
 
 
 async def flagged_accounts(session: AsyncSession) -> list[uuid.UUID]:
-    """Everyone with at least one flag, from the people active in the last 30 days."""
+    """Everyone with at least one flag, from the people active in the last 30 days.
+    Most flags first, in a fixed order so paging through the list is stable."""
     since = now() - WINDOW
     recent = await session.scalars(
         select(Booking.renter_id)
@@ -131,4 +132,5 @@ async def flagged_accounts(session: AsyncSession) -> list[uuid.UUID]:
     )
     candidates = list(set(recent) | set(low))
     flags = await risk_flags(session, candidates)
-    return [a for a, f in flags.items() if f]
+    flagged = [a for a, f in flags.items() if f]
+    return sorted(flagged, key=lambda a: (-len(flags[a]), str(a)))

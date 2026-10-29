@@ -77,5 +77,12 @@ async def test_three_cancellations_raise_a_risk_flag(api):
     mod = await moderator(api)
     detail = (await mod.get(f"/staff/users/{renter.id}")).json()
     assert [f["kind"] for f in detail["risk_flags"]] == ["cancellations"]
-    flagged = (await mod.get("/staff/users", params={"flagged": True})).json()["items"]
-    assert str(renter.id) in [u["account_id"] for u in flagged]
+    flagged, cursor = [], None
+    while True:  # other tests' students may be flagged too, so walk every page
+        params = {"flagged": True, "limit": 50} | ({"cursor": cursor} if cursor else {})
+        page = (await mod.get("/staff/users", params=params)).json()
+        flagged += [u["account_id"] for u in page["items"]]
+        if not (cursor := page["next_cursor"]):
+            break
+    assert str(renter.id) in flagged
+    assert len(flagged) == len(set(flagged))  # paging neither repeats nor skips anyone
