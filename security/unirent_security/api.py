@@ -1,0 +1,195 @@
+"""HTTP routes owned by the security package. The backend mounts these under /api/v1."""
+
+import uuid
+
+from fastapi import APIRouter, Depends, Request, Response
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from unirent_security import audit, microsoft, phone_otp, staff_auth, tokens
+from unirent_security.accounts import find_or_create_student, set_account_status
+from unirent_security.config import get_settings
+from unirent_security.db import SessionDep
+from unirent_security.errors import ApiError, not_found
+from unirent_security.models import Account
+from unirent_security.rate_limit import hit, rate_limit
+from unirent_security.roles import AdminAccount, CurrentAccount
+from unirent_security.schemas import (
+    AccountOut,
+    MicrosoftSignIn,
+    MockTokenOut,
+    MockTokenRequest,
+    ModeratorCreate,
+    PhoneMockTokenOut,
+    PhoneMockTokenRequest,
+    PhoneOut,
+    PhoneVerify,
+    RefreshRequest,
+    StaffAccountOut,
+    StaffLogin,
+    StaffPasswordChange,
+    TokenPair,
+)
+
+auth_router = APIRouter(prefix="/auth", tags=["auth"])
+signin_limit = Depends(rate_limit("student_signin", by="ip"))
+admin_router = APIRouter(prefix="/admin/moderators", tags=["admin"])
+
+
+async def token_pair(
+    session: AsyncSession,
+    account: Account,
+    refresh_token: str | None = None,
+    must_change_password: bool = False,
+) -> TokenPair:
+    if refresh_token is None:
+        refresh_token, _ = await tokens.issue_refresh_token(session, account.id)
+    return TokenPair(
+        access_token=tokens.issue_access_token(account, must_change_password),
+        refresh_token=refresh_token,
+        expires_in=get_settings().access_token_ttl_seconds,
+        account=AccountOut(
+            id=account.id,
+            email=account.email,
+            role=account.role,
+            status=account.status,
+            must_change_password=must_change_password,
+        ),
+    )
+
+
+@auth_router.post("/microsoft", dependencies=[signin_limit], response_model=TokenPair)
+async def sign_in_with_microsoft(body: MicrosoftSignIn, session: SessionDep) -> TokenPair:
+    """Exchange a Microsoft ID token for UniRent tokens. Creates the account on first sign-in."""
+    identity = await microsoft.verify_id_token(body.id_token)
+    account = await find_or_create_student(session, identity)
+    pair = await token_pair(session, account)
+    await session.commit()
+    return pair
+
+
+@auth_router.post("/microsoft/mock-token", dependencies=[signin_limit], response_model=MockTokenOut)
+async def mock_microsoft_token(body: MockTokenRequest) -> MockTokenOut:
+    """Development only: a signed stand-in for a Microsoft ID token."""
+    settings = get_settings()
+    if settings.ms_auth_mode != "mock" or not settings.mock_allowed():
+        raise ApiError(404, "NOT_FOUND", "Not found")
+    return MockTokenOut(id_token=microsoft.mock_id_token(str(body.email), body.name))
+
+
+@auth_router.post("/refresh", dependencies=[signin_limit], response_model=TokenPair)
+async def refresh(body: RefreshRequest, session: SessionDep) -> TokenPair:
+    """Rotate a refresh token. Using one twice signs out every device of that sign-in."""
+    account, new_refresh = await tokens.rotate_refresh_token(session, body.refresh_token)
+    pair = await token_pair(session, account, refresh_token=new_refresh)
+    await session.commit()
+    return pair
+
+
+@auth_router.post("/logout", status_code=204)
+async def logout(body: RefreshRequest, session: SessionDep) -> Response:
+    await tokens.revoke_refresh_token(session, body.refresh_token)
+    await session.commit()
+    return Response(status_code=204)
+
+
+@auth_router.post("/staff/login", response_model=TokenPair)
+async def staff_login(body: StaffLogin, request: Request, session: SessionDep) -> TokenPair:
+    """Moderator and admin login. While `must_change_password` is true, the token
+    only works for /auth/staff/password."""
+    await hit("staff_login", f"email:{str(body.email).lower()}")
+    account, credential = await staff_auth.authenticate(session, str(body.email), body.password)
+    pair = await token_pair(session, account, must_change_password=credential.must_change_password)
+    await session.commit()
+    return pair
+
+
+@auth_router.post("/staff/password", response_model=TokenPair)
+async def staff_change_password(body: StaffPasswordChange, session: SessionDep) -> TokenPair:
+    """Set a new password; also how a new moderator replaces the temporary one."""
+    await hit("staff_login", f"email:{str(body.email).lower()}")
+    account, _ = await staff_auth.change_password(
+        session, str(body.email), body.current_password, body.new_password
+    )
+    await tokens.revoke_all(session, account.id)
+    pair = await token_pair(session, account)
+    await audit.record(
+        account.id,
+        "auth.staff_password_changed",
+        audit.target("account", account.id),
+        session=session,
+    )
+    await session.commit()
+    return pair
+
+
+@auth_router.post("/phone", response_model=PhoneOut)
+async def verify_phone(body: PhoneVerify, account: CurrentAccount, session: SessionDep) -> PhoneOut:
+    """Save the phone number from a verified Firebase phone ID token."""
+    phone = await phone_otp.verify_firebase_token(body.firebase_id_token)
+    saved = await phone_otp.save_verified_phone(session, account.id, phone)
+    await audit.record(
+        account, "auth.phone_verified", audit.target("account", account.id), session=session
+    )
+    await session.commit()
+    return PhoneOut(phone=saved.phone, phone_verified_at=saved.phone_verified_at)
+
+
+@auth_router.post(
+    "/phone/mock-token", dependencies=[signin_limit], response_model=PhoneMockTokenOut
+)
+async def mock_phone_token(body: PhoneMockTokenRequest) -> PhoneMockTokenOut:
+    """Development only: stands in for Firebase. The code is always 123456."""
+    settings = get_settings()
+    if settings.phone_auth_mode != "mock" or not settings.mock_allowed():
+        raise ApiError(404, "NOT_FOUND", "Not found")
+    return PhoneMockTokenOut(firebase_id_token=phone_otp.mock_firebase_token(body.phone, body.code))
+
+
+def _staff_out(account: Account) -> StaffAccountOut:
+    return StaffAccountOut(
+        id=account.id,
+        email=account.email,
+        name=account.display_name,
+        role=account.role,
+        status=account.status,
+        created_at=account.created_at,
+        last_login_at=account.last_login_at,
+    )
+
+
+@admin_router.get("", response_model=list[StaffAccountOut])
+async def list_moderators(_: AdminAccount, session: SessionDep) -> list[StaffAccountOut]:
+    rows = await session.scalars(
+        select(Account).where(Account.role == "moderator").order_by(Account.created_at)
+    )
+    return [_staff_out(a) for a in rows]
+
+
+@admin_router.post("", response_model=StaffAccountOut, status_code=201)
+async def create_moderator(
+    body: ModeratorCreate, admin: AdminAccount, session: SessionDep
+) -> StaffAccountOut:
+    """Create a moderator with a temporary password they replace on first login."""
+    account = await staff_auth.create_staff_account(
+        session, str(body.email), body.name, body.temporary_password
+    )
+    await audit.record(
+        admin, "admin.moderator_created", audit.target("account", account.id), session=session
+    )
+    await session.commit()
+    await session.refresh(account)
+    return _staff_out(account)
+
+
+@admin_router.post("/{account_id}/deactivate", response_model=StaffAccountOut)
+async def deactivate_moderator(
+    account_id: uuid.UUID, admin: AdminAccount, session: SessionDep
+) -> StaffAccountOut:
+    account = await session.get(Account, account_id)
+    if account is None or account.role != "moderator":
+        raise not_found("Moderator")
+    await set_account_status(account_id, "deactivated", admin.id, "deactivated by admin", session)
+    await session.commit()
+    await session.refresh(account)
+    return _staff_out(account)

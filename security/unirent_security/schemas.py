@@ -1,0 +1,82 @@
+import uuid
+from datetime import datetime
+
+from pydantic import BaseModel, EmailStr, Field
+
+
+class AccountOut(BaseModel):
+    id: uuid.UUID
+    email: str
+    role: str
+    status: str
+    must_change_password: bool = False
+
+
+class TokenPair(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    expires_in: int = Field(description="Access token lifetime in seconds")
+    account: AccountOut
+
+
+class MicrosoftSignIn(BaseModel):
+    id_token: str = Field(min_length=10)
+
+
+class MockTokenRequest(BaseModel):
+    email: EmailStr
+    name: str | None = None
+
+
+class MockTokenOut(BaseModel):
+    id_token: str
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str = Field(min_length=10)
+
+
+class StaffLogin(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=1, max_length=200)
+
+
+class StaffPasswordChange(BaseModel):
+    email: EmailStr
+    current_password: str = Field(min_length=1, max_length=200)
+    new_password: str = Field(min_length=1, max_length=200)
+
+
+class ModeratorCreate(BaseModel):
+    email: EmailStr
+    name: str = Field(min_length=1, max_length=200)
+    temporary_password: str = Field(min_length=1, max_length=200)
+
+
+class StaffAccountOut(BaseModel):
+    id: uuid.UUID
+    email: str
+    name: str | None
+    role: str
+    status: str
+    created_at: datetime
+    last_login_at: datetime | None
+
+
+class PhoneVerify(BaseModel):
+    firebase_id_token: str = Field(min_length=10)
+
+
+class PhoneMockTokenRequest(BaseModel):
+    phone: str = Field(pattern=r"^\+[1-9]\d{7,14}$", examples=["+919876543210"])
+    code: str = Field(min_length=6, max_length=6)
+
+
+class PhoneMockTokenOut(BaseModel):
+    firebase_id_token: str
+
+
+class PhoneOut(BaseModel):
+    phone: str
+    phone_verified_at: datetime
