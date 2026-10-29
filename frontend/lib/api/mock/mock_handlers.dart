@@ -6,6 +6,7 @@ import 'mock_db.dart';
 import 'mock_listing_handlers.dart';
 import 'mock_payment_handlers.dart';
 import 'mock_payout_handlers.dart';
+import 'mock_review_handlers.dart';
 import 'mock_server.dart';
 import 'mock_views.dart';
 
@@ -17,6 +18,7 @@ Map<String, MockHandler> mockHandlers(MockDb db) {
     ...listingHandlers(db),
     ...bookingHandlers(db),
     ...paymentHandlers(db),
+    ...reviewHandlers(db),
     ...payoutHandlers(db),
     'POST /api/v1/auth/microsoft/mock-token': h.microsoftMockToken,
     'POST /api/v1/auth/microsoft': h.microsoftSignIn,
@@ -309,6 +311,24 @@ class _Handlers {
     }
     var data = mockParse(r, ProfileIn.fromJson);
     _validateProfile(data);
+    final photoKey = data.photoKey;
+    final previous = db.profiles[account.id]?.data.photoKey;
+    if (photoKey != null && photoKey != previous) {
+      if (db.uploadOwners[photoKey] != account.id) {
+        throw const MockApiError(
+          422,
+          'INVALID_PHOTO',
+          "That photo upload isn't yours",
+        );
+      }
+      if (!db.uploadedKeys.contains(photoKey)) {
+        throw const MockApiError(
+          422,
+          'PHOTO_NOT_UPLOADED',
+          'Upload the photo before confirming it',
+        );
+      }
+    }
     if (data.residenceType == ResidenceType.dayScholar) {
       data = ProfileIn(
         fullName: data.fullName,

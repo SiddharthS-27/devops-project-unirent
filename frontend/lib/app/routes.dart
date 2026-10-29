@@ -45,9 +45,19 @@ abstract final class Routes {
   static const incomingRequests = '/listings/requests';
   static const payoutAccount = '/payout-account';
   static const profile = '/profile';
+  static const editProfile = '/profile/edit';
+  static const paymentHistory = '/profile/payments';
+  static const ownedItems = '/profile/items';
+
+  static String relist(String assetId) =>
+      '/assets/${Uri.encodeComponent(assetId)}/relist';
+
+  static String person(String accountId) =>
+      '/people/${Uri.encodeComponent(accountId)}';
   static const help = '/help';
 
   static String booking(String id) => '/bookings/${Uri.encodeComponent(id)}';
+  static String bookingReview(String id) => '${booking(id)}/review';
 
   static final String staffHome = StaffTab.appeals.path;
 }
@@ -83,10 +93,18 @@ const _signedOutRoutes = {
 
 /// Where [session] may not be at [uri], the location to send them instead;
 /// null when the location is allowed.
-String? redirectFor(Session session, Uri uri) {
+///
+/// [pendingReviews] are booking ids the student must review first: Home and
+/// search send them to the first review (bookings stay reachable).
+String? redirectFor(
+  Session session,
+  Uri uri, {
+  List<String> pendingReviews = const [],
+}) {
   final deepLink = deepLinkToLocation(uri);
   if (deepLink != null) {
-    return redirectFor(session, deepLink) ?? deepLink.toString();
+    return redirectFor(session, deepLink, pendingReviews: pendingReviews) ??
+        deepLink.toString();
   }
 
   final path = uri.path;
@@ -119,7 +137,11 @@ String? redirectFor(Session session, Uri uri) {
           _isUnder(path, Routes.staffSignIn) ||
           _isUnder(path, '/onboarding') ||
           _isUnder(path, '/staff');
-      return outsideStudentArea ? Routes.home : null;
+      if (outsideStudentArea) return Routes.home;
+      if (pendingReviews.isNotEmpty && _isUnder(path, Routes.home)) {
+        return Routes.bookingReview(pendingReviews.first);
+      }
+      return null;
 
     case SessionStatus.moderator:
     case SessionStatus.admin:

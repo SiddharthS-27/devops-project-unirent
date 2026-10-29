@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../api/api.dart';
+import '../../../app/routes.dart';
 import '../../../ui/ui.dart';
 import '../booking_actions.dart';
 import 'cancellation_rating_form.dart';
@@ -40,7 +42,26 @@ const nextActionHints = {
   'proceed': 'Everything is settled. Tap Proceed to finish.',
   'waiting_proceed': 'The owner will finish the rental.',
   'waiting_ruling': 'A moderator is reviewing the appeal.',
+  'write_review':
+      'Reviews are blind: they see yours after reviewing you, or 24 hours '
+      'after the first review.',
+  'waiting_review': 'Both reviews show once they review you.',
 };
+
+/// Purchase wording for hints whose rental text mentions rent or owners.
+const _saleHints = {
+  'decide_request':
+      'Approving fixes the price and declines the other requests for it.',
+  'pay': 'Pay for the item by UPI or hand over cash.',
+  'waiting_cash_mark': 'The seller needs to confirm they got the cash.',
+  'waiting_payment': 'The buyer is paying.',
+  'show_otp': 'The seller types this code to confirm the handover.',
+  'enter_otp': 'Ask the buyer for the code on their screen.',
+};
+
+/// The hint for [key], worded for a sale when [kind] is one.
+String? nextActionHint(String key, TradeKind kind) =>
+    (kind == TradeKind.sale ? _saleHints[key] : null) ?? nextActionHints[key];
 
 /// The single card telling this user what happens next, with the controls
 /// for that step.
@@ -105,6 +126,14 @@ class _NextActionCardState extends ConsumerState<NextActionCard>
       ],
     ),
     'rate_cancellation' => CancellationRatingForm(booking: booking),
+    'write_review' => AppButton(
+      label: 'Write your review',
+      icon: Icons.rate_review_outlined,
+      onPressed: () => context.push(Routes.bookingReview(booking.id)),
+    ),
+    'waiting_review' when booking.reviews?.releaseAt != null => Text(
+      'Or on ${formatIstDateTime(booking.reviews!.releaseAt!)} at the latest.',
+    ),
     _ => null,
   };
 
@@ -120,7 +149,7 @@ class _NextActionCardState extends ConsumerState<NextActionCard>
     final foreground = action.byMe
         ? scheme.onPrimaryContainer
         : scheme.onSurface;
-    final hint = nextActionHints[action.key];
+    final hint = nextActionHint(action.key, booking.kind);
     final controls = _controls(action.key);
     return Semantics(
       container: true,

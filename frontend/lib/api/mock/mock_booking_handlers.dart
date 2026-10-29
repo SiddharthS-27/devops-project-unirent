@@ -7,6 +7,7 @@ import 'mock_db.dart';
 import 'mock_handlers.dart';
 import 'mock_listings.dart';
 import 'mock_payment_handlers.dart';
+import 'mock_review_handlers.dart';
 import 'mock_server.dart';
 
 /// Booking routes of the mock backend.
@@ -106,6 +107,7 @@ class MockBookingHandlers {
   /// expire after 24 hours; a rental is overdue once its end time plus the
   /// grace period has passed.
   void applyTimers(MockBooking b) {
+    mockApplyReviewRelease(db, b);
     if (b.status == BookingStatus.requested &&
         now.difference(b.createdAt) > const Duration(hours: 24)) {
       moveTo(b, BookingStatus.expired);
@@ -513,6 +515,22 @@ class MockBookingHandlers {
       ..ratingStars = body.stars
       ..ratingComment = body.comment.trim()
       ..ratedAt = now;
+    // Cancellation ratings show among the canceller's reviews.
+    db.reviews.add(
+      MockReview(
+        id: db.nextId(),
+        bookingId: b.id,
+        reviewerId: actor.id,
+        revieweeId: c.by == TradeRole.owner ? b.ownerId : b.renterId,
+        revieweeRole: c.by == TradeRole.owner
+            ? TrustRole.lender
+            : TrustRole.renter,
+        type: ReviewType.cancellation,
+        ratings: {'overall': body.stars},
+        comment: body.comment.trim(),
+        createdAt: now,
+      )..revealedAt = now,
+    );
     return view(b, actor);
   }
 
@@ -704,14 +722,17 @@ class MockBookingHandlers {
     } else {
       moveTo(b, BookingStatus.awaitingReviews);
       listing.status = ListingStatus.sold;
-      asset?.history.add(
-        AssetHistoryEntry(
-          at: now,
-          kind: AssetEventKind.sold,
-          summary: 'Sold',
-          amountPaise: b.amountPaise,
-        ),
-      );
+      // The item and its history move to the buyer.
+      asset
+        ?..history.add(
+          AssetHistoryEntry(
+            at: now,
+            kind: AssetEventKind.sold,
+            summary: 'Sold',
+            amountPaise: b.amountPaise,
+          ),
+        )
+        ..ownerId = b.renterId;
     }
     return view(b, owner);
   }

@@ -70,10 +70,7 @@ class _CollegeEmailSignInScreenState
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             const SizedBox(height: AppSpacing.lg),
-            if (_error != null) ...[
-              InlineError(_error!),
-              const SizedBox(height: AppSpacing.lg),
-            ],
+            OptionalInlineError(_error),
             AppTextField(
               controller: _email,
               label: 'College email',

@@ -44,6 +44,24 @@ ui.TimelineStepState? timelineState(WidgetTester tester, String title) => tester
     .firstOrNull
     ?.state;
 
+/// Rates every parameter [stars] and submits [comment].
+Future<void> rateAll(TestApp app, int stars, String comment) async {
+  final inputs = find.byType(ui.StarRatingInput);
+  final count = inputs.evaluate().length;
+  for (var i = 0; i < count; i++) {
+    await app.tap(
+      find
+          .descendant(
+            of: inputs.at(i),
+            matching: find.byTooltip(stars == 1 ? '1 star' : '$stars stars'),
+          )
+          .first,
+    );
+  }
+  await app.enterField('Comment', comment);
+  await app.tapText('Submit review');
+}
+
 void main() {
   testWidgets('full rental with UPI: request to reviews', (tester) async {
     final server = MockServer();
@@ -116,14 +134,28 @@ void main() {
     expect(b.returnCompletedAt, isNotNull);
     expect(find.text('Waiting for the owner to finish'), findsOneWidget);
 
-    // Dev proceeds: reviews open.
+    // Dev proceeds: reviews open, and reviewing is compulsory.
     app = await openBookingAs(tester, server, dev, id);
     await tapStep(app, 'Proceed', 'Proceed');
     await confirmDialog(app, 'Proceed');
     expect(b.status, BookingStatus.awaitingReviews);
-    expect(timelineState(tester, 'Reviews'), ui.TimelineStepState.current);
-    expect(timelineState(tester, 'Return'), ui.TimelineStepState.done);
     expect(b.amountPaise, 80000); // rent + extension
+    expect(app.location, Routes.bookingReview(id));
+    expect(find.text('How was Asha Verma?'), findsOneWidget);
+    await rateAll(app, 5, 'Careful with the camera, on time');
+
+    // Dev's review is in but hidden; Asha is sent to hers on sign-in.
+    expect(find.text('Waiting for their review'), findsOneWidget);
+    expect(timelineState(tester, 'Reviews'), ui.TimelineStepState.current);
+    app = await as(tester, server, asha);
+    expect(app.location, Routes.bookingReview(id));
+    await rateAll(app, 4, 'Great camera, quick handover');
+
+    // Both in: revealed, completed.
+    expect(b.status, BookingStatus.completed);
+    expect(find.text('Their review of you'), findsOneWidget);
+    expect(find.text('“Careful with the camera, on time”'), findsOneWidget);
+    expect(find.text('“Great camera, quick handover”'), findsOneWidget);
     final asset = server.db.assets[server.db.listings[dslr]!.assetId]!;
     expect(asset.history.last.kind, AssetEventKind.returned);
   });

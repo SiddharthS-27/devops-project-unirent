@@ -2,6 +2,7 @@ import '../generated/models.dart';
 import 'mock_db.dart';
 import 'mock_listing_handlers.dart' show mockListingCard;
 import 'mock_listings.dart';
+import 'mock_review_handlers.dart';
 import 'mock_views.dart';
 
 // The mock booking lifecycle mirrors backend/app/modules/bookings: the same
@@ -107,8 +108,36 @@ class MockPayment {
   /// Set when the payer completed (simulated) Checkout; captured on verify.
   String? razorpayPaymentId;
 
+  final refunds = <MockRefund>[];
+
   bool get isPaid =>
       status == PaymentStatus.captured || status == PaymentStatus.markedPaid;
+
+  /// Refunds that have reached the payer.
+  int get refundedPaise => refunds
+      .where(
+        (r) =>
+            r.status == RefundOutStatus.processed ||
+            r.status == RefundOutStatus.cashDone,
+      )
+      .fold(0, (sum, r) => sum + r.amountPaise);
+}
+
+class MockRefund {
+  MockRefund({
+    required this.id,
+    required this.amountPaise,
+    required this.method,
+    required this.createdAt,
+    this.status = RefundOutStatus.pending,
+  });
+
+  final String id;
+  final int amountPaise;
+  final PaymentMethod method;
+  final DateTime createdAt;
+  RefundOutStatus status;
+  DateTime? processedAt;
 }
 
 class MockExtension {
@@ -423,6 +452,18 @@ class MockBookingViews {
             : _action('rental_active', 'Rental in progress', false);
       case BookingStatus.returning:
         return _returnAction(b, role);
+      case BookingStatus.awaitingReviews:
+        final mine = mockReviewsOf(
+          db,
+          b.id,
+        ).any((r) => r.reviewerId == (renter ? b.renterId : b.ownerId));
+        return mine
+            ? _action('waiting_review', 'Waiting for their review', false)
+            : _action(
+                'write_review',
+                'Review the other side to continue',
+                true,
+              );
       case BookingStatus.inAppeal:
         return _action(
           'waiting_ruling',
@@ -645,7 +686,7 @@ class MockBookingViews {
       charges: charges(b),
       cancellation: cancellation(b, role),
       appeal: null,
-      reviews: null,
+      reviews: mockReviewState(db, b, viewer.id),
       overdueSince: b.overdueSince,
       escalationAvailableAt: b.escalationAvailableAt,
       canCancel:
@@ -661,7 +702,16 @@ class MockBookingViews {
           role == TradeRole.owner &&
           b.escalatedAt == null &&
           b.canEscalate(now),
-      canAppeal: false,
+      // Buyers can appeal a sale for 48 hours after the handover.
+      canAppeal:
+          b.kind == TradeKind.sale &&
+          role == TradeRole.renter &&
+          b.pickupCompletedAt != null &&
+          now.difference(b.pickupCompletedAt!) < const Duration(hours: 48) &&
+          const {
+            BookingStatus.awaitingReviews,
+            BookingStatus.completed,
+          }.contains(b.status),
       serverNow: now,
       createdAt: b.createdAt,
     );

@@ -39,7 +39,7 @@ void main() {
 
     await signInWithEmail(app, 'ravi@college.edu');
     expect(app.location, Routes.onboardingProfile);
-    expect(find.text('Add photo (coming soon)'), findsOneWidget);
+    expect(find.text('Add photo (optional)'), findsOneWidget);
 
     await fillHostelProfile(app);
     await app.tapText('Save and continue');

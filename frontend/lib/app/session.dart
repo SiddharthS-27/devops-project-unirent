@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../api/api.dart';
+import '../features/reviews/pending_reviews.dart';
 import 'error_messages.dart';
 import 'push_service.dart';
 
@@ -126,6 +127,9 @@ class SessionNotifier extends Notifier<Session> {
   Future<MeOut> refreshMe() async {
     final me = await _api.profiles.getMe();
     state = Session.fromMe(me);
+    if (state.status == SessionStatus.student) {
+      await ref.read(pendingReviewsProvider.notifier).refresh();
+    }
     return me;
   }
 
@@ -210,6 +214,7 @@ class SessionNotifier extends Notifier<Session> {
     }
     await _client.clearSession();
     _staffPassword = null;
+    ref.read(pendingReviewsProvider.notifier).clear();
     state = Session.signedOut;
   }
 

@@ -80,10 +80,7 @@ class _StaffPasswordScreenState extends ConsumerState<StaffPasswordScreen> {
               '$email to continue.',
             ),
             const SizedBox(height: AppSpacing.lg),
-            if (_error != null) ...[
-              InlineError(_error!),
-              const SizedBox(height: AppSpacing.lg),
-            ],
+            OptionalInlineError(_error),
             AppTextField(
               controller: _password,
               label: 'New password',

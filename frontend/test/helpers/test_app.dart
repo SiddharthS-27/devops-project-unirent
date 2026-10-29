@@ -132,6 +132,9 @@ Future<TestApp> pumpTestApp(
   final mock = server ?? MockServer();
   final tokens = MemoryTokenStore(storedTokens);
   final fakePush = push ?? FakePushService();
+  // A fresh app every time: pumping a new ProviderScope over an old one
+  // would update it in place and keep the old session, router and state.
+  await tester.pumpWidget(const SizedBox.shrink());
   await tester.pumpWidget(
     ProviderScope(
       retry: (_, _) => null,

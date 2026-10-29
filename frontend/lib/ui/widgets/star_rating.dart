@@ -95,10 +95,15 @@ class StarRatingDisplay extends StatelessWidget {
                 color: AppColors.star,
               ),
             const SizedBox(width: AppSpacing.xs),
-            Text(
-              count == null ? ratingText : '$ratingText ($count)',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+            // Shrinks rather than overflowing in narrow rows.
+            Flexible(
+              child: Text(
+                count == null ? ratingText : '$ratingText ($count)',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
             ),
           ],

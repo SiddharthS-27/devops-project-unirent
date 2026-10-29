@@ -5,7 +5,11 @@ import 'package:go_router/go_router.dart';
 import '../../app/routes.dart';
 import '../../app/session.dart';
 import '../../ui/ui.dart';
+import 'widgets/profile_avatar.dart';
+import 'widgets/profile_reviews.dart';
+import 'widgets/trust_section.dart';
 
+/// The Profile tab: your own profile, trust and reviews, and account links.
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
 
@@ -24,20 +28,68 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final me = ref.watch(sessionProvider).me;
     final profile = me?.profile;
+    const gap = SizedBox(height: AppSpacing.xl);
     return Scaffold(
       appBar: AppBar(title: const Text('Profile')),
-      body: EmptyState(
-        icon: Icons.account_circle_outlined,
-        title: profile?.fullName ?? 'Your profile',
-        message: me?.account.email,
-        action: Column(
+      body: RefreshIndicator(
+        onRefresh: () => ref.read(sessionProvider.notifier).refreshMe(),
+        child: ListView(
+          padding: const EdgeInsets.all(AppSpacing.screen),
           children: [
             if (profile != null) ...[
-              TrustBadge(score: profile.renter.score),
-              const SizedBox(height: AppSpacing.lg),
+              Row(
+                children: [
+                  ProfileAvatar(
+                    name: profile.fullName,
+                    photoUrl: profile.photoUrl,
+                    radius: 36,
+                  ),
+                  const SizedBox(width: AppSpacing.lg),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          profile.fullName,
+                          style: theme.textTheme.titleLarge,
+                        ),
+                        Text(
+                          '${profile.department} · Year ${profile.year}',
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                        Text(profile.email, style: theme.textTheme.bodySmall),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              gap,
+              TrustSection(profile: profile),
+              gap,
             ],
+            AppButton.secondary(
+              label: 'Edit profile',
+              icon: Icons.edit_outlined,
+              onPressed: profile == null
+                  ? null
+                  : () => context.push(Routes.editProfile),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            AppButton.secondary(
+              label: 'Items you own',
+              icon: Icons.inventory_2_outlined,
+              onPressed: () => context.push(Routes.ownedItems),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            AppButton.secondary(
+              label: 'Payment history',
+              icon: Icons.receipt_long_outlined,
+              onPressed: () => context.push(Routes.paymentHistory),
+            ),
+            const SizedBox(height: AppSpacing.sm),
             AppButton.secondary(
               label: 'Payout account',
               icon: Icons.account_balance_outlined,
@@ -56,6 +108,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               isLoading: _signingOut,
               onPressed: _signOut,
             ),
+            if (profile != null) ...[
+              gap,
+              ProfileReviews(accountId: profile.accountId),
+            ],
           ],
         ),
       ),

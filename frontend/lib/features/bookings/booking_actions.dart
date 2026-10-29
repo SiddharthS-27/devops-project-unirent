@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../api/api.dart';
 import '../../app/error_messages.dart';
 import '../listings/listing_providers.dart';
+import '../reviews/pending_reviews.dart';
 import 'booking_providers.dart';
 
 /// Runs booking actions with one idempotency key per action (kept for
@@ -26,6 +29,8 @@ mixin BookingActionRunner<T extends ConsumerStatefulWidget>
       ..invalidate(myBookingsProvider)
       ..invalidate(incomingRequestsProvider);
     if (listingId != null) ref.invalidate(listingDetailProvider(listingId));
+    // A handover or Proceed can open reviews (which gate the app).
+    unawaited(ref.read(pendingReviewsProvider.notifier).refresh());
   }
 
   /// Runs [call] as action [name]; returns its result, or null on failure

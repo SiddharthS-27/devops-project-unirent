@@ -2,6 +2,7 @@ import '../generated/models.dart';
 import 'mock_booking_handlers.dart' show seedBookings;
 import 'mock_bookings.dart';
 import 'mock_listings.dart';
+import 'mock_review_handlers.dart' show MockReview;
 import 'mock_server.dart';
 
 /// Terms version the mock backend expects (mirrors the backend constant).
@@ -163,6 +164,7 @@ class MockDb {
   final uploadedKeys = <String>{};
 
   final bookings = <String, MockBooking>{};
+  final reviews = <MockReview>[];
 
   /// Replayed responses by `account:Idempotency-Key`.
   final idempotentResponses = <String, MockResponse>{};

@@ -59,10 +59,7 @@ class _StaffSignInScreenState extends ConsumerState<StaffSignInScreen> {
           child: ListView(
             padding: const EdgeInsets.all(AppSpacing.screen),
             children: [
-              if (_error != null) ...[
-                InlineError(_error!),
-                const SizedBox(height: AppSpacing.lg),
-              ],
+              OptionalInlineError(_error),
               AppTextField(
                 controller: _email,
                 label: 'Email',

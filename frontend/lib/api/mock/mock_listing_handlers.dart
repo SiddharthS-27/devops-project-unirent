@@ -121,6 +121,16 @@ ListingCard mockListingCard(MockDb db, MockListing l) {
   );
 }
 
+/// The most recent listing of asset [assetId], whoever listed it.
+MockListing? mockLatestListing(MockDb db, String assetId) {
+  MockListing? latest;
+  for (final l in db.listings.values) {
+    if (l.assetId != assetId) continue;
+    if (latest == null || l.createdAt.isAfter(latest.createdAt)) latest = l;
+  }
+  return latest;
+}
+
 /// Pending requests on [l], plus any set directly on the fixture.
 int mockPendingRequests(MockDb db, MockListing l) =>
     l.pendingRequestCount +
@@ -226,18 +236,33 @@ class _ListingHandlers {
     return '${'•' * (serial.length - 4)}${serial.substring(serial.length - 4)}';
   }
 
-  AssetOut asset(MockAsset a, MockAccount viewer) => AssetOut(
-    id: a.id,
-    ownerId: a.ownerId,
-    condition: a.condition,
-    manufactureDate: a.manufactureDate,
-    serialNumber: _maskSerial(
-      a.serialNumber,
-      reveal: a.ownerId == viewer.id || viewer.isStaff,
-    ),
-    rentalCount: a.rentalCount,
-    history: a.history,
-  );
+  /// Title, category, description and photo come from the asset's latest
+  /// listing; the listing link only when that listing is the current
+  /// owner's (a just-bought item has none).
+  AssetOut asset(MockAsset a, MockAccount viewer) {
+    final latest = mockLatestListing(db, a.id);
+    final ownListing = latest != null && latest.ownerId == a.ownerId
+        ? latest
+        : null;
+    return AssetOut(
+      id: a.id,
+      ownerId: a.ownerId,
+      title: latest?.title ?? 'Item',
+      category: latest?.category ?? ListingCategory.other,
+      description: latest?.description ?? '',
+      photoUrl: latest?.photos.firstOrNull?.url,
+      listingId: ownListing?.id,
+      listingStatus: ownListing?.status,
+      condition: a.condition,
+      manufactureDate: a.manufactureDate,
+      serialNumber: _maskSerial(
+        a.serialNumber,
+        reveal: a.ownerId == viewer.id || viewer.isStaff,
+      ),
+      rentalCount: a.rentalCount,
+      history: a.history,
+    );
+  }
 
   ListingDetail detail(MockListing l, MockAccount viewer) {
     final owner = db.accounts[l.ownerId]!;
@@ -441,6 +466,20 @@ class _ListingHandlers {
     if (body.assetId != null &&
         (existing == null || existing.ownerId != viewer.id)) {
       throw const MockApiError(404, 'NOT_FOUND', 'Asset not found');
+    }
+    final live = db.listings.values.any(
+      (l) =>
+          l.assetId == assetId &&
+          l.ownerId == viewer.id &&
+          (l.status == ListingStatus.active ||
+              l.status == ListingStatus.paused),
+    );
+    if (body.assetId != null && live) {
+      throw const MockApiError(
+        409,
+        'ASSET_ALREADY_LISTED',
+        'This item already has a listing',
+      );
     }
     final a =
         existing ??

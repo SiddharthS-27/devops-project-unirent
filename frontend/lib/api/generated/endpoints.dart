@@ -699,6 +699,8 @@ class BookingsApi {
 
   /// Review Form
   ///
+  /// The parameters this side rates, which depend on rental or sale and the role.
+  ///
   /// `GET /api/v1/bookings/{booking_id}/review-form`
   Future<ReviewForm> reviewForm(String bookingId) async {
     final json = await _transport.send(
@@ -1047,6 +1049,46 @@ class PaymentsApi {
 
   final ApiTransport _transport;
 
+  /// Run Reconciliation Now
+  ///
+  /// Ledger against Razorpay payments, transfers and refunds for one IST day.
+  ///
+  /// `POST /api/v1/admin/reconciliation/run`
+  Future<ReconciliationReport> runReconciliationNow(
+    ReconciliationRunIn body,
+  ) async {
+    final json = await _transport.send(
+      'POST',
+      '/api/v1/admin/reconciliation/run',
+      body: body.toJson(),
+    );
+    return ReconciliationReport.fromJson(json as Map<String, Object?>);
+  }
+
+  /// Reconciliation Runs
+  ///
+  /// `GET /api/v1/admin/reconciliation/runs`
+  Future<List<ReconciliationRunOut>> reconciliationRuns() async {
+    final json = await _transport.send(
+      'GET',
+      '/api/v1/admin/reconciliation/runs',
+    );
+    return (json as List<Object?>)
+        .map((e0) => ReconciliationRunOut.fromJson(e0! as Map<String, Object?>))
+        .toList();
+  }
+
+  /// Reconciliation Report
+  ///
+  /// `GET /api/v1/admin/reconciliation/runs/{run_id}`
+  Future<ReconciliationReport> reconciliationReport(String runId) async {
+    final json = await _transport.send(
+      'GET',
+      '/api/v1/admin/reconciliation/runs/${Uri.encodeComponent(runId)}',
+    );
+    return ReconciliationReport.fromJson(json as Map<String, Object?>);
+  }
+
   /// Late Fee Rule
   ///
   /// The platform rule every rent listing shows.
@@ -1055,6 +1097,23 @@ class PaymentsApi {
   Future<LateFeeRuleOut> lateFeeRule() async {
     final json = await _transport.send('GET', '/api/v1/late-fee-rule');
     return LateFeeRuleOut.fromJson(json as Map<String, Object?>);
+  }
+
+  /// Payment History
+  ///
+  /// Every payment, cash mark and refund I was part of, newest first, with its booking.
+  ///
+  /// `GET /api/v1/payments/history`
+  Future<PaymentHistoryPage> paymentHistory({
+    String? cursor,
+    int? limit,
+  }) async {
+    final json = await _transport.send(
+      'GET',
+      '/api/v1/payments/history',
+      query: {'cursor': ?cursor, 'limit': ?limit?.toString()},
+    );
+    return PaymentHistoryPage.fromJson(json as Map<String, Object?>);
   }
 
   /// Razorpay Webhook
@@ -1143,6 +1202,19 @@ class PaymentsApi {
     );
     return PayoutAccountOut.fromJson(json as Map<String, Object?>);
   }
+
+  /// Mark Cash Refunded
+  ///
+  /// The owner confirms a ruled cash refund was handed back.
+  ///
+  /// `POST /api/v1/refunds/{refund_id}/mark-done`
+  Future<RefundOut> markCashRefunded(String refundId) async {
+    final json = await _transport.send(
+      'POST',
+      '/api/v1/refunds/${Uri.encodeComponent(refundId)}/mark-done',
+    );
+    return RefundOut.fromJson(json as Map<String, Object?>);
+  }
 }
 
 class ProfilesApi {
@@ -1220,7 +1292,7 @@ class ReviewsApi {
 
   /// Reviews Of
   ///
-  /// Revealed reviews only.
+  /// Revealed reviews only, newest first.
   ///
   /// `GET /api/v1/profiles/{account_id}/reviews`
   Future<ReviewOutPage> reviewsOf(

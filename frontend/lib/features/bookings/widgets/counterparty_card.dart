@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../api/api.dart';
+import '../../../app/routes.dart';
 import '../../../ui/ui.dart';
 import '../booking_format.dart';
 
@@ -11,6 +13,7 @@ class CounterpartyCard extends StatelessWidget {
     super.key,
     required this.profile,
     required this.isOwner,
+    this.isSale = false,
     this.onCall,
   });
 
@@ -18,6 +21,9 @@ class CounterpartyCard extends StatelessWidget {
 
   /// Whether [profile] is the owner (shows lender trust) or the renter.
   final bool isOwner;
+
+  /// Labels the sides seller and buyer instead of owner and renter.
+  final bool isSale;
   final VoidCallback? onCall;
 
   @override
@@ -36,13 +42,26 @@ class CounterpartyCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            isOwner ? 'Owner' : 'Renter',
+            switch ((isOwner, isSale)) {
+              (true, false) => 'Owner',
+              (false, false) => 'Renter',
+              (true, true) => 'Seller',
+              (false, true) => 'Buyer',
+            },
             style: theme.textTheme.labelMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: AppSpacing.xs),
-          Text(profile.fullName, style: theme.textTheme.titleMedium),
+          InkWell(
+            onTap: () => context.push(Routes.person(profile.accountId)),
+            child: Text(
+              profile.fullName,
+              style: theme.textTheme.titleMedium?.copyWith(
+                decoration: TextDecoration.underline,
+              ),
+            ),
+          ),
           const SizedBox(height: AppSpacing.xs),
           Wrap(
             spacing: AppSpacing.sm,

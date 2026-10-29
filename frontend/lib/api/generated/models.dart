@@ -220,6 +220,22 @@ enum DevicePlatform {
       values.firstWhere((v) => v.json == json, orElse: () => unknown);
 }
 
+enum Direction {
+  paid('paid'),
+  received('received'),
+
+  /// A value added to the API after this client was built.
+  unknown('');
+
+  const Direction(this.json);
+
+  /// The wire value.
+  final String json;
+
+  static Direction fromJson(String json) =>
+      values.firstWhere((v) => v.json == json, orElse: () => unknown);
+}
+
 enum EscalationKind {
   overdue('overdue'),
   stalledProceed('stalled_proceed'),
@@ -436,6 +452,42 @@ enum PhotoContentType {
   final String json;
 
   static PhotoContentType fromJson(String json) =>
+      values.firstWhere((v) => v.json == json, orElse: () => unknown);
+}
+
+enum ReconciliationReportStatus {
+  running('running'),
+  done('done'),
+  failed('failed'),
+
+  /// A value added to the API after this client was built.
+  unknown('');
+
+  const ReconciliationReportStatus(this.json);
+
+  /// The wire value.
+  final String json;
+
+  static ReconciliationReportStatus fromJson(String json) =>
+      values.firstWhere((v) => v.json == json, orElse: () => unknown);
+}
+
+enum RefundOutStatus {
+  pending('pending'),
+  processed('processed'),
+  failed('failed'),
+  cashPending('cash_pending'),
+  cashDone('cash_done'),
+
+  /// A value added to the API after this client was built.
+  unknown('');
+
+  const RefundOutStatus(this.json);
+
+  /// The wire value.
+  final String json;
+
+  static RefundOutStatus fromJson(String json) =>
       values.firstWhere((v) => v.json == json, orElse: () => unknown);
 }
 
@@ -1018,54 +1070,89 @@ class AssetHistoryEntry {
 @immutable
 class AssetOut {
   const AssetOut({
+    required this.category,
     required this.condition,
+    required this.description,
     required this.history,
     required this.id,
+    required this.listingId,
+    required this.listingStatus,
     required this.manufactureDate,
     required this.ownerId,
+    required this.photoUrl,
     required this.rentalCount,
     required this.serialNumber,
+    required this.title,
   });
 
   factory AssetOut.fromJson(Map<String, Object?> json) => AssetOut(
+    category: ListingCategory.fromJson(json['category'] as String),
     condition: ItemCondition.fromJson(json['condition'] as String),
+    description: json['description'] as String,
     history: (json['history'] as List<Object?>)
         .map((e0) => AssetHistoryEntry.fromJson(e0! as Map<String, Object?>))
         .toList(),
     id: json['id'] as String,
+    listingId: json['listing_id'] as String?,
+    listingStatus: json['listing_status'] == null
+        ? null
+        : ListingStatus.fromJson(json['listing_status'] as String),
     manufactureDate: json['manufacture_date'] == null
         ? null
         : DateTime.parse(json['manufacture_date'] as String),
     ownerId: json['owner_id'] as String,
+    photoUrl: json['photo_url'] as String?,
     rentalCount: (json['rental_count'] as num).toInt(),
     serialNumber: json['serial_number'] as String?,
+    title: json['title'] as String,
   );
 
+  final ListingCategory category;
+
   final ItemCondition condition;
+
+  final String description;
 
   final List<AssetHistoryEntry> history;
 
   final String id;
 
+  /// The current owner's latest listing of the item, if they listed it
+  final String? listingId;
+
+  final ListingStatus? listingStatus;
+
   final DateTime? manufactureDate;
 
   final String ownerId;
+
+  /// Cover photo of the latest listing
+  final String? photoUrl;
 
   final int rentalCount;
 
   /// Masked to the last 4 characters except for the owner and staff
   final String? serialNumber;
 
+  /// From the item's latest listing
+  final String title;
+
   Map<String, Object?> toJson() => {
+    'category': category.json,
     'condition': condition.json,
+    'description': description,
     'history': history.map((e0) => e0.toJson()).toList(),
     'id': id,
+    'listing_id': listingId,
+    'listing_status': listingStatus?.json,
     'manufacture_date': manufactureDate == null
         ? null
         : _formatDate(manufactureDate!),
     'owner_id': ownerId,
+    'photo_url': photoUrl,
     'rental_count': rentalCount,
     'serial_number': serialNumber,
+    'title': title,
   };
 }
 
@@ -2641,6 +2728,53 @@ class MicrosoftSignIn {
 }
 
 @immutable
+class MismatchOut {
+  const MismatchOut({
+    required this.kind,
+    required this.ledgerAmountPaise,
+    required this.ledgerStatus,
+    required this.paymentId,
+    required this.razorpayAmountPaise,
+    required this.razorpayStatus,
+    required this.reference,
+  });
+
+  factory MismatchOut.fromJson(Map<String, Object?> json) => MismatchOut(
+    kind: json['kind'] as String,
+    ledgerAmountPaise: (json['ledger_amount_paise'] as num?)?.toInt(),
+    ledgerStatus: json['ledger_status'] as String?,
+    paymentId: json['payment_id'] as String?,
+    razorpayAmountPaise: (json['razorpay_amount_paise'] as num?)?.toInt(),
+    razorpayStatus: json['razorpay_status'] as String?,
+    reference: json['reference'] as String,
+  );
+
+  final String kind;
+
+  final int? ledgerAmountPaise;
+
+  final String? ledgerStatus;
+
+  final String? paymentId;
+
+  final int? razorpayAmountPaise;
+
+  final String? razorpayStatus;
+
+  final String reference;
+
+  Map<String, Object?> toJson() => {
+    'kind': kind,
+    'ledger_amount_paise': ledgerAmountPaise,
+    'ledger_status': ledgerStatus,
+    'payment_id': paymentId,
+    'razorpay_amount_paise': razorpayAmountPaise,
+    'razorpay_status': razorpayStatus,
+    'reference': reference,
+  };
+}
+
+@immutable
 class MockTokenOut {
   const MockTokenOut({required this.idToken});
 
@@ -2875,6 +3009,124 @@ class OwnerSummary {
     'is_new': isNew,
     'lender_trust': lenderTrust,
     'photo_url': photoUrl,
+  };
+}
+
+@immutable
+class PaymentHistoryItem {
+  const PaymentHistoryItem({
+    required this.amountPaise,
+    required this.bookingId,
+    required this.capturedAt,
+    required this.checkout,
+    required this.counterpartyId,
+    required this.createdAt,
+    required this.direction,
+    required this.id,
+    required this.items,
+    required this.method,
+    required this.purpose,
+    required this.refundedPaise,
+    required this.refunds,
+    required this.status,
+  });
+
+  factory PaymentHistoryItem.fromJson(Map<String, Object?> json) =>
+      PaymentHistoryItem(
+        amountPaise: (json['amount_paise'] as num).toInt(),
+        bookingId: json['booking_id'] as String,
+        capturedAt: json['captured_at'] == null
+            ? null
+            : DateTime.parse(json['captured_at'] as String),
+        checkout: json['checkout'] == null
+            ? null
+            : RazorpayCheckout.fromJson(
+                json['checkout'] as Map<String, Object?>,
+              ),
+        counterpartyId: json['counterparty_id'] as String,
+        createdAt: DateTime.parse(json['created_at'] as String),
+        direction: Direction.fromJson(json['direction'] as String),
+        id: json['id'] as String,
+        items: (json['items'] as List<Object?>)
+            .map((e0) => PaymentItem.fromJson(e0! as Map<String, Object?>))
+            .toList(),
+        method: PaymentMethod.fromJson(json['method'] as String),
+        purpose: PaymentPurpose.fromJson(json['purpose'] as String),
+        refundedPaise: (json['refunded_paise'] as num).toInt(),
+        refunds: (json['refunds'] as List<Object?>)
+            .map((e0) => RefundOut.fromJson(e0! as Map<String, Object?>))
+            .toList(),
+        status: PaymentStatus.fromJson(json['status'] as String),
+      );
+
+  final int amountPaise;
+
+  final String bookingId;
+
+  final DateTime? capturedAt;
+
+  /// UPI only, while pending
+  final RazorpayCheckout? checkout;
+
+  final String counterpartyId;
+
+  final DateTime createdAt;
+
+  final Direction direction;
+
+  final String id;
+
+  final List<PaymentItem> items;
+
+  final PaymentMethod method;
+
+  final PaymentPurpose purpose;
+
+  final int refundedPaise;
+
+  final List<RefundOut> refunds;
+
+  final PaymentStatus status;
+
+  Map<String, Object?> toJson() => {
+    'amount_paise': amountPaise,
+    'booking_id': bookingId,
+    'captured_at': capturedAt?.toUtc().toIso8601String(),
+    'checkout': checkout?.toJson(),
+    'counterparty_id': counterpartyId,
+    'created_at': createdAt.toUtc().toIso8601String(),
+    'direction': direction.json,
+    'id': id,
+    'items': items.map((e0) => e0.toJson()).toList(),
+    'method': method.json,
+    'purpose': purpose.json,
+    'refunded_paise': refundedPaise,
+    'refunds': refunds.map((e0) => e0.toJson()).toList(),
+    'status': status.json,
+  };
+}
+
+@immutable
+class PaymentHistoryPage {
+  const PaymentHistoryPage({required this.items, this.nextCursor});
+
+  factory PaymentHistoryPage.fromJson(Map<String, Object?> json) =>
+      PaymentHistoryPage(
+        items: (json['items'] as List<Object?>)
+            .map(
+              (e0) => PaymentHistoryItem.fromJson(e0! as Map<String, Object?>),
+            )
+            .toList(),
+        nextCursor: json['next_cursor'] as String?,
+      );
+
+  final List<PaymentHistoryItem> items;
+
+  final String? nextCursor;
+
+  Map<String, Object?> toJson() => {
+    'items': items.map((e0) => e0.toJson()).toList(),
+    'next_cursor': ?nextCursor,
   };
 }
 
@@ -3846,6 +4098,130 @@ class ReasonIn {
 }
 
 @immutable
+class ReconciliationReport {
+  const ReconciliationReport({
+    required this.day,
+    required this.finishedAt,
+    required this.id,
+    required this.mismatches,
+    required this.startedAt,
+    required this.status,
+    required this.totals,
+    required this.triggeredBy,
+  });
+
+  factory ReconciliationReport.fromJson(Map<String, Object?> json) =>
+      ReconciliationReport(
+        day: DateTime.parse(json['day'] as String),
+        finishedAt: json['finished_at'] == null
+            ? null
+            : DateTime.parse(json['finished_at'] as String),
+        id: json['id'] as String,
+        mismatches: (json['mismatches'] as List<Object?>)
+            .map((e0) => MismatchOut.fromJson(e0! as Map<String, Object?>))
+            .toList(),
+        startedAt: DateTime.parse(json['started_at'] as String),
+        status: ReconciliationReportStatus.fromJson(json['status'] as String),
+        totals: Map<String, Object?>.of(json['totals'] as Map<String, Object?>),
+        triggeredBy: json['triggered_by'] as String,
+      );
+
+  final DateTime day;
+
+  final DateTime? finishedAt;
+
+  final String id;
+
+  final List<MismatchOut> mismatches;
+
+  final DateTime startedAt;
+
+  final ReconciliationReportStatus status;
+
+  final Map<String, Object?> totals;
+
+  final String triggeredBy;
+
+  Map<String, Object?> toJson() => {
+    'day': _formatDate(day),
+    'finished_at': finishedAt?.toUtc().toIso8601String(),
+    'id': id,
+    'mismatches': mismatches.map((e0) => e0.toJson()).toList(),
+    'started_at': startedAt.toUtc().toIso8601String(),
+    'status': status.json,
+    'totals': totals,
+    'triggered_by': triggeredBy,
+  };
+}
+
+@immutable
+class ReconciliationRunIn {
+  const ReconciliationRunIn({this.day});
+
+  factory ReconciliationRunIn.fromJson(Map<String, Object?> json) =>
+      ReconciliationRunIn(
+        day: json['day'] == null ? null : DateTime.parse(json['day'] as String),
+      );
+
+  /// The IST day to check; yesterday by default
+  final DateTime? day;
+
+  Map<String, Object?> toJson() => {
+    'day': ?day == null ? null : _formatDate(day!),
+  };
+}
+
+@immutable
+class ReconciliationRunOut {
+  const ReconciliationRunOut({
+    required this.day,
+    required this.finishedAt,
+    required this.id,
+    required this.startedAt,
+    required this.status,
+    required this.totals,
+    required this.triggeredBy,
+  });
+
+  factory ReconciliationRunOut.fromJson(Map<String, Object?> json) =>
+      ReconciliationRunOut(
+        day: DateTime.parse(json['day'] as String),
+        finishedAt: json['finished_at'] == null
+            ? null
+            : DateTime.parse(json['finished_at'] as String),
+        id: json['id'] as String,
+        startedAt: DateTime.parse(json['started_at'] as String),
+        status: ReconciliationReportStatus.fromJson(json['status'] as String),
+        totals: Map<String, Object?>.of(json['totals'] as Map<String, Object?>),
+        triggeredBy: json['triggered_by'] as String,
+      );
+
+  final DateTime day;
+
+  final DateTime? finishedAt;
+
+  final String id;
+
+  final DateTime startedAt;
+
+  final ReconciliationReportStatus status;
+
+  final Map<String, Object?> totals;
+
+  final String triggeredBy;
+
+  Map<String, Object?> toJson() => {
+    'day': _formatDate(day),
+    'finished_at': finishedAt?.toUtc().toIso8601String(),
+    'id': id,
+    'started_at': startedAt.toUtc().toIso8601String(),
+    'status': status.json,
+    'totals': totals,
+    'triggered_by': triggeredBy,
+  };
+}
+
+@immutable
 class RefreshRequest {
   const RefreshRequest({required this.refreshToken});
 
@@ -3855,6 +4231,55 @@ class RefreshRequest {
   final String refreshToken;
 
   Map<String, Object?> toJson() => {'refresh_token': refreshToken};
+}
+
+@immutable
+class RefundOut {
+  const RefundOut({
+    required this.amountPaise,
+    required this.createdAt,
+    required this.id,
+    required this.method,
+    required this.paymentId,
+    required this.processedAt,
+    required this.status,
+  });
+
+  factory RefundOut.fromJson(Map<String, Object?> json) => RefundOut(
+    amountPaise: (json['amount_paise'] as num).toInt(),
+    createdAt: DateTime.parse(json['created_at'] as String),
+    id: json['id'] as String,
+    method: PaymentMethod.fromJson(json['method'] as String),
+    paymentId: json['payment_id'] as String,
+    processedAt: json['processed_at'] == null
+        ? null
+        : DateTime.parse(json['processed_at'] as String),
+    status: RefundOutStatus.fromJson(json['status'] as String),
+  );
+
+  final int amountPaise;
+
+  final DateTime createdAt;
+
+  final String id;
+
+  final PaymentMethod method;
+
+  final String paymentId;
+
+  final DateTime? processedAt;
+
+  final RefundOutStatus status;
+
+  Map<String, Object?> toJson() => {
+    'amount_paise': amountPaise,
+    'created_at': createdAt.toUtc().toIso8601String(),
+    'id': id,
+    'method': method.json,
+    'payment_id': paymentId,
+    'processed_at': processedAt?.toUtc().toIso8601String(),
+    'status': status.json,
+  };
 }
 
 @immutable
@@ -3945,6 +4370,7 @@ class ReviewIn {
 @immutable
 class ReviewOut {
   const ReviewOut({
+    required this.bookingId,
     required this.comment,
     required this.createdAt,
     required this.id,
@@ -3956,6 +4382,7 @@ class ReviewOut {
   });
 
   factory ReviewOut.fromJson(Map<String, Object?> json) => ReviewOut(
+    bookingId: json['booking_id'] as String,
     comment: json['comment'] as String,
     createdAt: DateTime.parse(json['created_at'] as String),
     id: json['id'] as String,
@@ -3967,6 +4394,8 @@ class ReviewOut {
     reviewerId: json['reviewer_id'] as String,
     reviewerName: json['reviewer_name'] as String,
   );
+
+  final String bookingId;
 
   final String comment;
 
@@ -3985,6 +4414,7 @@ class ReviewOut {
   final String reviewerName;
 
   Map<String, Object?> toJson() => {
+    'booking_id': bookingId,
     'comment': comment,
     'created_at': createdAt.toUtc().toIso8601String(),
     'id': id,

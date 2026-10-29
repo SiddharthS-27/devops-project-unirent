@@ -190,3 +190,29 @@ class InlineError extends StatelessWidget {
     );
   }
 }
+
+/// An [InlineError] that always takes one slot (empty when [message] is
+/// null), so lazily built lists keep their later children's state when an
+/// error appears.
+class OptionalInlineError extends StatelessWidget {
+  const OptionalInlineError(
+    this.message, {
+    super.key,
+    this.gap = AppSpacing.lg,
+  });
+
+  final String? message;
+
+  /// Space below the error when shown.
+  final double gap;
+
+  @override
+  Widget build(BuildContext context) {
+    final message = this.message;
+    if (message == null) return const SizedBox.shrink();
+    return Padding(
+      padding: EdgeInsets.only(bottom: gap),
+      child: InlineError(message),
+    );
+  }
+}
