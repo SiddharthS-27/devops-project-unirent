@@ -360,6 +360,21 @@
       },
       "AssetOut": {
         "properties": {
+          "category": {
+            "enum": [
+              "electronics",
+              "cameras",
+              "cycles",
+              "books",
+              "instruments",
+              "sports",
+              "hostel",
+              "events",
+              "other"
+            ],
+            "title": "Category",
+            "type": "string"
+          },
           "condition": {
             "enum": [
               "new",
@@ -369,6 +384,10 @@
               "poor"
             ],
             "title": "Condition",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
             "type": "string"
           },
           "history": {
@@ -382,6 +401,36 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "listing_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The current owner's latest listing of the item, if they listed it",
+            "title": "Listing Id"
+          },
+          "listing_status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "active",
+                  "paused",
+                  "sold",
+                  "removed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listing Status"
           },
           "manufacture_date": {
             "anyOf": [
@@ -400,6 +449,18 @@
             "title": "Owner Id",
             "type": "string"
           },
+          "photo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Cover photo of the latest listing",
+            "title": "Photo Url"
+          },
           "rental_count": {
             "title": "Rental Count",
             "type": "integer"
@@ -415,11 +476,22 @@
             ],
             "description": "Masked to the last 4 characters except for the owner and staff",
             "title": "Serial Number"
+          },
+          "title": {
+            "description": "From the item's latest listing",
+            "title": "Title",
+            "type": "string"
           }
         },
         "required": [
           "id",
           "owner_id",
+          "title",
+          "category",
+          "description",
+          "photo_url",
+          "listing_id",
+          "listing_status",
           "condition",
           "manufacture_date",
           "serial_number",
@@ -2482,6 +2554,85 @@
         "title": "MicrosoftSignIn",
         "type": "object"
       },
+      "MismatchOut": {
+        "properties": {
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "ledger_amount_paise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ledger Amount Paise"
+          },
+          "ledger_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ledger Status"
+          },
+          "payment_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Id"
+          },
+          "razorpay_amount_paise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Razorpay Amount Paise"
+          },
+          "razorpay_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Razorpay Status"
+          },
+          "reference": {
+            "title": "Reference",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "reference",
+          "payment_id",
+          "ledger_amount_paise",
+          "razorpay_amount_paise",
+          "ledger_status",
+          "razorpay_status"
+        ],
+        "title": "MismatchOut",
+        "type": "object"
+      },
       "MockTokenOut": {
         "properties": {
           "id_token": {
@@ -2902,6 +3053,159 @@
           "items"
         ],
         "title": "Page[StaffUserRow]",
+        "type": "object"
+      },
+      "PaymentHistoryItem": {
+        "properties": {
+          "amount_paise": {
+            "title": "Amount Paise",
+            "type": "integer"
+          },
+          "booking_id": {
+            "format": "uuid",
+            "title": "Booking Id",
+            "type": "string"
+          },
+          "captured_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Captured At"
+          },
+          "checkout": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RazorpayCheckout"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "UPI only, while pending"
+          },
+          "counterparty_id": {
+            "format": "uuid",
+            "title": "Counterparty Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "direction": {
+            "enum": [
+              "paid",
+              "received"
+            ],
+            "title": "Direction",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PaymentItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "method": {
+            "enum": [
+              "upi",
+              "cash"
+            ],
+            "title": "Method",
+            "type": "string"
+          },
+          "purpose": {
+            "enum": [
+              "rent",
+              "extension",
+              "return_charges",
+              "sale"
+            ],
+            "title": "Purpose",
+            "type": "string"
+          },
+          "refunded_paise": {
+            "title": "Refunded Paise",
+            "type": "integer"
+          },
+          "refunds": {
+            "items": {
+              "$ref": "#/components/schemas/RefundOut"
+            },
+            "title": "Refunds",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "created",
+              "pending",
+              "captured",
+              "failed",
+              "marked_paid",
+              "refunded",
+              "partly_refunded"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "purpose",
+          "method",
+          "status",
+          "amount_paise",
+          "items",
+          "checkout",
+          "created_at",
+          "captured_at",
+          "booking_id",
+          "direction",
+          "counterparty_id",
+          "refunded_paise",
+          "refunds"
+        ],
+        "title": "PaymentHistoryItem",
+        "type": "object"
+      },
+      "PaymentHistoryPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PaymentHistoryItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "PaymentHistoryPage",
         "type": "object"
       },
       "PaymentItem": {
@@ -4018,6 +4322,171 @@
         "title": "ReasonIn",
         "type": "object"
       },
+      "ReconciliationReport": {
+        "properties": {
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "mismatches": {
+            "items": {
+              "$ref": "#/components/schemas/MismatchOut"
+            },
+            "title": "Mismatches",
+            "type": "array"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "running",
+              "done",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "totals": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
+            },
+            "title": "Totals",
+            "type": "object"
+          },
+          "triggered_by": {
+            "title": "Triggered By",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "day",
+          "triggered_by",
+          "status",
+          "totals",
+          "started_at",
+          "finished_at",
+          "mismatches"
+        ],
+        "title": "ReconciliationReport",
+        "type": "object"
+      },
+      "ReconciliationRunIn": {
+        "properties": {
+          "day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The IST day to check; yesterday by default",
+            "title": "Day"
+          }
+        },
+        "title": "ReconciliationRunIn",
+        "type": "object"
+      },
+      "ReconciliationRunOut": {
+        "properties": {
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "running",
+              "done",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "totals": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
+            },
+            "title": "Totals",
+            "type": "object"
+          },
+          "triggered_by": {
+            "title": "Triggered By",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "day",
+          "triggered_by",
+          "status",
+          "totals",
+          "started_at",
+          "finished_at"
+        ],
+        "title": "ReconciliationRunOut",
+        "type": "object"
+      },
       "RefreshRequest": {
         "properties": {
           "refresh_token": {
@@ -4030,6 +4499,71 @@
           "refresh_token"
         ],
         "title": "RefreshRequest",
+        "type": "object"
+      },
+      "RefundOut": {
+        "properties": {
+          "amount_paise": {
+            "title": "Amount Paise",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "method": {
+            "enum": [
+              "upi",
+              "cash"
+            ],
+            "title": "Method",
+            "type": "string"
+          },
+          "payment_id": {
+            "format": "uuid",
+            "title": "Payment Id",
+            "type": "string"
+          },
+          "processed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Processed At"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "processed",
+              "failed",
+              "cash_pending",
+              "cash_done"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "payment_id",
+          "amount_paise",
+          "method",
+          "status",
+          "created_at",
+          "processed_at"
+        ],
+        "title": "RefundOut",
         "type": "object"
       },
       "Residence": {
@@ -4150,6 +4684,11 @@
       },
       "ReviewOut": {
         "properties": {
+          "booking_id": {
+            "format": "uuid",
+            "title": "Booking Id",
+            "type": "string"
+          },
           "comment": {
             "title": "Comment",
             "type": "string"
@@ -4198,6 +4737,7 @@
         },
         "required": [
           "id",
+          "booking_id",
           "review_type",
           "overall",
           "ratings",
@@ -5953,6 +6493,131 @@
         "summary": "Deactivate Moderator",
         "tags": [
           "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/reconciliation/run": {
+      "post": {
+        "description": "Ledger against Razorpay payments, transfers and refunds for one IST day.",
+        "operationId": "run_reconciliation_now_api_v1_admin_reconciliation_run_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReconciliationRunIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReconciliationReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Run Reconciliation Now",
+        "tags": [
+          "payments"
+        ]
+      }
+    },
+    "/api/v1/admin/reconciliation/runs": {
+      "get": {
+        "operationId": "reconciliation_runs_api_v1_admin_reconciliation_runs_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ReconciliationRunOut"
+                  },
+                  "title": "Response Reconciliation Runs Api V1 Admin Reconciliation Runs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Reconciliation Runs",
+        "tags": [
+          "payments"
+        ]
+      }
+    },
+    "/api/v1/admin/reconciliation/runs/{run_id}": {
+      "get": {
+        "operationId": "reconciliation_report_api_v1_admin_reconciliation_runs__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReconciliationReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Reconciliation Report",
+        "tags": [
+          "payments"
         ]
       }
     },
@@ -9103,6 +9768,73 @@
         ]
       }
     },
+    "/api/v1/payments/history": {
+      "get": {
+        "description": "Every payment, cash mark and refund I was part of, newest first, with its booking.",
+        "operationId": "payment_history_api_v1_payments_history_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentHistoryPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Payment History",
+        "tags": [
+          "payments"
+        ]
+      }
+    },
     "/api/v1/payments/webhooks/razorpay": {
       "post": {
         "description": "Signed with X-Razorpay-Signature; replays (same event ID) do nothing.",
@@ -9539,6 +10271,55 @@
         "summary": "Reviews Of",
         "tags": [
           "reviews"
+        ]
+      }
+    },
+    "/api/v1/refunds/{refund_id}/mark-done": {
+      "post": {
+        "description": "The owner confirms a ruled cash refund was handed back.",
+        "operationId": "mark_cash_refunded_api_v1_refunds__refund_id__mark_done_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "refund_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Refund Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefundOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Mark Cash Refunded",
+        "tags": [
+          "payments"
         ]
       }
     },
@@ -11146,6 +11927,73 @@
           }
         },
         "summary": "Delete Push Token",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/reconciliation/run": {
+      "post": {
+        "description": "The workers' nightly trigger (02:00 IST): checks yesterday.",
+        "operationId": "nightly_reconciliation_internal_reconciliation_run_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Service-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Service-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ReconciliationRunIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReconciliationRunOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Nightly Reconciliation",
         "tags": [
           "internal"
         ]

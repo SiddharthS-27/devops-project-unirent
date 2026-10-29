@@ -48,6 +48,7 @@ async def reviews_of(
     items = [
         ReviewOut(
             id=r.id,
+            booking_id=r.booking_id,
             review_type=r.review_type,  # type: ignore[arg-type]
             overall=float(r.overall),
             ratings=r.ratings,
