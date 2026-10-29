@@ -60,6 +60,8 @@ const _messages = {
   'PAYOUT_ACCOUNT_REQUIRED':
       'Link your payout account before listing your first item.',
   'ONBOARDING_INCOMPLETE': 'Finish setting up your profile first.',
+  // Appeals
+  'APPEAL_NOT_OPEN': 'This booking can’t be appealed now.',
   // Help
   'THREAD_CLOSED':
       'This conversation is closed. Start a new one from Help if you still '

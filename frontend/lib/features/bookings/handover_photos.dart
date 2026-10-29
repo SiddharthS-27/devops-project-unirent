@@ -8,11 +8,15 @@ import '../listings/photos/photo_picker.dart';
 import '../listings/photos/photo_uploader.dart';
 
 /// Lets the user take or choose up to [max] photos and uploads them for a
-/// handover. Returns the storage keys, or null if nothing was picked.
+/// handover (or another [purpose]). Returns the storage keys, or null if
+/// nothing was picked. [onUploading] runs once photos are picked, before
+/// they upload.
 Future<List<String>?> pickAndUploadHandoverPhotos(
   BuildContext context,
   WidgetRef ref, {
   int max = 8,
+  UploadPurpose purpose = UploadPurpose.handover,
+  VoidCallback? onUploading,
 }) async {
   final source = await showModalBottomSheet<PhotoSource>(
     context: context,
@@ -40,9 +44,9 @@ Future<List<String>?> pickAndUploadHandoverPhotos(
       .read(photoPickerProvider)
       .pick(source, max: max);
   if (picked.isEmpty) return null;
+  onUploading?.call();
   final uploader = ref.read(photoUploaderProvider);
   return [
-    for (final bytes in picked)
-      await uploader.upload(bytes, purpose: UploadPurpose.handover),
+    for (final bytes in picked) await uploader.upload(bytes, purpose: purpose),
   ];
 }

@@ -66,6 +66,7 @@ abstract final class Routes {
 
   static String booking(String id) => '/bookings/${Uri.encodeComponent(id)}';
   static String bookingReview(String id) => '${booking(id)}/review';
+  static String bookingAppeal(String id) => '${booking(id)}/appeal';
 
   static final String staffHome = StaffTab.appeals.path;
 }

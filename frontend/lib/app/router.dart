@@ -6,6 +6,7 @@ import '../features/auth/college_email_screen.dart';
 import '../features/auth/sign_in_screen.dart';
 import '../features/auth/staff_password_screen.dart';
 import '../features/auth/staff_sign_in_screen.dart';
+import '../features/bookings/appeal_screen.dart';
 import '../features/bookings/booking_screen.dart';
 import '../features/bookings/bookings_screen.dart';
 import '../features/bookings/incoming_requests_screen.dart';
@@ -105,6 +106,11 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: 'review',
             builder: (context, state) =>
                 ReviewScreen(bookingId: state.pathParameters['id']!),
+          ),
+          GoRoute(
+            path: 'appeal',
+            builder: (context, state) =>
+                AppealScreen(bookingId: state.pathParameters['id']!),
           ),
         ],
       ),

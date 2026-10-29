@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import '../generated/models.dart';
+import 'mock_appeal_handlers.dart';
 import 'mock_booking_handlers.dart';
 import 'mock_db.dart';
 import 'mock_help_handlers.dart';
@@ -18,6 +19,7 @@ Map<String, MockHandler> mockHandlers(MockDb db) {
   return {
     ...listingHandlers(db),
     ...bookingHandlers(db),
+    ...appealHandlers(db),
     ...paymentHandlers(db),
     ...reviewHandlers(db),
     ...helpHandlers(db),

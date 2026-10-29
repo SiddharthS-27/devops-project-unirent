@@ -17,7 +17,7 @@ import '../reviews/widgets/booking_reviews.dart';
 import 'booking_format.dart';
 import 'booking_providers.dart';
 import 'widgets/active_rental_section.dart';
-import 'widgets/appeal_window_note.dart';
+import 'widgets/appeal_card.dart';
 import 'widgets/booking_manage_actions.dart';
 import 'widgets/cancellation_card.dart';
 import 'widgets/counterparty_card.dart';
@@ -112,6 +112,10 @@ class _BookingView extends ConsumerWidget {
         ],
         NextActionCard(booking: booking),
         if (booking.nextAction != null) gap,
+        if (AppealCard.appliesTo(booking)) ...[
+          AppealCard(booking: booking),
+          gap,
+        ],
         if (ReturnChecklist.appliesTo(booking)) ...[
           ReturnChecklist(booking: booking),
           gap,
@@ -153,10 +157,6 @@ class _BookingView extends ConsumerWidget {
                 ? null
                 : () => ref.read(phoneCallerProvider)(phone),
           ),
-        ],
-        if (AppealWindowNote.appliesTo(booking)) ...[
-          gap,
-          AppealWindowNote(booking: booking),
         ],
         if (BookingReviews.appliesTo(booking)) ...[
           gap,

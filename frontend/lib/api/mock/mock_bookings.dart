@@ -1,4 +1,5 @@
 import '../generated/models.dart';
+import 'mock_appeal_handlers.dart';
 import 'mock_db.dart';
 import 'mock_listing_handlers.dart' show mockListingCard;
 import 'mock_listings.dart';
@@ -345,6 +346,8 @@ class MockBookingViews {
     }
     final keys = [for (final (k, _) in steps) k];
     var index = keys.indexOf(_currentStep[b.status]!);
+    // A sale has no "proceed" step; its appeal comes after the handover.
+    if (index < 0) index = keys.indexOf('reviews');
     if (b.status == BookingStatus.completed) index = keys.length;
     final stamps = {
       'requested': b.createdAt,
@@ -685,7 +688,10 @@ class MockBookingViews {
       ],
       charges: charges(b),
       cancellation: cancellation(b, role),
-      appeal: null,
+      appeal: switch (mockLatestAppeal(db, b.id)) {
+        null => null,
+        final a => AppealRef(id: a.id, status: a.status),
+      },
       reviews: mockReviewState(db, b, viewer.id),
       overdueSince: b.overdueSince,
       escalationAvailableAt: b.escalationAvailableAt,
@@ -702,16 +708,7 @@ class MockBookingViews {
           role == TradeRole.owner &&
           b.escalatedAt == null &&
           b.canEscalate(now),
-      // Buyers can appeal a sale for 48 hours after the handover.
-      canAppeal:
-          b.kind == TradeKind.sale &&
-          role == TradeRole.renter &&
-          b.pickupCompletedAt != null &&
-          now.difference(b.pickupCompletedAt!) < const Duration(hours: 48) &&
-          const {
-            BookingStatus.awaitingReviews,
-            BookingStatus.completed,
-          }.contains(b.status),
+      canAppeal: mockCanAppeal(db, b, role, now),
       serverNow: now,
       createdAt: b.createdAt,
     );
