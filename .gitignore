@@ -31,3 +31,4 @@ key.properties
 
 # Node tooling (Locust reports, scripts)
 node_modules/
+test-results/

@@ -3,7 +3,8 @@ name: unirent
 # Profiles:
 #   (none)   postgres, redis, kafka and minio run in every profile
 #   dev      api with hot reload (`make watch`), kafka-ui
-#   test     api, the Razorpay simulator and the test runner (CI and make test-*)
+#   test     api, workers and the Razorpay simulator (CI and make test-*)
+#   runner   the test-runner, started on demand by make test-* and CI
 #   staging  api and workers from registry images, plus the monitoring stack
 #   init     one-shot jobs that make up runs once the stack is healthy
 #   tunnel   a cloudflared quick tunnel to the api, for Razorpay webhooks (opt-in)
@@ -133,6 +134,7 @@ services:
       UNIRENT_RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET}
       UNIRENT_ADMIN_EMAIL: ${ADMIN_EMAIL}
       UNIRENT_ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      UNIRENT_SIGNIN_LIMIT_PER_MINUTE: ${SIGNIN_LIMIT_PER_MINUTE:-10}
       API_RELOAD: ${API_RELOAD:-}
     ports:
       - "${API_PORT:-8000}:8000"
@@ -202,6 +204,46 @@ services:
     command: ["tunnel", "--no-autoupdate", "--url", "http://api:8000"]
     depends_on:
       api:
+        condition: service_healthy
+
+  # The Razorpay simulator: the same API shapes, signed webhooks to the api.
+  razorpay-sim:
+    build:
+      context: ..
+      dockerfile: infra/docker/tests.Dockerfile
+    image: ${TESTS_IMAGE:-unirent-tests:dev}
+    profiles: [dev, test]
+    command: ["uvicorn", "razorpay_sim.app:app", "--host", "0.0.0.0", "--port", "8090"]
+    environment:
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET}
+      WEBHOOK_URL: http://api:8000/api/v1/payments/webhooks/razorpay
+    ports:
+      - "${RAZORPAY_SIM_PORT:-8090}:8090"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8090/healthz')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Runs the suites in tests/ against the stack: make test-integration and CI.
+  test-runner:
+    image: ${TESTS_IMAGE:-unirent-tests:dev}
+    profiles: [runner]
+    environment:
+      BASE_URL: http://api:8000
+      SIM_URL: http://razorpay-sim:8090
+      SERVICE_TOKEN: ${SERVICE_TOKEN}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      MS_ALLOWED_DOMAIN: ${MS_ALLOWED_DOMAIN:-college.edu}
+    volumes:
+      - ../test-results:/results
+    depends_on:
+      api:
+        condition: service_healthy
+      razorpay-sim:
         condition: service_healthy
 
   kafka-ui:
