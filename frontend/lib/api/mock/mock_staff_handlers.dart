@@ -1,4 +1,5 @@
 import '../generated/models.dart';
+import 'mock_admin_handlers.dart';
 import 'mock_appeal_handlers.dart';
 import 'mock_booking_handlers.dart';
 import 'mock_bookings.dart';
@@ -331,6 +332,13 @@ class MockStaffHandlers {
     );
     apply(b, ruling, staff);
     db.rulings.add(ruling);
+    mockAudit(
+      db,
+      staff,
+      'moderation.ruling',
+      'appeal:${a.id}',
+      ruling.body.toJson(),
+    );
     a.status = AppealStatus.ruled;
     b
       ..status = b.kind == TradeKind.rent
@@ -393,14 +401,16 @@ class MockStaffHandlers {
       throw mockValidation('body', 'Must be 1-2000 characters');
     }
     final m = mockStaffReply(db, t, staff, body);
+    mockAudit(db, staff, 'support.reply', 'support_thread:${t.id}');
     return MockResponse(201, mockMessageOut(db, m).toJson());
   }
 
   MockResponse closeThread(MockRequest r) {
-    mockStaff(db, r);
+    final staff = mockStaff(db, r);
     final t = _thread(r)
       ..status = ThreadStatus.closed
       ..updatedAt = now;
+    mockAudit(db, staff, 'support.close', 'support_thread:${t.id}');
     return MockResponse.json(mockThreadOut(db, t).toJson());
   }
 
@@ -639,6 +649,10 @@ class MockStaffHandlers {
       throw mockValidation('status', 'Input should be a known status');
     }
     a.status = body.status.json;
+    mockAudit(db, staff, 'account.status_changed', 'account:${a.id}', {
+      'status': body.status.json,
+      'reason': body.reason,
+    });
     return MockResponse.json(userDetail(a, staff).toJson());
   }
 
@@ -661,6 +675,13 @@ class MockStaffHandlers {
     );
     db.trustPenalties.add(p);
     mockApplyPenalty(db, p);
+    mockAudit(
+      db,
+      staff,
+      'moderation.trust_penalty',
+      'account:${a.id}',
+      body.toJson(),
+    );
     return MockResponse.json(userDetail(a, staff).toJson());
   }
 
@@ -694,7 +715,7 @@ class MockStaffHandlers {
   }
 
   MockResponse removeListing(MockRequest r) {
-    mockStaff(db, r);
+    final staff = mockStaff(db, r);
     final l = db.listings[r.pathParams['listing_id']];
     if (l == null) {
       throw const MockApiError(404, 'NOT_FOUND', 'Listing not found');
@@ -704,6 +725,9 @@ class MockStaffHandlers {
     l
       ..status = ListingStatus.removed
       ..removedReason = reason;
+    mockAudit(db, staff, 'moderation.listing_removed', 'listing:${l.id}', {
+      'reason': reason,
+    });
     return MockResponse.json(mockListingCard(db, l).toJson());
   }
 }

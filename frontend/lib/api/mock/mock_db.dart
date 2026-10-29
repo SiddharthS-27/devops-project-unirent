@@ -1,4 +1,6 @@
 import '../generated/models.dart';
+import 'mock_admin_handlers.dart'
+    show MockAuditEntry, MockReconciliationRun, seedReconciliation;
 import 'mock_appeal_handlers.dart' show MockAppeal;
 import 'mock_booking_handlers.dart' show seedBookings;
 import 'mock_bookings.dart';
@@ -133,6 +135,7 @@ class MockDb {
     );
     seedListings(db);
     seedBookings(db);
+    seedReconciliation(db);
     return db;
   }
 
@@ -172,6 +175,8 @@ class MockDb {
   final appeals = <String, MockAppeal>{};
   final rulings = <MockRuling>[];
   final trustPenalties = <MockTrustPenalty>[];
+  final auditLog = <MockAuditEntry>[];
+  final reconciliationRuns = <String, MockReconciliationRun>{};
 
   /// Replayed responses by `account:Idempotency-Key`.
   final idempotentResponses = <String, MockResponse>{};

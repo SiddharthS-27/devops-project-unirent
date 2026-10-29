@@ -75,6 +75,9 @@ abstract final class Routes {
   static final String staffSupport = StaffTab.support.path;
   static String staffThread(String id) =>
       '$staffSupport/${Uri.encodeComponent(id)}';
+  static final String staffReports = StaffTab.reports.path;
+  static String staffReconciliationRun(String id) =>
+      '$staffReports/runs/${Uri.encodeComponent(id)}';
   static final String staffUsers = StaffTab.users.path;
   static String staffUser(String id) =>
       '$staffUsers/${Uri.encodeComponent(id)}';

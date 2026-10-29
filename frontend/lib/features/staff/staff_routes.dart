@@ -6,6 +6,8 @@ import 'appeals/appeals_queue_screen.dart';
 import 'appeals/ruling_form_screen.dart';
 import 'escalations/escalations_screen.dart';
 import 'listings/staff_listings_screen.dart';
+import 'reports/reconciliation_report_screen.dart';
+import 'reports/reports_screen.dart';
 import 'staff_section_screen.dart';
 import 'staff_tab.dart';
 import 'support/staff_thread_screen.dart';
@@ -20,6 +22,7 @@ Widget staffTabScreen(StaffTab tab) => switch (tab) {
   StaffTab.escalations => const EscalationsScreen(),
   StaffTab.users => const UsersScreen(),
   StaffTab.listings => const StaffListingsScreen(),
+  StaffTab.reports => const ReportsScreen(),
   _ => StaffSectionScreen(tab: tab),
 };
 
@@ -57,6 +60,14 @@ List<RouteBase> staffTabRoutes(StaffTab tab, GlobalKey<NavigatorState> root) =>
           parentNavigatorKey: root,
           builder: (context, state) =>
               UserDetailScreen(accountId: state.pathParameters['id']!),
+        ),
+      ],
+      StaffTab.reports => [
+        GoRoute(
+          path: 'runs/:id',
+          parentNavigatorKey: root,
+          builder: (context, state) =>
+              ReconciliationReportScreen(runId: state.pathParameters['id']!),
         ),
       ],
       _ => const [],

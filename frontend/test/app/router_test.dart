@@ -404,11 +404,11 @@ void main() {
       await app.tap(find.widgetWithText(Tab, 'Users'));
       expect(app.location, '/staff/users');
       expect(find.byType(UsersScreen), findsOneWidget);
-      await app.tap(find.widgetWithText(Tab, 'Reports'));
-      expect(app.location, '/staff/reports');
+      await app.tap(find.widgetWithText(Tab, 'Moderators'));
+      expect(app.location, '/staff/moderators');
       expect(
         find.byWidgetPredicate(
-          (w) => w is StaffSectionScreen && w.tab == StaffTab.reports,
+          (w) => w is StaffSectionScreen && w.tab == StaffTab.moderators,
         ),
         findsOneWidget,
       );
