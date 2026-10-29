@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from unirent_security.errors import ApiError
 
 from unirent_payments import db
+from unirent_payments.config import get_settings
 from unirent_payments.models import LinkedAccount
 from unirent_payments.razorpay_client import razorpay
 
@@ -22,6 +23,8 @@ def _now() -> datetime:
 
 async def payout_ready(account_id: uuid.UUID) -> bool:
     """True when the owner can receive UPI payments, so they may list."""
+    if not get_settings().razorpay_route:
+        return True
     async with db.sessionmaker()() as session:
         linked = await session.get(LinkedAccount, account_id)
         return linked is not None and linked.status == READY

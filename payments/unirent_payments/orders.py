@@ -1,5 +1,6 @@
 """UPI payments: a Razorpay Order that carries a transfer of the full amount to
-the payee's linked account. The platform takes no fee and holds no money."""
+the payee's linked account. The platform takes no fee and holds no money.
+With Route off the order has no transfer and the money stays with UniRent."""
 
 from typing import Any
 
@@ -20,28 +21,28 @@ DESCRIPTIONS = {
 
 
 async def create_order(session: AsyncSession, payment: Payment) -> dict[str, Any]:
-    linked = await get_linked(session, payment.payee_id)
-    if linked is None or linked.status != READY:
-        raise ApiError(
-            409, "PAYEE_NOT_PAYOUT_READY", "The owner can't receive UPI payments; pay in cash"
-        )
-    order = await razorpay().create_order(
-        {
-            "amount": payment.amount_paise,
-            "currency": "INR",
-            "receipt": str(payment.id)[:40],
-            "notes": {"booking": str(payment.booking_ref), "purpose": payment.purpose},
-            "transfers": [
-                {
-                    "account": linked.razorpay_account_id,
-                    "amount": payment.amount_paise,
-                    "currency": "INR",
-                    "notes": {"payment": str(payment.id)},
-                    "on_hold": False,
-                }
-            ],
-        }
-    )
+    body: dict[str, Any] = {
+        "amount": payment.amount_paise,
+        "currency": "INR",
+        "receipt": str(payment.id)[:40],
+        "notes": {"booking": str(payment.booking_ref), "purpose": payment.purpose},
+    }
+    if get_settings().razorpay_route:
+        linked = await get_linked(session, payment.payee_id)
+        if linked is None or linked.status != READY:
+            raise ApiError(
+                409, "PAYEE_NOT_PAYOUT_READY", "The owner can't receive UPI payments; pay in cash"
+            )
+        body["transfers"] = [
+            {
+                "account": linked.razorpay_account_id,
+                "amount": payment.amount_paise,
+                "currency": "INR",
+                "notes": {"payment": str(payment.id)},
+                "on_hold": False,
+            }
+        ]
+    order = await razorpay().create_order(body)
     payment.razorpay_order_id = order["id"]
     return order
 

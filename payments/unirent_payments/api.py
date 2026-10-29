@@ -60,11 +60,13 @@ def payment_out(view: PaymentView) -> PaymentOut:
 
 
 def _payout_out(linked: LinkedAccount | None) -> PayoutAccountOut:
+    # Without Route nobody needs a payout account to list.
+    route = get_settings().razorpay_route
     if linked is None:
-        return PayoutAccountOut(status="none", ready=False)
+        return PayoutAccountOut(status="none", ready=not route)
     return PayoutAccountOut(
         status=linked.status,  # type: ignore[arg-type]
-        ready=linked.status == linked_accounts.READY,
+        ready=linked.status == linked_accounts.READY or not route,
         razorpay_account_id=linked.razorpay_account_id,
         updated_at=linked.updated_at,
     )

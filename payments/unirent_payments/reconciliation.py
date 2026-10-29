@@ -2,7 +2,7 @@
 
 For every UPI payment we captured that day, Razorpay must have the payment,
 captured, for the same amount, with a processed transfer of that amount to the
-owner's linked account. Every payment Razorpay captured must be one we know. Our
+owner's linked account (when Route is on). Every payment Razorpay captured must be one we know. Our
 refunds must match Razorpay's. Test mode makes no settlements, so settlement
 records are counted when present and never flagged when absent."""
 
@@ -15,6 +15,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from unirent_payments import db, outbox
+from unirent_payments.config import get_settings
 from unirent_payments.metrics import RECONCILIATION_MISMATCHES
 from unirent_payments.models import (
     LedgerEntry,
@@ -107,6 +108,8 @@ async def compare(
                 ledger_status=payment.status,
                 razorpay_status=rp["status"],
             )
+        if not get_settings().razorpay_route:
+            continue
         transfers = await razorpay().payment_transfers(rp["id"])
         transferred = sum(
             t["amount"] for t in transfers if t.get("status", "processed") == "processed"

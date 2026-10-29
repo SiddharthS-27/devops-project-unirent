@@ -19,6 +19,10 @@ class PaymentSettings(BaseSettings):
     razorpay_key_secret: str = "sim-key-secret"
     razorpay_webhook_secret: str = "sim-webhook-secret"
     razorpay_timeout_seconds: float = 10.0
+    # Route sends each UPI payment straight to the owner's linked account. Without
+    # it (Razorpay hasn't enabled Route), payments land in UniRent's own account,
+    # owners need no payout account and are paid outside the app.
+    razorpay_route: bool = True
 
     checkout_name: str = "UniRent"
     # The workers send this on /internal routes (the same secret the backend checks).
