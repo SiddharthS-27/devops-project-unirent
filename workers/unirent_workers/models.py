@@ -35,3 +35,4 @@ class DeadLetter(Base):
     payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
     error: Mapped[str] = mapped_column(Text)
     failed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    replayed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
