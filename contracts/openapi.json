@@ -11024,7 +11024,7 @@
     },
     "/api/v1/staff/escalations": {
       "get": {
-        "description": "Overdue by an hour or more, owner escalations and stalled Proceeds.",
+        "description": "Overdue by an hour or more, owner escalations and stalled Proceeds, with\nresidence details for following up in person.",
         "operationId": "escalations_api_v1_staff_escalations_get",
         "responses": {
           "200": {
@@ -11218,6 +11218,7 @@
     },
     "/api/v1/staff/reviews/{review_id}/remove": {
       "post": {
+        "description": "Hide an abusive review; the reviewee's trust is recomputed without it.",
         "operationId": "remove_review_api_v1_staff_reviews__review_id__remove_post",
         "parameters": [
           {
@@ -11479,7 +11480,7 @@
     },
     "/api/v1/staff/users": {
       "get": {
-        "description": "Search users; `flagged` lists only those with risk flags.",
+        "description": "Search by name, roll number or email; `flagged` lists only those with risk flags.",
         "operationId": "users_api_v1_staff_users_get",
         "parameters": [
           {
@@ -11573,6 +11574,7 @@
     },
     "/api/v1/staff/users/{account_id}": {
       "get": {
+        "description": "Profile with email and roll number, history, risk flags and penalties.",
         "operationId": "user_api_v1_staff_users__account_id__get",
         "parameters": [
           {
@@ -11621,6 +11623,7 @@
     },
     "/api/v1/staff/users/{account_id}/status": {
       "post": {
+        "description": "Suspend (can't list, request or pay, can finish open handovers), ban (can't\nsign in) or reactivate.",
         "operationId": "set_status_api_v1_staff_users__account_id__status_post",
         "parameters": [
           {
