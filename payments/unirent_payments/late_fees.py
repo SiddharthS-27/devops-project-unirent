@@ -9,7 +9,8 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
+from unirent_security import audit
 from unirent_security.errors import ApiError
 
 from unirent_payments import db
@@ -74,3 +75,42 @@ def calculate(rule: Rule, rent_paise: int, overdue_minutes: int) -> int:
 
 async def late_fee(rent_paise: int, overdue_minutes: int, rule_id: uuid.UUID) -> int:
     return calculate(await get_rule(rule_id), rent_paise, overdue_minutes)
+
+
+async def set_rule(
+    grace_minutes: int, base_fee_paise: int, hourly_percent_bp: int, by: uuid.UUID
+) -> Rule:
+    """A new version, effective now. Bookings approved earlier keep their rule."""
+    async with db.sessionmaker()() as session:
+        latest = await session.scalar(select(func.max(LateFeeRule.version)))
+        now = datetime.now(UTC)
+        row = LateFeeRule(
+            id=uuid.uuid4(),
+            version=(latest or 0) + 1,
+            grace_minutes=grace_minutes,
+            base_fee_paise=base_fee_paise,
+            hourly_percent_bp=hourly_percent_bp,
+            effective_from=now,
+            set_by=by,
+            created_at=now,
+        )
+        session.add(row)
+        await audit.record(
+            by,
+            "admin.late_fee_rule_set",
+            audit.target("late_fee_rule", row.id),
+            {
+                "grace_minutes": grace_minutes,
+                "base_fee_paise": base_fee_paise,
+                "hourly_percent_bp": hourly_percent_bp,
+            },
+            session=session,
+        )
+        await session.commit()
+        return _rule(row)
+
+
+async def history() -> list[Rule]:
+    async with db.sessionmaker()() as session:
+        rows = await session.scalars(select(LateFeeRule).order_by(LateFeeRule.version.desc()))
+        return [_rule(r) for r in rows]

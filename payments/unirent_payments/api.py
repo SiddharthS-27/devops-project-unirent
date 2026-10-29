@@ -23,7 +23,9 @@ from unirent_payments.db import SessionDep
 from unirent_payments.models import LinkedAccount, Payment, ReconciliationRun, Refund
 from unirent_payments.payments import PaymentView
 from unirent_payments.schemas import (
+    LateFeeRuleIn,
     LateFeeRuleOut,
+    LateFeeRuleVersion,
     MismatchOut,
     PaymentHistoryItem,
     PaymentHistoryPage,
@@ -58,11 +60,13 @@ def payment_out(view: PaymentView) -> PaymentOut:
 
 
 def _payout_out(linked: LinkedAccount | None) -> PayoutAccountOut:
+    # Without Route nobody needs a payout account to list.
+    route = get_settings().razorpay_route
     if linked is None:
-        return PayoutAccountOut(status="none", ready=False)
+        return PayoutAccountOut(status="none", ready=not route)
     return PayoutAccountOut(
         status=linked.status,  # type: ignore[arg-type]
-        ready=linked.status == linked_accounts.READY,
+        ready=linked.status == linked_accounts.READY or not route,
         razorpay_account_id=linked.razorpay_account_id,
         updated_at=linked.updated_at,
     )
@@ -105,6 +109,21 @@ async def late_fee_rule(account: CurrentAccount) -> LateFeeRuleOut:
     """The platform rule every rent listing shows."""
     rule = await late_fees.current_late_fee_rule()
     return LateFeeRuleOut(**{k: getattr(rule, k) for k in LateFeeRuleOut.model_fields})
+
+
+@router.get("/admin/late-fee-rule", response_model=list[LateFeeRuleVersion])
+async def late_fee_rule_history(admin: AdminAccount) -> list[LateFeeRuleVersion]:
+    """Every version, newest first; the first is in force."""
+    return [LateFeeRuleVersion(**vars(rule)) for rule in await late_fees.history()]
+
+
+@router.post("/admin/late-fee-rule", response_model=LateFeeRuleVersion, status_code=201)
+async def set_late_fee_rule(body: LateFeeRuleIn, admin: AdminAccount) -> LateFeeRuleVersion:
+    """Set the grace period, base fee and hourly percentage for new approvals."""
+    rule = await late_fees.set_rule(
+        body.grace_minutes, body.base_fee_paise, body.hourly_percent_bp, admin.id
+    )
+    return LateFeeRuleVersion(**vars(rule))
 
 
 @router.get("/payments/history", response_model=PaymentHistoryPage)

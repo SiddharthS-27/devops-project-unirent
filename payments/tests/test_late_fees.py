@@ -35,3 +35,19 @@ def test_zero_grace_charges_from_the_first_minute():
 async def test_the_starting_rule_is_seeded(session):
     rule = await current_late_fee_rule()
     assert rule.grace_minutes >= 0 and rule.base_fee_paise >= 0
+
+
+async def test_a_new_version_applies_to_new_approvals_only(session):
+    import uuid as _uuid
+
+    from unirent_payments import db
+    from unirent_payments.late_fees import get_rule, history, set_rule
+
+    before = await current_late_fee_rule()
+    new = await set_rule(15, 2000, 300, _uuid.uuid4())
+    assert new.version == before.version + 1
+    assert (await current_late_fee_rule()).id == new.id
+    assert (await get_rule(before.id)).grace_minutes == before.grace_minutes
+    assert (await history())[0].id == new.id
+    await set_rule(30, 1000, 200, _uuid.uuid4())  # leave the default in force for other tests
+    await db.reset()

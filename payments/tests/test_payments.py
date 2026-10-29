@@ -77,3 +77,10 @@ async def test_paying_yourself_is_refused():
     me = uuid.uuid4()
     with pytest.raises(ApiError):
         await start_payment(uuid.uuid4(), "rent", me, me, 100, "cash", "k")
+
+
+async def test_success_rate_counts_finished_upi_attempts(session):
+    from unirent_payments.payments import success_rate
+
+    rate = await success_rate()
+    assert rate is None or 0 <= rate <= 1

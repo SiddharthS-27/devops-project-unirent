@@ -1,9 +1,9 @@
 """Refunds, only ever after a moderator or admin ruling.
 
 A UPI refund goes through Razorpay with reverse_all, which pulls the money back
-from the owner's linked account. A cash refund is recorded at once and completed
-when the owner marks it handed back. Either way the ledger gets reversing
-entries and both sides hear about it."""
+from the owner's linked account (with Route off, it comes from UniRent's own).
+A cash refund is recorded at once and completed when the owner marks it handed
+back. Either way the ledger gets reversing entries and both sides hear about it."""
 
 import uuid
 from datetime import UTC, datetime
@@ -14,6 +14,7 @@ from unirent_security import audit
 from unirent_security.errors import ApiError
 
 from unirent_payments import db, ledger, outbox
+from unirent_payments.config import get_settings
 from unirent_payments.metrics import PAYMENTS
 from unirent_payments.models import Payment, Refund
 from unirent_payments.payments import event_payload, get_payment, transition
@@ -74,13 +75,15 @@ async def issue_refund(
         )
         session.add(refund)
         if payment.method == "upi":
+            body = {
+                "amount": amount_paise,
+                "notes": {"refund": str(refund.id), "ruling": str(ruling_ref or "")},
+            }
+            if get_settings().razorpay_route:
+                body["reverse_all"] = 1
             result = await razorpay().refund(
                 payment.razorpay_payment_id,  # type: ignore[arg-type]
-                {
-                    "amount": amount_paise,
-                    "reverse_all": 1,
-                    "notes": {"refund": str(refund.id), "ruling": str(ruling_ref or "")},
-                },
+                body,
             )
             refund.razorpay_refund_id = result["id"]
             if result.get("status") == "processed":
