@@ -3,7 +3,14 @@
 The functions other packages call are re-exported here."""
 
 from unirent_security import audit
-from unirent_security.accounts import AccountInfo, get_account, get_accounts, set_account_status
+from unirent_security.accounts import (
+    AccountInfo,
+    get_account,
+    get_accounts,
+    search_accounts,
+    set_account_status,
+    staff_ids,
+)
 from unirent_security.errors import ApiError
 from unirent_security.masking import mask_serial
 from unirent_security.ownership import is_owner, require_owner
@@ -43,6 +50,8 @@ __all__ = [
     "require_active",
     "require_owner",
     "require_role",
+    "search_accounts",
     "set_account_status",
+    "staff_ids",
     "verify_secret",
 ]

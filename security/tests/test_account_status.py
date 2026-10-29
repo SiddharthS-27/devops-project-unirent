@@ -65,3 +65,17 @@ async def _refresh_ids(session, account_id):
 async def _close_redis():
     yield
     await db.reset()
+
+
+async def test_staff_ids_lists_active_staff_only(session):
+    from unirent_security.accounts import staff_ids
+    from unirent_security.staff_auth import create_staff_account
+
+    mod = await create_staff_account(
+        session, f"{uuid.uuid4().hex[:8]}@unirent.in", "M", "temporary-pass-1"
+    )
+    await session.commit()
+    assert mod.id in await staff_ids()
+    await set_account_status(mod.id, "deactivated", None, "left", session)
+    await session.commit()
+    assert mod.id not in await staff_ids()

@@ -136,3 +136,24 @@ async def set_account_status(
     ttl = get_settings().access_token_ttl_seconds + 300
     await db.redis().set(_status_key(account_id), status, ex=ttl)
     return previous
+
+
+async def staff_ids(include_admin: bool = True) -> list[uuid.UUID]:
+    """Active moderators (and the admin), for notifications such as a new appeal."""
+    roles = ("moderator", "admin") if include_admin else ("moderator",)
+    async with db.sessionmaker()() as session:
+        rows = await session.scalars(
+            select(Account.id).where(Account.role.in_(roles), Account.status == "active")
+        )
+        return list(rows)
+
+
+async def search_accounts(email_fragment: str, limit: int = 20) -> list[AccountInfo]:
+    """Staff search by email."""
+    async with db.sessionmaker()() as session:
+        rows = await session.scalars(
+            select(Account)
+            .where(Account.email.ilike(f"%{email_fragment.lower()}%"), Account.role == "student")
+            .limit(limit)
+        )
+        return [_info(a) for a in rows]
