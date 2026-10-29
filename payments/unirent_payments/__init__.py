@@ -2,6 +2,7 @@
 
 The functions the backend calls are re-exported here."""
 
+from unirent_payments.late_fees import Rule, current_late_fee_rule, late_fee
 from unirent_payments.linked_accounts import payout_ready
 from unirent_payments.payments import (
     PaymentView,
@@ -12,6 +13,9 @@ from unirent_payments.payments import (
 )
 
 __all__ = [
+    "Rule",
+    "current_late_fee_rule",
+    "late_fee",
     "PaymentView",
     "mark_cash_paid",
     "payment_status",

@@ -74,3 +74,11 @@ class VerifyIn(BaseModel):
 
 class WebhookAck(BaseModel):
     status: Literal["processed", "duplicate", "ignored"]
+
+
+class LateFeeRuleOut(BaseModel):
+    id: uuid.UUID
+    grace_minutes: int
+    base_fee_paise: int
+    hourly_percent_bp: int = Field(description="Basis points of the rent per hour: 200 = 2%")
+    effective_from: datetime
