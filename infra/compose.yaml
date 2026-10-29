@@ -8,6 +8,7 @@ name: unirent
 #   staging  api and workers from registry images, plus the monitoring stack
 #   init     one-shot jobs that make up runs once the stack is healthy
 #   tunnel   a cloudflared quick tunnel to the api, for Razorpay webhooks (opt-in)
+#   monitoring  Prometheus, Grafana and the exporters (part of staging; opt-in in dev)
 
 services:
   postgres:
@@ -246,6 +247,80 @@ services:
       razorpay-sim:
         condition: service_healthy
 
+  # Monitoring (Sasvat's configs in monitoring/): staging, or dev with --profile monitoring.
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    profiles: [staging, monitoring]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+    volumes:
+      - ../monitoring/prometheus:/etc/prometheus:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/ready"]
+      interval: 10s
+      retries: 6
+
+  grafana:
+    image: grafana/grafana:11.3.1
+    profiles: [staging, monitoring]
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ../monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    depends_on:
+      prometheus:
+        condition: service_healthy
+
+  postgres-exporter:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.16.0
+    profiles: [staging, monitoring]
+    environment:
+      DATA_SOURCE_NAME: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.66.0
+    profiles: [staging, monitoring]
+    environment:
+      REDIS_ADDR: redis://redis:6379
+
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:v1.8.0
+    profiles: [staging, monitoring]
+    command: ["--kafka.server=kafka:9092"]
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    profiles: [staging, monitoring]
+    privileged: true
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    profiles: [staging, monitoring]
+    command: ["--path.rootfs=/host"]
+    volumes:
+      - /:/host:ro,rslave
+
   kafka-ui:
     image: ghcr.io/kafbat/kafka-ui:v1.2.0
     profiles: [dev]
@@ -259,6 +334,8 @@ services:
         condition: service_healthy
 
 volumes:
+  prometheus-data:
+  grafana-data:
   postgres-data:
   redis-data:
   kafka-data:
