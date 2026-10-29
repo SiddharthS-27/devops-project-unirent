@@ -1,8 +1,11 @@
 import '../generated/models.dart';
 import 'mock_appeal_handlers.dart';
+import 'mock_booking_handlers.dart';
 import 'mock_bookings.dart';
 import 'mock_db.dart';
 import 'mock_handlers.dart';
+import 'mock_help_handlers.dart';
+import 'mock_listing_handlers.dart' show mockListingCard;
 import 'mock_listings.dart';
 import 'mock_server.dart';
 import 'mock_views.dart';
@@ -82,6 +85,17 @@ Map<String, MockHandler> staffHandlers(MockDb db) {
     'GET /api/v1/staff/appeals': h.appealsQueue,
     'GET /api/v1/staff/appeals/{appeal_id}': h.appeal,
     'POST /api/v1/staff/appeals/{appeal_id}/ruling': h.rule,
+    'GET /api/v1/staff/support/threads': h.supportInbox,
+    'GET /api/v1/staff/support/threads/{thread_id}': h.supportThread,
+    'POST /api/v1/staff/support/threads/{thread_id}/messages': h.supportReply,
+    'POST /api/v1/staff/support/threads/{thread_id}/close': h.closeThread,
+    'GET /api/v1/staff/escalations': h.escalations,
+    'GET /api/v1/staff/users': h.users,
+    'GET /api/v1/staff/users/{account_id}': h.user,
+    'POST /api/v1/staff/users/{account_id}/status': h.setStatus,
+    'POST /api/v1/staff/users/{account_id}/trust-penalty': h.trustPenalty,
+    'GET /api/v1/staff/listings': h.listings,
+    'POST /api/v1/staff/listings/{listing_id}/remove': h.removeListing,
   };
 }
 
@@ -324,5 +338,372 @@ class MockStaffHandlers {
           : a.previousStatus
       ..updatedAt = now;
     return MockResponse.json(detail(a, staff).toJson());
+  }
+
+  // ---- support ---------------------------------------------------------------
+
+  MockSupportThread _thread(MockRequest r) {
+    final t = db.supportThreads[r.pathParams['thread_id']];
+    if (t == null) {
+      throw const MockApiError(404, 'NOT_FOUND', 'Conversation not found');
+    }
+    return t;
+  }
+
+  MockResponse supportInbox(MockRequest r) {
+    mockStaff(db, r);
+    final status = ThreadStatus.fromJson(
+      r.query['status']?.toString() ?? 'open',
+    );
+    final threads =
+        db.supportThreads.values.where((t) => t.status == status).toList()
+          ..sort((a, b) => b.messages.last.at.compareTo(a.messages.last.at));
+    return MockResponse.json([
+      for (final t in threads)
+        SupportThreadSummary(
+          id: t.id,
+          accountId: t.accountId,
+          accountName: db.profiles[t.accountId]?.data.fullName,
+          bookingId: t.bookingId,
+          subject: t.subject,
+          status: t.status,
+          lastMessageAt: t.messages.last.at,
+          unanswered: t.unanswered,
+        ).toJson(),
+    ]);
+  }
+
+  MockResponse supportThread(MockRequest r) {
+    mockStaff(db, r);
+    return MockResponse.json(mockThreadOut(db, _thread(r)).toJson());
+  }
+
+  MockResponse supportReply(MockRequest r) {
+    final staff = mockStaff(db, r);
+    final t = _thread(r);
+    if (t.status == ThreadStatus.closed) {
+      throw const MockApiError(
+        409,
+        'THREAD_CLOSED',
+        'This conversation is closed; start a new one',
+      );
+    }
+    final body = mockParse(r, SupportMessageIn.fromJson).body;
+    if (body.trim().isEmpty || body.length > 2000) {
+      throw mockValidation('body', 'Must be 1-2000 characters');
+    }
+    final m = mockStaffReply(db, t, staff, body);
+    return MockResponse(201, mockMessageOut(db, m).toJson());
+  }
+
+  MockResponse closeThread(MockRequest r) {
+    mockStaff(db, r);
+    final t = _thread(r)
+      ..status = ThreadStatus.closed
+      ..updatedAt = now;
+    return MockResponse.json(mockThreadOut(db, t).toJson());
+  }
+
+  // ---- escalations and risk flags -------------------------------------------
+
+  MockResponse escalations(MockRequest r) {
+    final staff = mockStaff(db, r);
+    final bookings = MockBookingHandlers(db);
+    for (final b in db.bookings.values) {
+      bookings.applyTimers(b);
+    }
+    final overdue =
+        db.bookings.values
+            .where(
+              (b) =>
+                  b.status == BookingStatus.overdue &&
+                  (b.escalatedAt != null ||
+                      !b.overdueSince!.isAfter(
+                        now.subtract(const Duration(hours: 1)),
+                      )),
+            )
+            .toList()
+          ..sort((a, b) => a.overdueSince!.compareTo(b.overdueSince!));
+    final stalled =
+        db.bookings.values
+            .where(
+              (b) =>
+                  b.status == BookingStatus.returning &&
+                  b.proceededAt == null &&
+                  b.returnCompletedAt != null &&
+                  !b.returnCompletedAt!.isAfter(
+                    now.subtract(const Duration(hours: 24)),
+                  ),
+            )
+            .toList()
+          ..sort(
+            (a, b) => a.returnCompletedAt!.compareTo(b.returnCompletedAt!),
+          );
+    EscalationOut out(MockBooking b, EscalationKind kind) {
+      final renter = mockProfileFor(db, b.renterId, staff);
+      final owner = mockProfileFor(db, b.ownerId, staff);
+      return EscalationOut(
+        booking: views.summary(b, TradeRole.owner),
+        kind: kind,
+        since: switch (kind) {
+          EscalationKind.ownerEscalated => b.escalatedAt!,
+          EscalationKind.overdue => b.overdueSince!,
+          _ => b.returnCompletedAt!,
+        },
+        renterId: b.renterId,
+        renterName: renter.fullName,
+        renterPhone: renter.phone,
+        renterResidence: renter is ProfileStaff ? renter.residence : null,
+        ownerName: owner.fullName,
+        ownerPhone: owner.phone,
+        note: b.escalationNote,
+      );
+    }
+
+    return MockResponse.json([
+      for (final b in overdue)
+        out(
+          b,
+          b.escalatedAt != null
+              ? EscalationKind.ownerEscalated
+              : EscalationKind.overdue,
+        ).toJson(),
+      for (final b in stalled) out(b, EscalationKind.stalledProceed).toJson(),
+    ]);
+  }
+
+  /// Backend `oversight.risk_flags`.
+  List<RiskFlag> riskFlags(String accountId) {
+    final since = now.subtract(const Duration(days: 30));
+    final overdue = db.bookings.values
+        .where(
+          (b) =>
+              b.renterId == accountId &&
+              b.overdueSince != null &&
+              !b.overdueSince!.isBefore(since),
+        )
+        .length;
+    final cancellations = db.bookings.values.where((b) {
+      final c = b.cancellation;
+      if (c == null || c.at.isBefore(since)) return false;
+      return (c.by == TradeRole.renter ? b.renterId : b.ownerId) == accountId;
+    }).length;
+    final disputes = db.appeals.values.where((a) {
+      final b = db.bookings[a.bookingId];
+      return b != null &&
+          !a.createdAt.isBefore(since) &&
+          (b.renterId == accountId || b.ownerId == accountId);
+    }).length;
+    final account = db.accounts[accountId];
+    final scores = [?account?.lenderScore, ?account?.renterScore];
+    final lowest = scores.isEmpty
+        ? null
+        : scores.reduce((a, b) => a < b ? a : b);
+    return [
+      if (overdue >= 3)
+        RiskFlag(
+          kind: RiskFlagKind.overdueReturns,
+          count: overdue,
+          windowDays: 30,
+        ),
+      if (cancellations >= 3)
+        RiskFlag(
+          kind: RiskFlagKind.cancellations,
+          count: cancellations,
+          windowDays: 30,
+        ),
+      if (disputes >= 2)
+        RiskFlag(kind: RiskFlagKind.disputes, count: disputes, windowDays: 30),
+      if (lowest != null && lowest < 30)
+        RiskFlag(kind: RiskFlagKind.lowTrust, count: lowest, windowDays: null),
+    ];
+  }
+
+  // ---- users -----------------------------------------------------------------
+
+  StaffUserRow _row(MockAccount a) => StaffUserRow(
+    accountId: a.id,
+    fullName: db.profiles[a.id]?.data.fullName,
+    email: a.email,
+    status: a.status,
+    lenderTrust: a.lenderScore,
+    renterTrust: a.renterScore,
+    riskFlags: riskFlags(a.id),
+  );
+
+  MockResponse users(MockRequest r) {
+    mockStaff(db, r);
+    final q = r.query['q']?.toString().trim().toLowerCase() ?? '';
+    final flagged = r.query['flagged']?.toString() == 'true';
+    final students =
+        db.accounts.values.where((a) => a.role == 'student').toList()
+          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    List<MockAccount> ids;
+    if (flagged) {
+      ids = students.where((a) => riskFlags(a.id).isNotEmpty).toList()
+        ..sort((a, b) {
+          final byCount = riskFlags(
+            b.id,
+          ).length.compareTo(riskFlags(a.id).length);
+          return byCount != 0 ? byCount : a.id.compareTo(b.id);
+        });
+    } else {
+      bool profileMatch(MockAccount a) {
+        final p = db.profiles[a.id]?.data;
+        if (p == null) return false;
+        return q.isEmpty ||
+            p.fullName.toLowerCase().contains(q) ||
+            p.rollNumber.toLowerCase().contains(q);
+      }
+
+      ids = students.where(profileMatch).toList();
+      if (q.isNotEmpty && (q.contains('@') || ids.isEmpty)) {
+        ids += [
+          for (final a in students)
+            if (!ids.contains(a) && a.email.toLowerCase().contains(q)) a,
+        ];
+      }
+    }
+    final offset = int.tryParse(r.query['cursor']?.toString() ?? '') ?? 0;
+    final limit = (int.tryParse(r.query['limit']?.toString() ?? '') ?? 20)
+        .clamp(1, 50);
+    final page = ids.skip(offset).take(limit).toList();
+    return MockResponse.json(
+      StaffUserRowPage(
+        items: [for (final a in page) _row(a)],
+        nextCursor: ids.length > offset + limit ? '${offset + limit}' : null,
+      ).toJson(),
+    );
+  }
+
+  MockAccount _student(MockRequest r) {
+    final a = db.accounts[r.pathParams['account_id']];
+    if (a == null || a.role != 'student') {
+      throw const MockApiError(404, 'NOT_FOUND', 'User not found');
+    }
+    return a;
+  }
+
+  StaffUserDetail userDetail(MockAccount a, MockAccount staff) {
+    final profile = db.profiles[a.id] == null
+        ? null
+        : mockProfileFor(db, a.id, staff);
+    final bookings = [
+      for (final b in db.bookings.values)
+        if (b.renterId == a.id)
+          views.summary(b, TradeRole.renter)
+        else if (b.ownerId == a.id)
+          views.summary(b, TradeRole.owner),
+    ]..sort((x, y) => y.updatedAt.compareTo(x.updatedAt));
+    final penalties =
+        db.trustPenalties
+            .where((p) => p.accountId == a.id && p.revokedAt == null)
+            .toList()
+          ..sort((x, y) => y.at.compareTo(x.at));
+    return StaffUserDetail(
+      profile: profile is ProfileStaff ? profile : null,
+      email: a.email,
+      status: a.status,
+      bookings: bookings,
+      riskFlags: riskFlags(a.id),
+      penalties: [
+        for (final p in penalties)
+          PenaltyOut(
+            role: p.role,
+            points: p.points,
+            reason: p.reason,
+            by: p.by,
+            at: p.at,
+          ),
+      ],
+    );
+  }
+
+  MockResponse user(MockRequest r) {
+    final staff = mockStaff(db, r);
+    return MockResponse.json(userDetail(_student(r), staff).toJson());
+  }
+
+  static void _checkReason(String reason) {
+    if (reason.trim().length < 3 || reason.length > 1000) {
+      throw mockValidation('reason', 'Must be 3-1000 characters');
+    }
+  }
+
+  MockResponse setStatus(MockRequest r) {
+    final staff = mockStaff(db, r);
+    final a = _student(r);
+    final body = mockParse(r, StatusChangeIn.fromJson);
+    _checkReason(body.reason);
+    if (body.status == AccountStatus.unknown) {
+      throw mockValidation('status', 'Input should be a known status');
+    }
+    a.status = body.status.json;
+    return MockResponse.json(userDetail(a, staff).toJson());
+  }
+
+  MockResponse trustPenalty(MockRequest r) {
+    final staff = mockStaff(db, r);
+    final a = _student(r);
+    final body = mockParse(r, PenaltyIn.fromJson);
+    _checkReason(body.reason);
+    if (body.points < 1 || body.points > 50) {
+      throw mockValidation('points', 'Must be 1-50');
+    }
+    final p = MockTrustPenalty(
+      id: db.nextId(),
+      accountId: a.id,
+      role: body.role,
+      points: body.points,
+      reason: body.reason,
+      by: staff.id,
+      at: now,
+    );
+    db.trustPenalties.add(p);
+    mockApplyPenalty(db, p);
+    return MockResponse.json(userDetail(a, staff).toJson());
+  }
+
+  // ---- listings --------------------------------------------------------------
+
+  MockResponse listings(MockRequest r) {
+    mockStaff(db, r);
+    final status = r.query['status'] == null
+        ? null
+        : ListingStatus.fromJson(r.query['status'].toString());
+    final q = r.query['q']?.toString().trim().toLowerCase() ?? '';
+    final rows =
+        db.listings.values
+            .where(
+              (l) =>
+                  (status == null || l.status == status) &&
+                  (q.isEmpty || l.title.toLowerCase().contains(q)),
+            )
+            .toList()
+          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    final offset = int.tryParse(r.query['cursor']?.toString() ?? '') ?? 0;
+    final limit = (int.tryParse(r.query['limit']?.toString() ?? '') ?? 20)
+        .clamp(1, 50);
+    final page = rows.skip(offset).take(limit).toList();
+    return MockResponse.json(
+      ListingCardPage(
+        items: [for (final l in page) mockListingCard(db, l)],
+        nextCursor: rows.length > offset + limit ? '${offset + limit}' : null,
+      ).toJson(),
+    );
+  }
+
+  MockResponse removeListing(MockRequest r) {
+    mockStaff(db, r);
+    final l = db.listings[r.pathParams['listing_id']];
+    if (l == null) {
+      throw const MockApiError(404, 'NOT_FOUND', 'Listing not found');
+    }
+    final reason = mockParse(r, ReasonIn.fromJson).reason;
+    _checkReason(reason);
+    l
+      ..status = ListingStatus.removed
+      ..removedReason = reason;
+    return MockResponse.json(mockListingCard(db, l).toJson());
   }
 }

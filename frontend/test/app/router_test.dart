@@ -11,6 +11,7 @@ import 'package:unirent/app/session.dart';
 import 'package:unirent/features/bookings/booking_screen.dart';
 import 'package:unirent/features/staff/staff_section_screen.dart';
 import 'package:unirent/features/staff/staff_tab.dart';
+import 'package:unirent/features/staff/users/users_screen.dart';
 
 import '../helpers/test_app.dart';
 
@@ -402,9 +403,12 @@ void main() {
       final app = await signedInAs(tester, 'admin@unirent.in');
       await app.tap(find.widgetWithText(Tab, 'Users'));
       expect(app.location, '/staff/users');
+      expect(find.byType(UsersScreen), findsOneWidget);
+      await app.tap(find.widgetWithText(Tab, 'Reports'));
+      expect(app.location, '/staff/reports');
       expect(
         find.byWidgetPredicate(
-          (w) => w is StaffSectionScreen && w.tab == StaffTab.users,
+          (w) => w is StaffSectionScreen && w.tab == StaffTab.reports,
         ),
         findsOneWidget,
       );
