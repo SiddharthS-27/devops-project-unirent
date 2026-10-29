@@ -1,8 +1,12 @@
 name: unirent
 
-# Services without a profile run in every profile (dev, test, staging).
-# One-shot init jobs use the "init" profile; make up runs them after the stack is healthy.
-# api, workers, the monitoring stack and test services are added in later weeks.
+# Profiles:
+#   (none)   postgres, redis, kafka and minio run in every profile
+#   dev      api with hot reload (`make watch`), kafka-ui
+#   test     api, the Razorpay simulator and the test runner (CI and make test-*)
+#   staging  api and workers from registry images, plus the monitoring stack
+#   init     one-shot jobs that make up runs once the stack is healthy
+#   tunnel   a cloudflared quick tunnel to the api, for Razorpay webhooks (opt-in)
 
 services:
   postgres:
@@ -11,11 +15,15 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      APP_DB_USER: ${APP_DB_USER}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD}
+      WORKERS_DB_USER: ${WORKERS_DB_USER}
+      WORKERS_DB_PASSWORD: ${WORKERS_DB_PASSWORD}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./postgres:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
@@ -90,6 +98,123 @@ services:
     entrypoint: >
       sh -c "mc alias set local http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD
       && mc mb --ignore-existing local/$$MINIO_BUCKET"
+
+  api:
+    build:
+      context: ..
+      dockerfile: infra/docker/api.Dockerfile
+    image: ${API_IMAGE:-unirent-api:dev}
+    profiles: [dev, test, staging]
+    restart: unless-stopped
+    # API_RELOAD=--reload in dev; empty elsewhere.
+    command: ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers $${API_RELOAD:-}"]
+    environment:
+      UNIRENT_ENVIRONMENT: ${ENVIRONMENT:-dev}
+      UNIRENT_DATABASE_URL: postgresql+asyncpg://${APP_DB_USER}:${APP_DB_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      UNIRENT_MIGRATION_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      UNIRENT_REDIS_URL: redis://redis:6379/0
+      UNIRENT_SERVICE_TOKEN: ${SERVICE_TOKEN}
+      UNIRENT_LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      UNIRENT_JWT_SECRET: ${JWT_SECRET}
+      UNIRENT_MS_AUTH_MODE: ${MS_AUTH_MODE:-mock}
+      UNIRENT_MS_CLIENT_ID: ${MS_CLIENT_ID:-mock-client}
+      UNIRENT_MS_TENANT_ID: ${MS_TENANT_ID:-mock-tenant}
+      UNIRENT_MS_ALLOWED_DOMAIN: ${MS_ALLOWED_DOMAIN:-college.edu}
+      UNIRENT_PHONE_AUTH_MODE: ${PHONE_AUTH_MODE:-mock}
+      UNIRENT_FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-unirent-dev}
+      UNIRENT_STORAGE_ENDPOINT: minio:9000
+      UNIRENT_STORAGE_PUBLIC_URL: ${STORAGE_PUBLIC_URL:-http://localhost:9000}
+      UNIRENT_STORAGE_ACCESS_KEY: ${MINIO_ROOT_USER}
+      UNIRENT_STORAGE_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      UNIRENT_STORAGE_BUCKET: ${MINIO_BUCKET}
+      UNIRENT_RAZORPAY_API_BASE: ${RAZORPAY_API_BASE:-http://razorpay-sim:8090}
+      UNIRENT_RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID}
+      UNIRENT_RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET}
+      UNIRENT_RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET}
+      UNIRENT_ADMIN_EMAIL: ${ADMIN_EMAIL}
+      UNIRENT_ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      API_RELOAD: ${API_RELOAD:-}
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    # `make watch` syncs source changes into the container; uvicorn reloads them.
+    develop:
+      watch:
+        - action: sync
+          path: ../backend
+          target: /src/backend
+        - action: sync
+          path: ../security
+          target: /src/security
+        - action: sync
+          path: ../payments
+          target: /src/payments
+
+  workers:
+    build:
+      context: ..
+      dockerfile: infra/docker/workers.Dockerfile
+    image: ${WORKERS_IMAGE:-unirent-workers:dev}
+    profiles: [dev, test, staging]
+    restart: unless-stopped
+    stop_grace_period: 30s
+    environment:
+      UNIRENT_ENVIRONMENT: ${ENVIRONMENT:-dev}
+      UNIRENT_WORKERS_DATABASE_URL: postgresql+asyncpg://${WORKERS_DB_USER}:${WORKERS_DB_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      UNIRENT_MIGRATION_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      UNIRENT_KAFKA_BOOTSTRAP: kafka:9092
+      UNIRENT_API_BASE_URL: http://api:8000
+      UNIRENT_SERVICE_TOKEN: ${SERVICE_TOKEN}
+      UNIRENT_PUSH_MODE: ${PUSH_MODE:-log}
+      UNIRENT_FCM_PROJECT_ID: ${FIREBASE_PROJECT_ID:-unirent-dev}
+      UNIRENT_FCM_CREDENTIALS_FILE: /run/secrets/fcm.json
+      UNIRENT_LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+      api:
+        condition: service_healthy
+
+  # One-shot: create the topics in workers/topics.yaml before anything uses them.
+  kafka-init:
+    image: apache/kafka:3.8.0
+    profiles: [dev, test, staging]
+    entrypoint: ["sh", "/create-topics.sh", "/topics.yaml"]
+    volumes:
+      - ../workers/topics.yaml:/topics.yaml:ro
+      - ./scripts/create-topics.sh:/create-topics.sh:ro
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  # Opt-in (`make tunnel`): a public HTTPS URL for the api, so Razorpay test-mode
+  # webhooks reach a laptop. Set the webhook URL in the Razorpay dashboard to
+  # <tunnel URL>/api/v1/payments/webhooks/razorpay.
+  tunnel:
+    image: cloudflare/cloudflared:2024.12.2
+    profiles: [tunnel]
+    command: ["tunnel", "--no-autoupdate", "--url", "http://api:8000"]
+    depends_on:
+      api:
+        condition: service_healthy
+
+  kafka-ui:
+    image: ghcr.io/kafbat/kafka-ui:v1.2.0
+    profiles: [dev]
+    environment:
+      KAFKA_CLUSTERS_0_NAME: unirent
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+    ports:
+      - "${KAFKA_UI_PORT:-8080}:8080"
+    depends_on:
+      kafka:
+        condition: service_healthy
 
 volumes:
   postgres-data:
