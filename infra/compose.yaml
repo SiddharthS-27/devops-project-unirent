@@ -138,6 +138,7 @@ services:
       UNIRENT_RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID}
       UNIRENT_RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET}
       UNIRENT_RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET}
+      UNIRENT_RAZORPAY_ROUTE: ${RAZORPAY_ROUTE:-true}
       UNIRENT_ADMIN_EMAIL: ${ADMIN_EMAIL}
       UNIRENT_ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       UNIRENT_SIGNIN_LIMIT_PER_MINUTE: ${SIGNIN_LIMIT_PER_MINUTE:-10}
@@ -211,7 +212,8 @@ services:
   tunnel:
     image: cloudflare/cloudflared:2024.12.2
     profiles: [tunnel]
-    command: ["tunnel", "--no-autoupdate", "--url", "http://api:8000"]
+    # http2 over TCP: campus networks often block the QUIC (UDP) default.
+    command: ["tunnel", "--no-autoupdate", "--protocol", "http2", "--url", "http://api:8000"]
     depends_on:
       api:
         condition: service_healthy
