@@ -9,8 +9,7 @@ import 'package:unirent/api/mock/mock_server.dart';
 import 'package:unirent/app/routes.dart';
 import 'package:unirent/app/session.dart';
 import 'package:unirent/features/bookings/booking_screen.dart';
-import 'package:unirent/features/staff/staff_section_screen.dart';
-import 'package:unirent/features/staff/staff_tab.dart';
+import 'package:unirent/features/staff/admin/moderators_screen.dart';
 import 'package:unirent/features/staff/users/users_screen.dart';
 
 import '../helpers/test_app.dart';
@@ -406,12 +405,7 @@ void main() {
       expect(find.byType(UsersScreen), findsOneWidget);
       await app.tap(find.widgetWithText(Tab, 'Moderators'));
       expect(app.location, '/staff/moderators');
-      expect(
-        find.byWidgetPredicate(
-          (w) => w is StaffSectionScreen && w.tab == StaffTab.moderators,
-        ),
-        findsOneWidget,
-      );
+      expect(find.byType(ModeratorsScreen), findsOneWidget);
       await app.tap(find.byTooltip('Sign out'));
       expect(app.location, Routes.signIn);
     });

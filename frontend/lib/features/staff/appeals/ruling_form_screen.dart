@@ -13,17 +13,24 @@ import 'appeal_providers.dart';
 
 /// Rules on an appeal: a summary sent to both sides plus any of a charge,
 /// a refund, a trust penalty, removing the listing, or a suspension or ban.
+///
+/// With [overrule] the admin replaces the latest ruling instead.
 class RulingFormScreen extends ConsumerWidget {
-  const RulingFormScreen({super.key, required this.appealId});
+  const RulingFormScreen({
+    super.key,
+    required this.appealId,
+    this.overrule = false,
+  });
 
   final String appealId;
+  final bool overrule;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final detail = ref.watch(staffAppealProvider(appealId));
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Ruling'),
+        title: Text(overrule ? 'Overrule' : 'Ruling'),
         leading: context.canPop()
             ? null
             : BackButton(
@@ -38,7 +45,7 @@ class RulingFormScreen extends ConsumerWidget {
           message: friendlyMessage(error),
           onRetry: () => ref.invalidate(staffAppealProvider(appealId)),
         ),
-        data: (d) => _RulingForm(detail: d),
+        data: (d) => _RulingForm(detail: d, overrule: overrule),
       ),
     );
   }
@@ -47,9 +54,10 @@ class RulingFormScreen extends ConsumerWidget {
 enum _Party { renter, owner }
 
 class _RulingForm extends ConsumerStatefulWidget {
-  const _RulingForm({required this.detail});
+  const _RulingForm({required this.detail, required this.overrule});
 
   final AppealDetail detail;
+  final bool overrule;
 
   @override
   ConsumerState<_RulingForm> createState() => _RulingFormState();
@@ -137,10 +145,16 @@ class _RulingFormState extends ConsumerState<_RulingForm> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Send this ruling?'),
+        title: Text(
+          widget.overrule ? 'Replace the ruling?' : 'Send this ruling?',
+        ),
         content: Text(
           [
-            'Both sides are notified and the booking moves on.',
+            if (widget.overrule)
+              'The current ruling’s penalty, suspension or ban and listing '
+                  'removal are reversed. Both sides are notified.'
+            else
+              'Both sides are notified and the booking moves on.',
             '',
             if (outcomes.isEmpty) 'No action besides the summary.',
             for (final o in outcomes) '•  $o',
@@ -164,18 +178,28 @@ class _RulingFormState extends ConsumerState<_RulingForm> {
     final id = widget.detail.appeal.id;
     setState(() => _saving = true);
     try {
-      await ref.read(apiProvider).staff.rule(id, ruling);
+      final api = ref.read(apiProvider);
+      await (widget.overrule
+          ? api.admin.overrule(id, ruling)
+          : api.staff.rule(id, ruling));
       ref
         ..invalidate(staffAppealProvider(id))
         ..invalidate(staffAppealsProvider);
       messenger
         ..hideCurrentSnackBar()
         ..showSnackBar(
-          const SnackBar(content: Text('Ruling sent to both sides.')),
+          SnackBar(
+            content: Text(
+              widget.overrule
+                  ? 'New ruling sent to both sides.'
+                  : 'Ruling sent to both sides.',
+            ),
+          ),
         );
       router.canPop() ? router.pop() : router.go(Routes.staffAppeal(id));
     } catch (error) {
-      if (error is ApiException && error.code == 'APPEAL_RULED') {
+      if (error is ApiException &&
+          (error.code == 'APPEAL_RULED' || error.code == 'APPEAL_OPEN')) {
         ref.invalidate(staffAppealProvider(id));
       }
       messenger
@@ -215,6 +239,14 @@ class _RulingFormState extends ConsumerState<_RulingForm> {
               appealReasonLabel(widget.detail.appeal.reason),
               style: theme.textTheme.bodySmall,
             ),
+            if (widget.overrule) ...[
+              const SizedBox(height: AppSpacing.md),
+              const Text(
+                'This replaces the latest ruling. Its trust penalty, '
+                'suspension or ban and listing removal are reversed; a '
+                'refund already paid out stays paid.',
+              ),
+            ],
             gap,
             AppTextField(
               controller: _summary,

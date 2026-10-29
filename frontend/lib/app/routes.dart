@@ -72,6 +72,7 @@ abstract final class Routes {
   static String staffAppeal(String id) =>
       '${StaffTab.appeals.path}/${Uri.encodeComponent(id)}';
   static String staffAppealRule(String id) => '${staffAppeal(id)}/rule';
+  static String staffAppealOverrule(String id) => '${staffAppeal(id)}/overrule';
   static final String staffSupport = StaffTab.support.path;
   static String staffThread(String id) =>
       '$staffSupport/${Uri.encodeComponent(id)}';

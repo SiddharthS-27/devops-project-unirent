@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../api/api.dart';
 import '../../../app/error_messages.dart';
 import '../../../app/routes.dart';
+import '../../../app/session.dart';
 import '../../../ui/ui.dart' hide TimelineStep, TimelineStepState;
 import '../../../ui/widgets/status_timeline.dart' as ui;
 import '../../bookings/booking_format.dart';
@@ -40,7 +41,10 @@ class AppealDetailScreen extends ConsumerWidget {
         ),
         data: (d) => RefreshIndicator(
           onRefresh: () => ref.refresh(staffAppealProvider(appealId).future),
-          child: _AppealDetailBody(detail: d),
+          child: _AppealDetailBody(
+            detail: d,
+            isAdmin: ref.watch(sessionProvider).status == SessionStatus.admin,
+          ),
         ),
       ),
     );
@@ -71,9 +75,12 @@ List<String> rulingOutcomes(RulingOut r, BookingOut b) {
 }
 
 class _AppealDetailBody extends StatelessWidget {
-  const _AppealDetailBody({required this.detail});
+  const _AppealDetailBody({required this.detail, required this.isAdmin});
 
   final AppealDetail detail;
+
+  /// Only the admin can overrule a ruling.
+  final bool isAdmin;
 
   ui.TimelineStepState _state(TimelineStepState s) => switch (s) {
     TimelineStepState.done ||
@@ -137,6 +144,14 @@ class _AppealDetailBody extends StatelessWidget {
             ],
           ),
         ),
+        if (a.status != AppealStatus.open && isAdmin) ...[
+          const SizedBox(height: AppSpacing.lg),
+          AppButton.secondary(
+            label: 'Overrule this ruling',
+            icon: Icons.swap_horiz,
+            onPressed: () => context.push(Routes.staffAppealOverrule(a.id)),
+          ),
+        ],
         if (a.status == AppealStatus.open) ...[
           const SizedBox(height: AppSpacing.lg),
           AppButton.primary(

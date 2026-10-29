@@ -78,7 +78,7 @@ double _similarity(String question, String message) {
 }
 
 String _lateFeeText(MockDb db) {
-  final rule = mockLateFeeRule(db.clock().toUtc());
+  final rule = mockLateFeeRule(db.clock().toUtc(), db);
   final base = rule.baseFeePaise / 100;
   final percent = rule.hourlyPercentBp / 100;
   String n(num v) => v == v.roundToDouble() ? '${v.round()}' : '$v';

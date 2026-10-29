@@ -120,13 +120,27 @@ class MockSavedSearch {
 }
 
 /// The late-fee rule shown on rent listings.
-LateFeeRuleOut mockLateFeeRule(DateTime now) => LateFeeRuleOut(
+/// The first late-fee rule version, in force since 90 days before [now].
+LateFeeRuleVersion mockSeedLateFeeRule(DateTime now) => LateFeeRuleVersion(
   id: '00000000-0000-4000-a000-000000000001',
+  version: 1,
   graceMinutes: 30,
   baseFeePaise: 5000,
   hourlyPercentBp: 200,
   effectiveFrom: now.subtract(const Duration(days: 90)),
 );
+
+/// The late-fee rule in force: the admin's latest version, else the seed.
+LateFeeRuleOut mockLateFeeRule(DateTime now, MockDb db) {
+  final rule = db.lateFeeRules.lastOrNull ?? mockSeedLateFeeRule(now);
+  return LateFeeRuleOut(
+    id: rule.id,
+    graceMinutes: rule.graceMinutes,
+    baseFeePaise: rule.baseFeePaise,
+    hourlyPercentBp: rule.hourlyPercentBp,
+    effectiveFrom: rule.effectiveFrom,
+  );
+}
 
 const _descriptions = {
   ListingCategory.cameras:

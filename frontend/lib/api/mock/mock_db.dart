@@ -42,6 +42,7 @@ class MockAccount {
   String? name;
   String? phone;
   DateTime? phoneVerifiedAt;
+  DateTime? lastLoginAt;
   final DateTime createdAt;
 
   /// Lender trust score; null while the user is New.
@@ -176,6 +177,10 @@ class MockDb {
   final rulings = <MockRuling>[];
   final trustPenalties = <MockTrustPenalty>[];
   final auditLog = <MockAuditEntry>[];
+
+  /// Late-fee rule versions the admin set, oldest first (the seed rule is
+  /// version 1 and isn't stored).
+  final lateFeeRules = <LateFeeRuleVersion>[];
   final reconciliationRuns = <String, MockReconciliationRun>{};
 
   /// Replayed responses by `account:Idempotency-Key`.

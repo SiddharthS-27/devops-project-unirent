@@ -253,11 +253,15 @@ class MockBooking {
     return minutes < 0 ? 0 : minutes;
   }
 
-  int liveLateFee(DateTime now) {
+  int liveLateFee(DateTime now, MockDb db) {
     final frozen = frozenLateFeePaise;
     if (frozen != null) return frozen;
     if (kind != TradeKind.rent) return 0;
-    return mockLateFee(mockLateFeeRule(now), amountPaise, overdueMinutes(now));
+    return mockLateFee(
+      mockLateFeeRule(now, db),
+      amountPaise,
+      overdueMinutes(now),
+    );
   }
 
   /// Approved extensions not paid by UPI: owed at the return (backend
@@ -589,7 +593,7 @@ class MockBookingViews {
 
   Charges? charges(MockBooking b) {
     if (b.kind != TradeKind.rent || b.pickupCompletedAt == null) return null;
-    final late = b.liveLateFee(now);
+    final late = b.liveLateFee(now, db);
     final total = late + b.damagePaise + b.cashExtensionsPaise;
     if (total == 0 && b.returnStartedAt == null) return null;
     final payment = b.paymentFor(PaymentPurpose.returnCharges);
@@ -676,7 +680,7 @@ class MockBookingViews {
       startAt: b.startAt,
       endAt: b.endAt,
       amountPaise: b.amountPaise,
-      lateFeeRule: b.kind == TradeKind.rent ? mockLateFeeRule(now) : null,
+      lateFeeRule: b.kind == TradeKind.rent ? mockLateFeeRule(now, db) : null,
       timeline: timeline(b),
       nextAction: nextAction(b, role),
       pickup: handover(b, MockPhase.pickup),

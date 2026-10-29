@@ -113,7 +113,7 @@ class MockBookingHandlers {
       moveTo(b, BookingStatus.expired);
     }
     if (b.status == BookingStatus.active) {
-      final grace = Duration(minutes: mockLateFeeRule(now).graceMinutes);
+      final grace = Duration(minutes: mockLateFeeRule(now, db).graceMinutes);
       final overdueAt = b.endAt!.add(grace);
       if (!now.isBefore(overdueAt)) {
         moveTo(b, BookingStatus.overdue);
@@ -224,7 +224,7 @@ class MockBookingHandlers {
         hours: hours,
         amountPaise: amount,
         lateFeeRule: listing.kind == TradeKind.rent
-            ? mockLateFeeRule(now)
+            ? mockLateFeeRule(now, db)
             : null,
       ).toJson(),
     );
@@ -912,7 +912,7 @@ class MockBookingHandlers {
     final b = booking(r, renter);
     checkCode(r, b, renter, MockPhase.returnPhase);
     b
-      ..frozenLateFeePaise = b.liveLateFee(now)
+      ..frozenLateFeePaise = b.liveLateFee(now, db)
       ..returnCompletedAt = now
       ..updatedAt = now;
     final asset = db.assets[db.listings[b.listingId]!.assetId];

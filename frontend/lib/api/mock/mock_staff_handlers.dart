@@ -194,7 +194,7 @@ class MockStaffHandlers {
     return MockResponse.json(detail(_appeal(r), viewer).toJson());
   }
 
-  RulingIn _rulingBody(MockRequest r, MockBooking b) {
+  RulingIn rulingBody(MockRequest r, MockBooking b) {
     final body = mockParse(r, RulingIn.fromJson);
     if (body.summary.length < 5 || body.summary.length > 2000) {
       throw mockValidation('summary', 'Must be 5-2000 characters');
@@ -328,7 +328,7 @@ class MockStaffHandlers {
       appealId: a.id,
       ruledBy: staff.id,
       ruledAt: now,
-      body: _rulingBody(r, b),
+      body: rulingBody(r, b),
     );
     apply(b, ruling, staff);
     db.rulings.add(ruling);

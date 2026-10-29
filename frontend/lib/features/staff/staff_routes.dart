@@ -1,6 +1,8 @@
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
+import 'admin/late_fee_rule_screen.dart';
+import 'admin/moderators_screen.dart';
 import 'appeals/appeal_detail_screen.dart';
 import 'appeals/appeals_queue_screen.dart';
 import 'appeals/ruling_form_screen.dart';
@@ -8,7 +10,6 @@ import 'escalations/escalations_screen.dart';
 import 'listings/staff_listings_screen.dart';
 import 'reports/reconciliation_report_screen.dart';
 import 'reports/reports_screen.dart';
-import 'staff_section_screen.dart';
 import 'staff_tab.dart';
 import 'support/staff_thread_screen.dart';
 import 'support/support_inbox_screen.dart';
@@ -23,7 +24,8 @@ Widget staffTabScreen(StaffTab tab) => switch (tab) {
   StaffTab.users => const UsersScreen(),
   StaffTab.listings => const StaffListingsScreen(),
   StaffTab.reports => const ReportsScreen(),
-  _ => StaffSectionScreen(tab: tab),
+  StaffTab.lateFeeRule => const LateFeeRuleScreen(),
+  StaffTab.moderators => const ModeratorsScreen(),
 };
 
 /// Detail pages under a staff tab; they open over the shell (on [root]).
@@ -41,6 +43,14 @@ List<RouteBase> staffTabRoutes(StaffTab tab, GlobalKey<NavigatorState> root) =>
               parentNavigatorKey: root,
               builder: (context, state) =>
                   RulingFormScreen(appealId: state.pathParameters['id']!),
+            ),
+            GoRoute(
+              path: 'overrule',
+              parentNavigatorKey: root,
+              builder: (context, state) => RulingFormScreen(
+                appealId: state.pathParameters['id']!,
+                overrule: true,
+              ),
             ),
           ],
         ),

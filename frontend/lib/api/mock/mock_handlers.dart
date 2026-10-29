@@ -201,6 +201,7 @@ class _Handlers {
   MockResponse staffLogin(MockRequest r) {
     final body = mockParse(r, StaffLogin.fromJson);
     final account = _staffAuthenticate(body.email, body.password);
+    account.lastLoginAt = db.clock().toUtc();
     return MockResponse.json(db.issueTokens(account).toJson());
   }
 

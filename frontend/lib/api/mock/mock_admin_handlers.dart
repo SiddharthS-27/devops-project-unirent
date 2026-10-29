@@ -1,6 +1,7 @@
 import '../generated/models.dart';
 import 'mock_db.dart';
 import 'mock_handlers.dart';
+import 'mock_listings.dart';
 import 'mock_server.dart';
 import 'mock_staff_handlers.dart';
 
@@ -122,6 +123,11 @@ Map<String, MockHandler> adminHandlers(MockDb db) {
     'GET /api/v1/admin/reconciliation/runs': h.runs,
     'GET /api/v1/admin/reconciliation/runs/{run_id}': h.report,
     'POST /api/v1/admin/reconciliation/run': h.runNow,
+    'GET /api/v1/admin/late-fee-rule': h.lateFeeRules,
+    'POST /api/v1/admin/late-fee-rule': h.setLateFeeRule,
+    'GET /api/v1/admin/moderators': h.moderators,
+    'POST /api/v1/admin/moderators': h.createModerator,
+    'POST /api/v1/admin/appeals/{appeal_id}/overrule': h.overrule,
   };
 }
 
@@ -296,5 +302,169 @@ class _AdminHandlers {
       'reconciliation:${run.id}',
     );
     return MockResponse.json(_report(run).toJson());
+  }
+
+  // ---- late-fee rule ----------------------------------------------------------
+
+  List<LateFeeRuleVersion> get _versions => [
+    mockSeedLateFeeRule(now),
+    ...db.lateFeeRules,
+  ];
+
+  MockResponse lateFeeRules(MockRequest r) {
+    _admin(r);
+    return MockResponse.json([for (final v in _versions.reversed) v.toJson()]);
+  }
+
+  MockResponse setLateFeeRule(MockRequest r) {
+    final admin = _admin(r);
+    final body = mockParse(r, LateFeeRuleIn.fromJson);
+    if (body.graceMinutes < 0 || body.graceMinutes > 24 * 60) {
+      throw mockValidation('grace_minutes', 'Must be 0-1440');
+    }
+    if (body.baseFeePaise < 0 || body.baseFeePaise > 1000000) {
+      throw mockValidation('base_fee_paise', 'Must be 0-1000000');
+    }
+    if (body.hourlyPercentBp < 0 || body.hourlyPercentBp > 10000) {
+      throw mockValidation('hourly_percent_bp', 'Must be 0-10000');
+    }
+    final rule = LateFeeRuleVersion(
+      id: db.nextId(),
+      version: _versions.last.version + 1,
+      graceMinutes: body.graceMinutes,
+      baseFeePaise: body.baseFeePaise,
+      hourlyPercentBp: body.hourlyPercentBp,
+      effectiveFrom: now,
+    );
+    db.lateFeeRules.add(rule);
+    mockAudit(
+      db,
+      admin,
+      'admin.late_fee_rule_set',
+      'late_fee_rule:${rule.id}',
+      body.toJson(),
+    );
+    return MockResponse(201, rule.toJson());
+  }
+
+  // ---- moderators -------------------------------------------------------------
+
+  StaffAccountOut _staffOut(MockAccount a) => StaffAccountOut(
+    id: a.id,
+    email: a.email,
+    name: a.name,
+    role: a.role,
+    status: a.status,
+    createdAt: a.createdAt,
+    lastLoginAt: a.lastLoginAt,
+  );
+
+  MockResponse moderators(MockRequest r) {
+    _admin(r);
+    final mods = db.accounts.values.where((a) => a.role == 'moderator').toList()
+      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    return MockResponse.json([for (final a in mods) _staffOut(a).toJson()]);
+  }
+
+  MockResponse createModerator(MockRequest r) {
+    final admin = _admin(r);
+    final body = mockParse(r, ModeratorCreate.fromJson);
+    final email = body.email.trim().toLowerCase();
+    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
+      throw mockValidation('email', 'Not a valid email address');
+    }
+    if (body.name.trim().isEmpty || body.name.length > 200) {
+      throw mockValidation('name', 'Must be 1-200 characters');
+    }
+    if (body.temporaryPassword.isEmpty || body.temporaryPassword.length > 200) {
+      throw mockValidation('temporary_password', 'Must be 1-200 characters');
+    }
+    if (db.accountByEmail(email) != null) {
+      throw const MockApiError(
+        409,
+        'EMAIL_IN_USE',
+        'An account with this email already exists',
+      );
+    }
+    final account = db.addAccount(
+      MockAccount(
+        id: db.nextId(),
+        email: email,
+        role: 'moderator',
+        name: body.name.trim(),
+        password: body.temporaryPassword,
+        mustChangePassword: true,
+        createdAt: now,
+      ),
+    );
+    mockAudit(db, admin, 'admin.moderator_created', 'account:${account.id}');
+    return MockResponse(201, _staffOut(account).toJson());
+  }
+
+  // ---- overrule -----------------------------------------------------------------
+
+  /// Replaces the latest ruling, reversing what can be reversed (a refund
+  /// already paid stays paid), like backend `appeals.overrule`.
+  MockResponse overrule(MockRequest r) {
+    final admin = _admin(r);
+    final staff = MockStaffHandlers(db);
+    final appeal = db.appeals[r.pathParams['appeal_id']];
+    if (appeal == null) {
+      throw const MockApiError(404, 'NOT_FOUND', 'Appeal not found');
+    }
+    if (appeal.status == AppealStatus.open) {
+      throw const MockApiError(
+        409,
+        'APPEAL_OPEN',
+        'There is no ruling to overrule yet',
+      );
+    }
+    final b = db.bookings[appeal.bookingId]!;
+    final body = staff.rulingBody(r, b);
+    final previous = db.rulings
+        .where((x) => x.appealId == appeal.id)
+        .fold<MockRuling?>(
+          null,
+          (last, x) =>
+              last == null || !x.ruledAt.isBefore(last.ruledAt) ? x : last,
+        );
+    if (previous != null) {
+      for (final p in db.trustPenalties) {
+        if (p.rulingId == previous.id && p.revokedAt == null) {
+          p.revokedAt = now;
+          mockApplyPenalty(db, p, undo: true);
+        }
+      }
+      final action = previous.body.accountAction;
+      if (action != null) db.accounts[action.accountId]?.status = 'active';
+      if (previous.body.removeListing) {
+        final listing = db.listings[b.listingId];
+        if (listing != null && listing.status == ListingStatus.removed) {
+          listing
+            ..status = ListingStatus.paused
+            ..removedReason = null;
+        }
+      }
+    }
+    final ruling = MockRuling(
+      id: db.nextId(),
+      appealId: appeal.id,
+      ruledBy: admin.id,
+      ruledAt: now,
+      body: body,
+      overrules: previous?.id,
+    );
+    staff.apply(b, ruling, admin);
+    db.rulings.add(ruling);
+    appeal.status = AppealStatus.overruled;
+    b.updatedAt = now;
+    mockAudit(
+      db,
+      admin,
+      'admin.overrule',
+      'appeal:${appeal.id}',
+      body.toJson(),
+    );
+    return MockResponse.json(staff.detail(appeal, admin).toJson());
   }
 }

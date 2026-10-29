@@ -286,7 +286,7 @@ class _ListingHandlers {
       photos: [for (final p in l.photos) PhotoOut(id: p.id, url: p.url)],
       asset: asset(a, viewer),
       lateFeeRule: l.kind == TradeKind.rent
-          ? mockLateFeeRule(db.clock().toUtc())
+          ? mockLateFeeRule(db.clock().toUtc(), db)
           : null,
       unavailable: l.unavailable,
       isMine: mine,
