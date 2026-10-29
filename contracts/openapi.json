@@ -6250,6 +6250,7 @@
     },
     "/api/v1/admin/audit-log": {
       "get": {
+        "description": "Every staff action, newest first. Read only: the log can't be edited.",
         "operationId": "audit_log_api_v1_admin_audit_log_get",
         "parameters": [
           {
@@ -6373,7 +6374,7 @@
         ]
       },
       "post": {
-        "description": "Staging only: move the clock forward for the demo (for example to an overdue rental).",
+        "description": "Staging only: move the clock forward for the demo (for example to an overdue\nrental). Timers that fall due fire on the timer runner's next pass.",
         "operationId": "set_clock_api_v1_admin_clock_post",
         "requestBody": {
           "content": {
@@ -6496,6 +6497,7 @@
     },
     "/api/v1/admin/metrics": {
       "get": {
+        "description": "Platform health for the admin's metrics screen.",
         "operationId": "metrics_api_v1_admin_metrics_get",
         "responses": {
           "200": {
