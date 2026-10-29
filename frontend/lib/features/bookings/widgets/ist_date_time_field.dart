@@ -51,6 +51,7 @@ class IstDateTimeField extends StatelessWidget {
     return Semantics(
       button: true,
       label: '$label, $text',
+      onTap: onTap,
       child: ExcludeSemantics(
         child: InkWell(
           onTap: onTap,

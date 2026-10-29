@@ -163,10 +163,14 @@ class _OtpEntryState extends State<OtpEntry> {
                               : 1,
                         ),
                       ),
-                      child: Text(
-                        i < text.length ? text[i] : '',
-                        style: theme.textTheme.titleLarge?.copyWith(
-                          fontFeatures: AppTypography.tabularFigures,
+                      // Digits shrink to fit the box with large text.
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          i < text.length ? text[i] : '',
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontFeatures: AppTypography.tabularFigures,
+                          ),
                         ),
                       ),
                     ),

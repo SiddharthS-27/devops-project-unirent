@@ -434,6 +434,7 @@ class _ListingFormState extends ConsumerState<_ListingForm> {
             gap,
             DropdownButtonFormField<ListingCategory>(
               initialValue: _category,
+              isExpanded: true,
               decoration: const InputDecoration(labelText: 'Category'),
               items: [
                 for (final c in listingCategories)
@@ -446,6 +447,7 @@ class _ListingFormState extends ConsumerState<_ListingForm> {
             gap,
             DropdownButtonFormField<ItemCondition>(
               initialValue: _condition,
+              isExpanded: true,
               decoration: const InputDecoration(labelText: 'Condition'),
               items: [
                 for (final c in listingConditions)
@@ -692,6 +694,7 @@ class _AddPhotoTile extends StatelessWidget {
     return Semantics(
       button: true,
       label: 'Add photo',
+      onTap: onTap,
       child: ExcludeSemantics(
         child: InkWell(
           onTap: onTap,
@@ -703,13 +706,20 @@ class _AddPhotoTile extends StatelessWidget {
               borderRadius: BorderRadius.circular(AppRadius.md),
               border: Border.all(color: scheme.outline),
             ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.add_a_photo_outlined, color: scheme.primary),
-                const SizedBox(height: AppSpacing.xs),
-                Text('Add photo', style: TextStyle(color: scheme.primary)),
-              ],
+            // Scales down with large text instead of overflowing the tile.
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.xs),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.add_a_photo_outlined, color: scheme.primary),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text('Add photo', style: TextStyle(color: scheme.primary)),
+                  ],
+                ),
+              ),
             ),
           ),
         ),

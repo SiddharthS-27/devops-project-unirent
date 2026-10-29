@@ -127,6 +127,7 @@ class _FilterSheetState extends State<FilterSheet> {
               gap,
               DropdownButtonFormField<ListingCategory?>(
                 initialValue: _filters.category,
+                isExpanded: true,
                 decoration: const InputDecoration(labelText: 'Category'),
                 items: [
                   const DropdownMenuItem(child: Text('All categories')),

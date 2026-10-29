@@ -215,6 +215,7 @@ class _ProfileFormScreenState extends ConsumerState<ProfileFormScreen> {
           gap,
           DropdownButtonFormField<int>(
             initialValue: _year,
+            isExpanded: true,
             decoration: const InputDecoration(labelText: 'Year of study'),
             items: [
               for (var year = 1; year <= 6; year++)

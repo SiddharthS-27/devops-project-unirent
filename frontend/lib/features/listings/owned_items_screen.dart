@@ -72,43 +72,61 @@ class _OwnedItem extends StatelessWidget {
     final live = hasLiveListing(asset);
     final listingId = asset.listingId;
     final history = [...asset.history]..sort((a, b) => b.at.compareTo(a.at));
+    final summary = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox.square(
+          dimension: 72,
+          child: ListingPhoto(
+            url: asset.photoUrl,
+            category: asset.category,
+            borderRadius: BorderRadius.circular(AppRadius.md),
+          ),
+        ),
+        const SizedBox(width: AppSpacing.md),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(asset.title, style: theme.textTheme.titleSmall),
+              Text(
+                categoryLabel(asset.category),
+                style: theme.textTheme.bodySmall,
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Chip(
+                label: Text(ownedItemStatus(asset.listingStatus)),
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
     return AppCard(
-      onTap: live ? () => context.push(Routes.listing(listingId!)) : null,
       padding: const EdgeInsets.all(AppSpacing.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox.square(
-                dimension: 72,
-                child: ListingPhoto(
-                  url: asset.photoUrl,
-                  category: asset.category,
+          if (live)
+            // Only the summary opens the listing, so it doesn't swallow the
+            // history and buttons below.
+            Semantics(
+              button: true,
+              label:
+                  '${asset.title}, ${ownedItemStatus(asset.listingStatus)}. '
+                  'Open listing',
+              onTap: () => context.push(Routes.listing(listingId!)),
+              child: ExcludeSemantics(
+                child: InkWell(
                   borderRadius: BorderRadius.circular(AppRadius.md),
+                  onTap: () => context.push(Routes.listing(listingId!)),
+                  child: summary,
                 ),
               ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(asset.title, style: theme.textTheme.titleSmall),
-                    Text(
-                      categoryLabel(asset.category),
-                      style: theme.textTheme.bodySmall,
-                    ),
-                    const SizedBox(height: AppSpacing.xs),
-                    Chip(
-                      label: Text(ownedItemStatus(asset.listingStatus)),
-                      visualDensity: VisualDensity.compact,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+            )
+          else
+            summary,
           if (!live)
             Align(
               alignment: Alignment.centerRight,

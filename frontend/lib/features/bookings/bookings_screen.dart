@@ -37,45 +37,45 @@ class _BookingsScreenState extends State<BookingsScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Bookings'),
-          bottom: PreferredSize(
-            preferredSize: const Size.fromHeight(
-              kTextTabBarHeight + AppSizes.minTouchTarget + AppSpacing.lg,
-            ),
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.screen,
-                  ),
-                  child: SegmentedButton<TradeRole>(
-                    segments: const [
-                      ButtonSegment(
-                        value: TradeRole.renter,
-                        label: Text('Renting & buying'),
-                      ),
-                      ButtonSegment(
-                        value: TradeRole.owner,
-                        label: Text('Lending & selling'),
-                      ),
-                    ],
-                    selected: {_role},
-                    onSelectionChanged: (s) => setState(() => _role = s.single),
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                TabBar(
-                  isScrollable: true,
-                  tabAlignment: TabAlignment.start,
-                  tabs: [for (final (_, label) in _groups) Tab(text: label)],
-                ),
-              ],
-            ),
+          bottom: TabBar(
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
+            tabs: [for (final (_, label) in _groups) Tab(text: label)],
           ),
         ),
-        body: TabBarView(
+        // The role switch sits in the body so it can grow with large text.
+        body: Column(
           children: [
-            for (final (group, _) in _groups)
-              _BookingList(role: _role, group: group),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.screen,
+                AppSpacing.md,
+                AppSpacing.screen,
+                0,
+              ),
+              child: SegmentedButton<TradeRole>(
+                segments: const [
+                  ButtonSegment(
+                    value: TradeRole.renter,
+                    label: Text('Renting & buying'),
+                  ),
+                  ButtonSegment(
+                    value: TradeRole.owner,
+                    label: Text('Lending & selling'),
+                  ),
+                ],
+                selected: {_role},
+                onSelectionChanged: (s) => setState(() => _role = s.single),
+              ),
+            ),
+            Expanded(
+              child: TabBarView(
+                children: [
+                  for (final (group, _) in _groups)
+                    _BookingList(role: _role, group: group),
+                ],
+              ),
+            ),
           ],
         ),
       ),
