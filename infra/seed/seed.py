@@ -1,4 +1,5 @@
-"""Demo data: the admin, 2 moderators, 10 students and 20 listings.
+"""Demo data: the admin, 2 moderators, 10 students, 20 listings and a booking in
+every state.
 
 Runs inside the api container (make seed) through the app's own services, so the
 data obeys the same rules as real use. Safe to run twice: existing accounts are
@@ -11,7 +12,7 @@ import os
 import struct
 import uuid
 import zlib
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from minio import Minio
 from sqlalchemy import select
@@ -208,6 +209,181 @@ async def ensure_listings(session, students: list[Account]) -> None:
         print(f"  listing   {title}")
 
 
+STATES = [
+    "requested",
+    "approved",
+    "declined",
+    "withdrawn",
+    "expired",
+    "cancelled",
+    "active",
+    "overdue",
+    "returning",
+    "in_appeal",
+    "awaiting_reviews",
+    "completed",
+]
+
+
+async def ensure_bookings(session, students: list[Account]) -> None:
+    """At least one booking in every state, between the seeded students, with the
+    payments, cancellation, appeal and reviews each state implies. Paid in cash,
+    so reconciliation against Razorpay has nothing to flag."""
+    from unirent_payments import mark_cash_paid, start_payment
+    from unirent_payments.late_fees import current_late_fee_rule
+
+    from app.core.clock import now
+    from app.modules.bookings.models import Booking, Cancellation
+    from app.modules.moderation.models import Appeal
+    from app.modules.reviews.models import Review
+    from app.modules.trust import service as trust
+
+    ids = [s.id for s in students]
+    if await session.scalar(select(Booking.id).where(Booking.renter_id.in_(ids)).limit(1)):
+        return
+    rentals = list(
+        await session.scalars(
+            select(listings.Listing).where(
+                listings.Listing.owner_id.in_(ids), listings.Listing.kind == "rent"
+            )
+        )
+    )
+    rule = await current_late_fee_rule()
+    at = now()
+    touched = set()
+    for n, state in enumerate(STATES):
+        item = rentals[n % len(rentals)]
+        others = [s for s in students if s.id != item.owner_id]
+        renter = others[n % len(others)]
+        past = state in (
+            "active",
+            "overdue",
+            "returning",
+            "in_appeal",
+            "awaiting_reviews",
+            "completed",
+        )
+        start = at - timedelta(days=2) if past else at + timedelta(days=3 + n)
+        end = start + timedelta(days=1)
+        if state == "active":
+            end = at + timedelta(hours=20)
+        booking = Booking(
+            id=uuid.uuid4(),
+            listing_id=item.id,
+            asset_id=item.asset_id,
+            kind="rent",
+            status=state,
+            renter_id=renter.id,
+            owner_id=item.owner_id,
+            start_at=start,
+            end_at=end,
+            amount_paise=item.price_per_day_paise or 10000,
+            listing_title=item.title,
+            pickup_point=item.pickup_point,
+            late_fee_rule_id=rule.id,
+            created_at=start - timedelta(days=1),
+            updated_at=at,
+        )
+        if state not in ("requested", "withdrawn", "expired"):
+            booking.decided_at = start - timedelta(hours=20)
+        if state == "declined":
+            booking.decline_reason = "Away that week"
+        if past:
+            booking.pickup_completed_at = start
+        if state == "overdue":
+            booking.overdue_since = end + timedelta(minutes=rule.grace_minutes)
+        if state in ("returning", "in_appeal", "awaiting_reviews", "completed"):
+            booking.return_started_at = booking.return_completed_at = end - timedelta(hours=1)
+            booking.late_fee_paise = 0
+        if state == "in_appeal":
+            booking.damage_paise = 20000
+            booking.damage_description = "Scratched body"
+        if state in ("awaiting_reviews", "completed"):
+            booking.proceeded_at = booking.reviews_open_at = end
+        if state == "completed":
+            booking.completed_at = end + timedelta(hours=2)
+        session.add(booking)
+        await session.flush()
+        if past:
+            payment = await start_payment(
+                booking.id,
+                "rent",
+                renter.id,
+                item.owner_id,
+                booking.amount_paise,
+                "cash",
+                f"seed-{booking.id}",
+            )
+            await mark_cash_paid(payment.id, item.owner_id)
+        if state == "cancelled":
+            session.add(
+                Cancellation(
+                    booking_id=booking.id,
+                    by_id=renter.id,
+                    by_role="renter",
+                    note="Exam got moved to that day, sorry",
+                    at=at - timedelta(hours=2),
+                )
+            )
+        if state == "in_appeal":
+            session.add(
+                Appeal(
+                    id=uuid.uuid4(),
+                    booking_id=booking.id,
+                    filed_by_id=renter.id,
+                    filed_by_role="renter",
+                    reason="damage_dispute",
+                    notes="The scratch was already there at pickup",
+                    photo_keys=[],
+                    previous_status="returning",
+                    status="open",
+                    created_at=at,
+                )
+            )
+        if state == "completed":
+            for reviewer, reviewee, role, kind, ratings in (
+                (
+                    renter.id,
+                    item.owner_id,
+                    "lender",
+                    "lender",
+                    {
+                        "item_matches_description": 5,
+                        "item_condition": 4,
+                        "handover_punctuality": 5,
+                        "communication": 5,
+                    },
+                ),
+                (
+                    item.owner_id,
+                    renter.id,
+                    "renter",
+                    "renter",
+                    {"item_care": 5, "return_punctuality": 4, "communication": 5},
+                ),
+            ):
+                session.add(
+                    Review(
+                        id=uuid.uuid4(),
+                        booking_id=booking.id,
+                        reviewer_id=reviewer,
+                        reviewee_id=reviewee,
+                        review_type=kind,
+                        reviewee_role=role,
+                        ratings=ratings,
+                        overall=sum(ratings.values()) / len(ratings),
+                        comment="Smooth trade",
+                        created_at=end,
+                        revealed_at=end,
+                    )
+                )
+        touched |= {renter.id, item.owner_id}
+        print(f"  booking   {state:<17} {item.title}")
+    await session.flush()
+    await trust.recompute(session, *touched)
+    await session.commit()
+
+
 async def main() -> None:
     create_app()  # wires the packages to the api's database and Redis
     async with get_sessionmaker()() as session:
@@ -219,6 +395,8 @@ async def main() -> None:
         await ensure_payout_accounts(session, [s for s in students if s.id in owners])
         print("listings:")
         await ensure_listings(session, students)
+        print("bookings:")
+        await ensure_bookings(session, students)
     print("seeded")
 
 

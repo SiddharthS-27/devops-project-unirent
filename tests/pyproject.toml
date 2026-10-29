@@ -10,7 +10,7 @@ select = ["E", "F", "I", "UP", "B"]
 known-first-party = ["fixtures", "razorpay_sim"]
 
 [tool.pytest.ini_options]
-testpaths = ["integration", "e2e", "security"]
+testpaths = ["integration", "e2e", "security", "resilience"]
 markers = [
     "payments: payment and ledger behaviour (merge gate)",
     "security: authorization and abuse cases (merge gate)",

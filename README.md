@@ -25,7 +25,7 @@ make reset     # stop and delete all volumes
 
 `make up` copies `infra/env/.env.example` to `infra/env/.env` on first run. Put real secrets (Razorpay, Microsoft, Firebase) only in `infra/env/.env`, which is never committed. Without them the stack runs against the Razorpay simulator and mock sign-in.
 
-Compose profiles: `dev` (default for `make up`), `test` (CI and `make test-integration`), `staging`.
+Compose profiles: `dev` (default for `make up`), `test` (CI and `make test-integration`), `staging`, `monitoring` (`make monitoring`) and `tunnel` (`make tunnel`).
 
 Host ports:
 
@@ -37,6 +37,8 @@ Host ports:
 | Kafka (from the host) | 29092 |
 | MinIO API / console | 9000 / 9001 |
 | Kafka UI (dev) | 8080 |
+| Razorpay simulator | 8090 |
+| Grafana / Prometheus / Alertmanager | 3000 / 9090 / 9093 |
 
 ## Tests
 
@@ -45,10 +47,12 @@ make test-unit          # pytest in each Python package
 make test-integration   # tests/integration against the test profile
 make test-e2e           # tests/e2e
 make test-security      # tests/security
+make test-resilience    # tests/resilience: delayed and duplicate settlement
 make test-load          # Locust scenarios in tests/performance
+make resilience         # Kafka and worker failure experiments on the running stack
 ```
 
-The app: `cd frontend && flutter test`.
+The app: `cd frontend && flutter test`. The latest full run, with load and resilience numbers, is in [docs/research/04-test-report.md](docs/research/04-test-report.md); operating the stack is covered in [docs/runbooks/](docs/runbooks/).
 
 ## Folders and owners
 

@@ -109,7 +109,12 @@ services:
     profiles: [dev, test, staging]
     restart: unless-stopped
     # API_RELOAD=--reload in dev; empty elsewhere.
-    command: ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers $${API_RELOAD:-}"]
+    command:
+      - sh
+      - -c
+      - >-
+        exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers
+        --forwarded-allow-ips "$${FORWARDED_ALLOW_IPS:-127.0.0.1}" $${API_RELOAD:-}
     environment:
       UNIRENT_ENVIRONMENT: ${ENVIRONMENT:-dev}
       UNIRENT_DATABASE_URL: postgresql+asyncpg://${APP_DB_USER}:${APP_DB_PASSWORD}@postgres:5432/${POSTGRES_DB}
@@ -133,12 +138,14 @@ services:
       UNIRENT_RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID}
       UNIRENT_RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET}
       UNIRENT_RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET}
+      UNIRENT_RAZORPAY_ROUTE: ${RAZORPAY_ROUTE:-true}
       UNIRENT_ADMIN_EMAIL: ${ADMIN_EMAIL}
       UNIRENT_ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       UNIRENT_SIGNIN_LIMIT_PER_MINUTE: ${SIGNIN_LIMIT_PER_MINUTE:-10}
       API_RELOAD: ${API_RELOAD:-}
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-127.0.0.1}
     ports:
-      - "${API_PORT:-8000}:8000"
+      - "${API_BIND:-0.0.0.0}:${API_PORT:-8000}:8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -178,6 +185,9 @@ services:
       UNIRENT_FCM_PROJECT_ID: ${FIREBASE_PROJECT_ID:-unirent-dev}
       UNIRENT_FCM_CREDENTIALS_FILE: /run/secrets/fcm.json
       UNIRENT_LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      # Only read when PUSH_MODE=fcm; an empty placeholder is fine otherwise.
+      - ${FCM_CREDENTIALS:-./env/fcm.json.example}:/run/secrets/fcm.json:ro
     depends_on:
       kafka-init:
         condition: service_completed_successfully
@@ -202,7 +212,8 @@ services:
   tunnel:
     image: cloudflare/cloudflared:2024.12.2
     profiles: [tunnel]
-    command: ["tunnel", "--no-autoupdate", "--url", "http://api:8000"]
+    # http2 over TCP: campus networks often block the QUIC (UDP) default.
+    command: ["tunnel", "--no-autoupdate", "--protocol", "http2", "--url", "http://api:8000"]
     depends_on:
       api:
         condition: service_healthy
@@ -247,6 +258,23 @@ services:
       razorpay-sim:
         condition: service_healthy
 
+  # Staging's HTTPS front door (infra/caddy/Caddyfile).
+  caddy:
+    image: caddy:2.8.4
+    profiles: [staging]
+    environment:
+      STAGING_DOMAIN: ${STAGING_DOMAIN:-localhost}
+      GRAFANA_DOMAIN: ${GRAFANA_DOMAIN:-grafana.localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    depends_on:
+      api:
+        condition: service_healthy
+
   # Monitoring (Sasvat's configs in monitoring/): staging, or dev with --profile monitoring.
   prometheus:
     image: prom/prometheus:v2.55.1
@@ -280,6 +308,35 @@ services:
     depends_on:
       prometheus:
         condition: service_healthy
+      loki:
+        condition: service_started
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    profiles: [staging, monitoring]
+    command: ["--config.file=/etc/alertmanager/alertmanager.yml"]
+    volumes:
+      - ../monitoring/alertmanager:/etc/alertmanager:ro
+    ports:
+      - "${ALERTMANAGER_PORT:-9093}:9093"
+
+  loki:
+    image: grafana/loki:3.3.2
+    profiles: [staging, monitoring]
+    command: ["-config.file=/etc/loki/loki.yml"]
+    volumes:
+      - ../monitoring/loki:/etc/loki:ro
+      - loki-data:/loki
+
+  promtail:
+    image: grafana/promtail:3.3.2
+    profiles: [staging, monitoring]
+    command: ["-config.file=/etc/promtail/promtail.yml"]
+    volumes:
+      - ../monitoring/promtail:/etc/promtail:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - loki
 
   postgres-exporter:
     image: quay.io/prometheuscommunity/postgres-exporter:v0.16.0
@@ -334,7 +391,9 @@ services:
         condition: service_healthy
 
 volumes:
+  caddy-data:
   prometheus-data:
+  loki-data:
   grafana-data:
   postgres-data:
   redis-data:

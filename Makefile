@@ -4,8 +4,8 @@ PROFILE ?= $(shell grep -s '^PROFILE=' $(ENV_FILE) | cut -d= -f2 || echo dev)
 PROFILE := $(or $(PROFILE),dev)
 PYTHON_PACKAGES = security payments backend workers
 
-.PHONY: up down logs ps watch tunnel reset migrate seed test-unit test-integration test-e2e \
-	test-security test-load
+.PHONY: up down logs ps watch tunnel monitoring reset migrate seed test-unit test-integration \
+	test-e2e test-security test-resilience test-load resilience
 
 $(ENV_FILE):
 	cp infra/env/.env.example $(ENV_FILE)
@@ -31,7 +31,11 @@ watch: $(ENV_FILE)
 ## Expose the api over HTTPS for Razorpay webhooks and print the public URL.
 tunnel: $(ENV_FILE)
 	$(COMPOSE) --profile $(PROFILE) --profile tunnel up -d tunnel
-	@sleep 5; $(COMPOSE) --profile tunnel logs tunnel | grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' | tail -n1
+	@sleep 5; $(COMPOSE) --profile $(PROFILE) --profile tunnel logs tunnel | grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' | tail -n1
+
+## Prometheus, Alertmanager, Grafana, Loki and the exporters next to $(PROFILE).
+monitoring: $(ENV_FILE)
+	$(COMPOSE) --profile $(PROFILE) --profile monitoring up -d --wait
 
 ## Stop everything and delete all volumes.
 reset: $(ENV_FILE)
@@ -51,9 +55,13 @@ test-unit:
 	done
 	cd frontend && flutter test
 
-test-integration test-e2e test-security: $(ENV_FILE)
+test-integration test-e2e test-security test-resilience: $(ENV_FILE)
 	$(COMPOSE) --profile test --profile runner run --rm test-runner pytest -q $(subst test-,,$@)
 
 test-load: $(ENV_FILE)
 	$(COMPOSE) --profile test --profile runner run --rm test-runner \
 	  locust -f performance/locustfile.py --headless -u 50 -r 10 -t 2m --host http://api:8000
+
+## Stop Kafka, kill and pause the workers under traffic; see docs/runbooks/resilience.md.
+resilience: $(ENV_FILE)
+	python3 ci/scripts/resilience.py kafka workers delay
