@@ -69,3 +69,14 @@ async def test_request_id_is_generated_or_echoed():
     assert len(r.headers["x-request-id"]) == 32
     r = await _call("GET", "/boom", headers={"X-Request-ID": "abc123"})
     assert r.headers["x-request-id"] == "abc123"
+
+
+def test_api_logs_are_masked(capsys):
+    import logging
+
+    from app.core.logging import configure_logging
+
+    configure_logging("INFO")
+    logging.getLogger("t").info("signed in %s", "asha@college.edu", extra={"phone": "9876543210"})
+    out = capsys.readouterr().out
+    assert "asha@college.edu" not in out and "9876543210" not in out
