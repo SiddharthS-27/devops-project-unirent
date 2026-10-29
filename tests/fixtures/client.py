@@ -107,3 +107,29 @@ def admin() -> User:
     if _admin is None:
         _admin = staff_sign_in(ADMIN_EMAIL, ADMIN_PASSWORD)
     return _admin
+
+
+def new_moderator() -> User:
+    """A moderator the admin creates, signed in with their own password."""
+    email = f"mod{uuid.uuid4().hex[:8]}@unirent.in"
+    admin().ok(
+        "POST",
+        "/admin/moderators",
+        201,
+        json={"email": email, "name": "Test Moderator", "temporary_password": "welcome-pass-1"},
+    )
+    return staff_sign_in(email, "welcome-pass-1")
+
+
+def fire_due_timers(ref_id: str | None = None) -> list[str]:
+    """Do what the workers' timer runner does, right now: fire every due timer
+    (oldest first, page by page). Returns the kinds fired for `ref_id`."""
+    fired = []
+    while True:
+        due = internal("GET", "/internal/timers/due", params={"limit": 500}).json()["timers"]
+        if not due:
+            return fired
+        for timer in due:
+            internal("POST", f"/internal/timers/{timer['id']}/fire")
+            if timer["ref_id"] == ref_id:
+                fired.append(timer["kind"])
