@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://unirent.in/contracts/events/SupportReplyPosted.schema.json",
+  "title": "SupportReplyPosted",
+  "description": "A moderator replied in a help thread. Pushed to the student.",
+  "x-topic": "moderation.events",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "type",
+    "version",
+    "occurred_at",
+    "producer",
+    "aggregate_id",
+    "payload"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Consumers skip ids they have processed"
+    },
+    "type": {
+      "const": "SupportReplyPosted"
+    },
+    "version": {
+      "const": 1
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "producer": {
+      "const": "backend"
+    },
+    "aggregate_id": {
+      "type": "string",
+      "description": "Kafka message key; keeps one aggregate's events in order"
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "thread_id",
+        "account_id",
+        "preview"
+      ],
+      "properties": {
+        "thread_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "account_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "preview": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

@@ -58,3 +58,26 @@ async def test_booking_events_match_their_schemas(api):
     assert {e.type for e in events} >= {"BookingRequested", "BookingDecided"}
     for event in events:
         check(event.type, event.payload)
+
+
+async def test_moderation_events_match_their_schemas(api):
+    from sqlalchemy import select
+
+    from app.core.db import get_sessionmaker
+    from app.core.models import OutboxEvent
+    from tests.conftest import moderator, onboard
+
+    student = await onboard(api)
+    mod = await moderator(api)
+    await mod.post(
+        f"/staff/users/{student.id}/status", json={"status": "suspended", "reason": "Testing"}
+    )
+    async with get_sessionmaker()() as session:
+        event = await session.scalar(
+            select(OutboxEvent).where(
+                OutboxEvent.type == "AccountStatusChanged",
+                OutboxEvent.aggregate_id == str(student.id),
+            )
+        )
+    assert event is not None and event.topic == "moderation.events"
+    check(event.type, event.payload)
