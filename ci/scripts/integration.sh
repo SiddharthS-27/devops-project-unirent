@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# Integration stage: bring up the test profile, migrate, run tests/integration
-# and tests/e2e, always tear down. Suites that don't exist yet are skipped.
+# Integration stage: bring up the test profile, migrate, run tests/integration,
+# e2e, security and resilience, always tear down. A failure names the suite and
+# its merge-gate markers (payments, security, bookings, reconciliation).
 set -euo pipefail
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$root"
 
 suites=()
-for suite in integration e2e; do
+for suite in integration e2e security resilience; do
   if compgen -G "tests/$suite/test_*.py" > /dev/null; then suites+=("$suite"); fi
 done
 if [ ${#suites[@]} -eq 0 ]; then
@@ -32,11 +33,17 @@ trap '"${compose[@]}" logs --no-color api > integration-api.log 2>&1 || true; "$
 "${compose[@]}" exec -T api python /src/infra/seed/seed.py
 failed=()
 for suite in "${suites[@]}"; do
-  "${compose[@]}" --profile runner run --rm test-runner pytest -q "$suite" --junitxml="/results/$suite.xml" \
-    || failed+=("$suite")
+  "${compose[@]}" --profile runner run --rm test-runner pytest -q "$suite" \
+    --junitxml="/results/$suite.xml" -o junit_family=xunit2 || failed+=("$suite")
 done
 
 if [ ${#failed[@]} -gt 0 ]; then
   echo "failed suites: ${failed[*]}"
+  # Name the merge-gate areas that failed, from the JUnit results.
+  for gate in payments security bookings reconciliation; do
+    if grep -l "<failure" test-results/*.xml 2>/dev/null | xargs -r grep -q "$gate"; then
+      echo "merge gate failed: $gate"
+    fi
+  done
   exit 1
 fi
