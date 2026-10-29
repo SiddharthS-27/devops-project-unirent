@@ -133,3 +133,13 @@ class PaymentHistoryItem(PaymentOut):
 class PaymentHistoryPage(BaseModel):
     items: list[PaymentHistoryItem]
     next_cursor: str | None = None
+
+
+class LateFeeRuleIn(BaseModel):
+    grace_minutes: int = Field(ge=0, le=24 * 60)
+    base_fee_paise: int = Field(ge=0, le=1_000_000)
+    hourly_percent_bp: int = Field(ge=0, le=10_000, description="200 = 2% of the rent per hour")
+
+
+class LateFeeRuleVersion(LateFeeRuleOut):
+    version: int
