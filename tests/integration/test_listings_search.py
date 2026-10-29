@@ -60,4 +60,5 @@ def test_saved_search_matches_for_the_workers():
     saved = searcher.ok("POST", "/saved-searches", 201, json={"q": t})
     created = listing(owner(), title=f"Guitar {t}")
     r = internal("GET", "/internal/saved-searches/matches", params={"listing_id": created["id"]})
-    assert [m["saved_search_id"] for m in r.json()["matches"]] == [saved["id"]]
+    # Other students' saved searches may match too (say, "guitar"); ours must.
+    assert saved["id"] in [m["saved_search_id"] for m in r.json()["matches"]]
