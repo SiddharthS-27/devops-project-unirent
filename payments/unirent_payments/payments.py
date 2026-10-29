@@ -10,10 +10,10 @@ captured | marked_paid -> refunded | partly_refunded
 import logging
 import uuid
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from unirent_security import audit, rate_limit_hit
@@ -352,3 +352,26 @@ async def get_payment(session: AsyncSession, payment_id: uuid.UUID, *, lock: boo
     if payment is None:
         raise ApiError(404, "NOT_FOUND", "Payment not found")
     return payment
+
+
+async def success_rate(days: int = 30) -> float | None:
+    """Share of finished UPI attempts that were captured, for the admin's metrics."""
+    since = _now() - timedelta(days=days)
+    async with db.sessionmaker()() as session:
+        rows = dict(
+            (
+                await session.execute(
+                    select(Payment.status, func.count())
+                    .where(
+                        Payment.method == "upi",
+                        Payment.created_at >= since,
+                        Payment.status.in_(("captured", "failed", "refunded", "partly_refunded")),
+                    )
+                    .group_by(Payment.status)
+                )
+            ).all()
+        )
+    failed = rows.pop("failed", 0)
+    captured = sum(rows.values())
+    total = captured + failed
+    return round(captured / total, 4) if total else None

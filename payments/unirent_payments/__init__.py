@@ -10,6 +10,7 @@ from unirent_payments.payments import (
     payment_status,
     payments_for_booking,
     start_payment,
+    success_rate,
 )
 from unirent_payments.refunds import issue_refund
 
@@ -24,4 +25,5 @@ __all__ = [
     "payments_for_booking",
     "payout_ready",
     "start_payment",
+    "success_rate",
 ]
