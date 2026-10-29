@@ -41,7 +41,9 @@ class BookingTile extends StatelessWidget {
               children: [
                 Text(
                   booking.listingTitle,
-                  style: theme.textTheme.titleSmall,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -60,7 +62,9 @@ class BookingTile extends StatelessWidget {
                   Text(
                     action.label,
                     style: theme.textTheme.labelMedium?.copyWith(
-                      color: action.byMe ? scheme.primary : scheme.onSurface,
+                      color: action.byMe
+                          ? AppSurfaces.of(context).accent
+                          : scheme.onSurface,
                     ),
                   )
                 else

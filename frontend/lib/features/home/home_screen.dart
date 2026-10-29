@@ -80,7 +80,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('UniRent'),
+        title: const UniRentWordmark(),
         actions: [
           IconButton(
             tooltip: 'Saved searches',

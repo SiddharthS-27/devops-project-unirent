@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../theme.dart';
 import '../tokens.dart';
 
 enum TimelineStepState { done, current, upcoming }
@@ -42,6 +43,7 @@ class _TimelineRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final accent = AppSurfaces.of(context).accent;
     final isUpcoming = step.state == TimelineStepState.upcoming;
 
     final stateLabel = switch (step.state) {
@@ -53,32 +55,25 @@ class _TimelineRow extends StatelessWidget {
     final indicator = switch (step.state) {
       TimelineStepState.done => Container(
         decoration: BoxDecoration(
-          color: scheme.primary,
+          color: scheme.onSurface,
           shape: BoxShape.circle,
         ),
-        child: Icon(
-          Icons.check,
-          size: AppSizes.iconSm,
-          color: scheme.onPrimary,
-        ),
+        child: Icon(Icons.check, size: AppSizes.iconXs, color: scheme.surface),
       ),
       TimelineStepState.current => Container(
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          border: Border.all(color: scheme.primary, width: 2),
+          border: Border.all(color: accent, width: 2),
         ),
         padding: const EdgeInsets.all(5),
         child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: scheme.primary,
-            shape: BoxShape.circle,
-          ),
+          decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
         ),
       ),
       TimelineStepState.upcoming => Container(
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          border: Border.all(color: scheme.outlineVariant, width: 2),
+          border: Border.all(color: scheme.outline, width: 2),
         ),
       ),
     };
@@ -101,7 +96,7 @@ class _TimelineRow extends StatelessWidget {
                           vertical: AppSpacing.xs,
                         ),
                         color: step.state == TimelineStepState.done
-                            ? scheme.primary
+                            ? scheme.onSurface
                             : scheme.outlineVariant,
                       ),
                     ),
@@ -123,6 +118,9 @@ class _TimelineRow extends StatelessWidget {
                       child: Text(
                         step.title,
                         style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: isUpcoming
+                              ? FontWeight.w500
+                              : FontWeight.w600,
                           color: isUpcoming
                               ? scheme.onSurfaceVariant
                               : scheme.onSurface,

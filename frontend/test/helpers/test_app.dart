@@ -68,6 +68,8 @@ class TestApp {
 
   Future<void> tap(Finder finder) async {
     await tester.ensureVisible(finder);
+    // Lay out after the scroll so the tap lands on the widget's new position.
+    await tester.pump();
     await tester.tap(finder);
     await tester.pumpAndSettle();
   }

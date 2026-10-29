@@ -39,7 +39,7 @@ class ChecklistStep extends StatelessWidget {
       ),
       ChecklistStepState.available => (
         Icons.radio_button_unchecked,
-        scheme.primary,
+        AppSurfaces.of(context).accent,
         'to do',
       ),
       ChecklistStepState.done => (
@@ -51,7 +51,7 @@ class ChecklistStep extends StatelessWidget {
 
     final actionLabel = this.actionLabel;
     final action = state == ChecklistStepState.available && actionLabel != null
-        ? FilledButton.tonal(
+        ? FilledButton(
             onPressed: onAction,
             style: FilledButton.styleFrom(
               minimumSize: const Size(0, AppSizes.minTouchTarget),

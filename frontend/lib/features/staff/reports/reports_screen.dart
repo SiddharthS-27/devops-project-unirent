@@ -83,10 +83,8 @@ class _Metrics extends ConsumerWidget {
           child: ListView(
             padding: const EdgeInsets.all(AppSpacing.lg),
             children: [
-              Wrap(
-                spacing: AppSpacing.md,
-                runSpacing: AppSpacing.md,
-                children: [
+              _StatStrip(
+                stats: [
                   _Stat(
                     'UPI success rate',
                     percentLabel(m.paymentSuccessRate),
@@ -128,6 +126,45 @@ class _Metrics extends ConsumerWidget {
   }
 }
 
+/// Headline figures as one card split by rules, two to a row.
+class _StatStrip extends StatelessWidget {
+  const _StatStrip({required this.stats});
+
+  final List<_Stat> stats;
+
+  @override
+  Widget build(BuildContext context) {
+    final rule = Theme.of(context).colorScheme.outlineVariant;
+    final rows = <List<_Stat>>[
+      for (var i = 0; i < stats.length; i += 2)
+        stats.sublist(i, (i + 2).clamp(0, stats.length)),
+    ];
+    return AppCard(
+      padding: EdgeInsets.zero,
+      semanticContainer: false,
+      child: Column(
+        children: [
+          for (var r = 0; r < rows.length; r++) ...[
+            if (r > 0) const Divider(),
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (var c = 0; c < rows[r].length; c++) ...[
+                    if (c > 0) VerticalDivider(width: 1, color: rule),
+                    Expanded(child: rows[r][c]),
+                  ],
+                  if (rows[r].length == 1) const Expanded(child: SizedBox()),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class _Stat extends StatelessWidget {
   const _Stat(this.label, this.value, {this.hint});
 
@@ -138,21 +175,36 @@ class _Stat extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return SizedBox(
-      width: 160,
-      child: AppCard(
-        child: Semantics(
-          label: '$label: $value',
-          excludeSemantics: true,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: theme.textTheme.labelMedium),
-              const SizedBox(height: AppSpacing.xs),
-              Text(value, style: theme.textTheme.headlineSmall),
-              if (hint != null) Text(hint!, style: theme.textTheme.bodySmall),
-            ],
-          ),
+    final muted = theme.colorScheme.onSurfaceVariant;
+    // A missing figure is a small grey dash, never a dash at value size.
+    final missing = value == '–' || value == '-' || value == '—';
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Semantics(
+        label: '$label: $value',
+        excludeSemantics: true,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: theme.textTheme.bodySmall?.copyWith(color: muted),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              value,
+              style: missing
+                  ? theme.textTheme.bodyLarge?.copyWith(color: muted)
+                  : theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w500,
+                    ),
+            ),
+            if (hint != null)
+              Text(
+                hint!,
+                style: theme.textTheme.bodySmall?.copyWith(color: muted),
+              ),
+          ],
         ),
       ),
     );

@@ -25,10 +25,10 @@ class OnboardingScaffold extends StatelessWidget {
         title: Text(title),
         automaticallyImplyLeading: false,
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(4),
+          preferredSize: const Size.fromHeight(3),
           child: Semantics(
             label: 'Step $index of $total',
-            child: LinearProgressIndicator(value: index / total),
+            child: LinearProgressIndicator(value: index / total, minHeight: 3),
           ),
         ),
       ),
