@@ -1,0 +1,22 @@
+# Kafka topics, created by the kafka-init job in infra/compose.yaml.
+# Every topic gets a .retry and a .dlq companion with the same settings.
+# Events are keyed by aggregate_id, so one booking's events share a partition
+# and stay in order.
+defaults:
+  partitions: 3
+  replication_factor: 1
+  retention_ms: 604800000  # 7 days
+topics:
+  - name: bookings.events
+    producer: backend
+  - name: listings.events
+    producer: backend
+  - name: moderation.events
+    producer: backend
+  - name: payments.events
+    producer: payments
+companions:
+  retry:
+    retention_ms: 604800000
+  dlq:
+    retention_ms: 2592000000  # 30 days, to inspect and replay
