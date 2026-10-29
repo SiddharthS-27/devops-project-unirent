@@ -21,6 +21,8 @@ jobs:
     outputs:
       python: ${{ steps.select.outputs.python }}
       frontend: ${{ steps.select.outputs.frontend }}
+      stack: ${{ steps.filter.outputs.stack }}
+      contract: ${{ steps.filter.outputs.contract }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -33,6 +35,21 @@ jobs:
             workers: workers/**
             frontend: frontend/**
             workflow: .github/workflows/**
+            stack:
+              - backend/**
+              - payments/**
+              - security/**
+              - workers/**
+              - infra/**
+              - tests/**
+              - ci/**
+            # The spec is generated from the backend and owned with it. Routes added
+            # in payments/ or security/ reach it with the backend's next change.
+            contract:
+              - backend/**
+              - contracts/**
+              - frontend/tool/**
+              - frontend/lib/api/**
       - name: Select folders to check
         id: select
         # A change to the workflow itself re-checks every folder that exists.
@@ -99,22 +116,50 @@ jobs:
       fail-fast: false
       matrix:
         folder: ${{ fromJSON(needs.changes.outputs.python) }}
-    defaults:
-      run:
-        working-directory: ${{ matrix.folder }}
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: unirent
+          POSTGRES_USER: unirent
+          POSTGRES_PASSWORD: unirent
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U unirent" --health-interval 5s --health-retries 10
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-retries 10
+    env:
+      PGHOST: localhost
+      PGUSER: unirent
+      PGPASSWORD: unirent
+      PGDATABASE: unirent
+      UNIRENT_DATABASE_URL: postgresql+asyncpg://unirent:unirent@localhost:5432/unirent
+      UNIRENT_REDIS_URL: redis://localhost:6379/0
+      UNIRENT_ENVIRONMENT: test
     steps:
       - uses: actions/checkout@v4
+      # A folder only becomes a Python package with its pyproject.toml; until
+      # then there is nothing to install, cache or test.
+      - id: package
+        run: test -f "${{ matrix.folder }}/pyproject.toml" && echo "exists=true" >> "$GITHUB_OUTPUT" || true
       - uses: actions/setup-python@v5
+        if: steps.package.outputs.exists == 'true'
         with:
           python-version: "3.12"
-      - name: Install dependencies
-        run: |
-          pip install pytest
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          if [ -f pyproject.toml ]; then pip install -e .; fi
-      - name: Run pytest
-        # Exit code 5 means no tests were collected; allowed until the folder has tests.
-        run: pytest -q || [ $? -eq 5 ]
+          cache: pip
+      - name: Run unit tests
+        if: steps.package.outputs.exists == 'true'
+        run: ci/scripts/python-unit.sh ${{ matrix.folder }}
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.folder }}
+          path: test-results-${{ matrix.folder }}.xml
+          if-no-files-found: ignore
 
   unit-flutter:
     name: unit (frontend)
@@ -134,12 +179,134 @@ jobs:
       - run: flutter pub get
       - run: flutter test
 
+  # Stage 4: integration and end-to-end suites on the test Compose profile.
+  integration:
+    needs: [changes, unit-python]
+    if: always() && needs.changes.outputs.stack == 'true' && !contains(needs.*.result, 'failure')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run integration suites
+        run: ci/scripts/integration.sh
+      - name: Keep API logs and results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-results
+          path: |
+            integration-api.log
+            test-results/
+          if-no-files-found: ignore
+
+  # Stage 5: known-vulnerable dependencies and committed secrets. Images are
+  # scanned by Trivy in the images job, right after they are built.
+  scan:
+    needs: changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Secrets (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Python dependencies (pip-audit)
+        run: ci/scripts/pip-audit.sh
+      - name: App dependencies (osv-scanner on pubspec.lock)
+        uses: google/osv-scanner-action/osv-scanner-action@v2.0.2
+        with:
+          scan-args: --lockfile=frontend/pubspec.lock
+
+  # Stage 6: the committed spec and the generated app client are current.
+  contract:
+    needs: changes
+    if: needs.changes.outputs.contract == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.3"
+          channel: stable
+          cache: true
+      - name: Install the api packages
+        run: |
+          for pkg in security payments backend; do
+            if [ -f "$pkg/pyproject.toml" ]; then pip install -e "./$pkg"; fi
+          done
+      - name: Fetch app packages
+        working-directory: frontend
+        run: flutter pub get
+      - name: Compare spec and client with the code
+        run: ci/scripts/contract-check.sh
+
+  # Stage 7: build the api and workers images, tagged with the commit SHA.
+  # Pushed to GHCR only from master.
+  images:
+    needs: [changes, unit-python, contract]
+    if: always() && needs.changes.outputs.stack == 'true' && !contains(needs.*.result, 'failure')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        image: [api, workers]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Skip images whose Dockerfile or package doesn't exist yet
+        id: exists
+        run: |
+          # The workers image installs workers/ as a package, which arrives after its Dockerfile.
+          if [ -f infra/docker/${{ matrix.image }}.Dockerfile ] \
+            && { [ "${{ matrix.image }}" != workers ] || [ -f workers/pyproject.toml ]; }; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          fi
+      # Image names must be lowercase; the repository owner may not be.
+      - name: Image name
+        id: image
+        run: echo "ref=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/unirent-${{ matrix.image }}:${{ github.sha }}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+        if: steps.exists.outputs.build == 'true'
+      - uses: docker/login-action@v3
+        if: steps.exists.outputs.build == 'true' && github.ref == 'refs/heads/master'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        if: steps.exists.outputs.build == 'true'
+        with:
+          context: .
+          file: infra/docker/${{ matrix.image }}.Dockerfile
+          push: ${{ github.ref == 'refs/heads/master' }}
+          load: ${{ github.ref != 'refs/heads/master' }}
+          tags: ${{ steps.image.outputs.ref }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+      - name: Scan the image (Trivy)
+        if: steps.exists.outputs.build == 'true'
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
+        with:
+          image-ref: ${{ steps.image.outputs.ref }}
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
   # Branch protection requires only this job. The jobs above are skipped when their
   # folders didn't change, so they can't be required checks themselves.
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [changes, lint-python, lint-flutter, unit-python, unit-flutter]
+    needs: [changes, lint-python, lint-flutter, unit-python, unit-flutter, integration, scan, contract, images]
     runs-on: ubuntu-latest
     steps:
       - name: Fail if any job failed or was cancelled
