@@ -23,7 +23,7 @@ groups:
           description: "Success rate {{ $value | humanizePercentage }}. Check Razorpay status and the payments dashboard."
 
       - alert: ConsumerLagHigh
-        expr: sum by (consumergroup) (kafka_consumergroup_lag) > 1000
+        expr: sum by (consumergroup) (kafka_consumergroup_lag{consumergroup=~"unirent-.*"}) > 1000
         for: 10m
         labels: {severity: warning}
         annotations:
