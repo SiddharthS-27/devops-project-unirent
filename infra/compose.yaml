@@ -280,6 +280,35 @@ services:
     depends_on:
       prometheus:
         condition: service_healthy
+      loki:
+        condition: service_started
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    profiles: [staging, monitoring]
+    command: ["--config.file=/etc/alertmanager/alertmanager.yml"]
+    volumes:
+      - ../monitoring/alertmanager:/etc/alertmanager:ro
+    ports:
+      - "${ALERTMANAGER_PORT:-9093}:9093"
+
+  loki:
+    image: grafana/loki:3.3.2
+    profiles: [staging, monitoring]
+    command: ["-config.file=/etc/loki/loki.yml"]
+    volumes:
+      - ../monitoring/loki:/etc/loki:ro
+      - loki-data:/loki
+
+  promtail:
+    image: grafana/promtail:3.3.2
+    profiles: [staging, monitoring]
+    command: ["-config.file=/etc/promtail/promtail.yml"]
+    volumes:
+      - ../monitoring/promtail:/etc/promtail:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - loki
 
   postgres-exporter:
     image: quay.io/prometheuscommunity/postgres-exporter:v0.16.0
@@ -335,6 +364,7 @@ services:
 
 volumes:
   prometheus-data:
+  loki-data:
   grafana-data:
   postgres-data:
   redis-data:
