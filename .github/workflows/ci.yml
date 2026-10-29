@@ -312,6 +312,30 @@ jobs:
           ignore-unfixed: true
           exit-code: "1"
 
+  # Stages 8 and 9: master only. Pull the new images on the staging host, migrate,
+  # restart, then health-check with a staff login and a search; roll back on failure.
+  deploy:
+    needs: [images, integration, scan]
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push' && !contains(needs.*.result, 'failure')
+    runs-on: ubuntu-latest
+    environment: staging
+    concurrency: staging
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.STAGING_HOST }}
+          username: ${{ secrets.STAGING_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          envs: GITHUB_SHA,SMOKE_STAFF_EMAIL,SMOKE_STAFF_PASSWORD
+          script: |
+            cd ~/unirent
+            SMOKE_STAFF_EMAIL="$SMOKE_STAFF_EMAIL" SMOKE_STAFF_PASSWORD="$SMOKE_STAFF_PASSWORD" \
+              ci/scripts/deploy.sh "$GITHUB_SHA"
+        env:
+          SMOKE_STAFF_EMAIL: ${{ secrets.SMOKE_STAFF_EMAIL }}
+          SMOKE_STAFF_PASSWORD: ${{ secrets.SMOKE_STAFF_PASSWORD }}
+
   # Branch protection requires only this job. The jobs above are skipped when their
   # folders didn't change, so they can't be required checks themselves.
   ci-ok:
