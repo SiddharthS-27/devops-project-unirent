@@ -1,8 +1,8 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Boolean, DateTime, ForeignKey, SmallInteger, String, Text
+from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
@@ -34,3 +34,16 @@ class SupportMessage(Base):
     author_id: Mapped[uuid.UUID | None] = mapped_column(UUID)
     body: Mapped[str] = mapped_column(Text)
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class Faq(Base):
+    """One question the help bot can answer, with the words that point to it."""
+
+    __tablename__ = "faqs"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
+    topic: Mapped[str] = mapped_column(String(30))
+    question: Mapped[str] = mapped_column(Text)
+    answer: Mapped[str] = mapped_column(Text)
+    keywords: Mapped[list[str]] = mapped_column(ARRAY(String(40)))
+    position: Mapped[int] = mapped_column(SmallInteger)

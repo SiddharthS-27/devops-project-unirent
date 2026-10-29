@@ -1,11 +1,10 @@
 import uuid
 
-from fastapi import APIRouter
-from unirent_security import CurrentAccount
+from fastapi import APIRouter, Depends
+from unirent_security import CurrentAccount, rate_limit
 
 from app.core.deps import SessionDep
-from app.core.errors import not_implemented
-from app.modules.help import support
+from app.modules.help import chatbot, support
 from app.modules.help.schemas import (
     ChatIn,
     ChatReply,
@@ -22,13 +21,13 @@ router = APIRouter(tags=["help"])
 
 @router.get("/help/faqs", response_model=list[FaqOut])
 async def faqs(account: CurrentAccount, session: SessionDep):
-    raise not_implemented()
+    return await chatbot.faqs(session)
 
 
-@router.post("/help/chat", response_model=ChatReply)
+@router.post("/help/chat", response_model=ChatReply, dependencies=[Depends(rate_limit("chatbot"))])
 async def chat(body: ChatIn, account: CurrentAccount, session: SessionDep):
     """The help bot answers only general questions about how UniRent works."""
-    raise not_implemented()
+    return await chatbot.answer(session, body.message)
 
 
 @router.post("/help/handoff", response_model=SupportThreadOut, status_code=201)
