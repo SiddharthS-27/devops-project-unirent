@@ -6,6 +6,7 @@ from unirent_security.errors import ApiError
 
 from tests.test_webhooks import _upi, _verify, env  # noqa: F401 - fixture
 from unirent_payments import ledger
+from unirent_payments.config import get_settings
 from unirent_payments.models import Payment
 from unirent_payments.payments import mark_cash_paid, start_payment
 from unirent_payments.refunds import issue_refund, mark_cash_refunded
@@ -34,6 +35,16 @@ async def test_upi_refund_reverses_the_transfer(env, session):  # noqa: F811
     await session.refresh(payment)
     assert payment.status == "refunded"
     assert (await ledger.trial_balance(session)).balanced
+
+
+async def test_without_route_upi_refund_reverses_nothing(env, monkeypatch):  # noqa: F811
+    monkeypatch.setattr(get_settings(), "razorpay_route", False)
+    fake, client = env
+    p, paid, payer = await _upi(fake)
+    await _verify(client, p, paid, payer)
+    refund = await issue_refund(p.id, 10000, uuid.uuid4())
+    sent = next(r for r in fake.refunds.values() if r["id"] == refund.razorpay_refund_id)
+    assert "reverse_all" not in sent
 
 
 async def test_cash_refund_waits_for_the_owner(env, session):  # noqa: F811

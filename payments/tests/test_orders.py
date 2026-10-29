@@ -7,6 +7,8 @@ from unirent_security.errors import ApiError
 from tests.fake_razorpay import FakeRazorpay
 from tests.helpers import ready_payee
 from unirent_payments import db
+from unirent_payments.config import get_settings
+from unirent_payments.linked_accounts import payout_ready
 from unirent_payments.payments import start_payment
 from unirent_payments.razorpay_client import RazorpayClient, use_client
 
@@ -63,3 +65,16 @@ async def test_switching_to_cash_before_paying_replaces_the_attempt(fake):
     upi = await start_payment(booking, "rent", payer, payee, 5000, "upi", "k1")
     cash = await start_payment(booking, "rent", payer, payee, 5000, "cash", "k2")
     assert cash.id != upi.id and cash.status == "pending"
+
+
+@pytest.fixture
+def no_route(monkeypatch):
+    monkeypatch.setattr(get_settings(), "razorpay_route", False)
+
+
+async def test_without_route_upi_needs_no_payout_account(fake, no_route):
+    payee = uuid.uuid4()
+    assert await payout_ready(payee)
+    p = await start_payment(uuid.uuid4(), "rent", uuid.uuid4(), payee, 30000, "upi", "k1")
+    assert p.status == "pending"
+    assert "transfers" not in fake.orders[p.checkout["order_id"]]
