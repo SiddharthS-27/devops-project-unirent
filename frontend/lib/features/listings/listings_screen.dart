@@ -6,6 +6,7 @@ import '../../api/api.dart';
 import '../../app/error_messages.dart';
 import '../../app/routes.dart';
 import '../../ui/ui.dart';
+import '../bookings/booking_providers.dart';
 import '../payouts/payout_gate.dart';
 import 'listing_providers.dart';
 import 'widgets/listing_tiles.dart';
@@ -63,6 +64,7 @@ class _ListingsScreenState extends ConsumerState<ListingsScreen> {
       ),
       body: Column(
         children: [
+          const _RequestsWaiting(),
           Padding(
             padding: const EdgeInsets.all(AppSpacing.screen),
             child: SegmentedButton<ListingStatus>(
@@ -133,4 +135,39 @@ class _ListingsScreenState extends ConsumerState<ListingsScreen> {
       message: 'List something to rent out or sell to students on campus.',
     ),
   };
+}
+
+/// "3 booking requests waiting" when the owner has any.
+class _RequestsWaiting extends ConsumerWidget {
+  const _RequestsWaiting();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final count = ref.watch(incomingRequestsProvider(null)).value?.length ?? 0;
+    if (count == 0) return const SizedBox.shrink();
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.screen,
+        AppSpacing.screen,
+        AppSpacing.screen,
+        0,
+      ),
+      child: Material(
+        color: scheme.primaryContainer,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        child: ListTile(
+          leading: Icon(Icons.inbox_outlined, color: scheme.onPrimaryContainer),
+          title: Text(
+            count == 1
+                ? '1 booking request waiting'
+                : '$count booking requests waiting',
+            style: TextStyle(color: scheme.onPrimaryContainer),
+          ),
+          trailing: Icon(Icons.chevron_right, color: scheme.onPrimaryContainer),
+          onTap: () => context.push(Routes.incomingRequests),
+        ),
+      ),
+    );
+  }
 }

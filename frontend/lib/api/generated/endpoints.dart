@@ -357,7 +357,7 @@ class BookingsApi {
 
   /// Approve
   ///
-  /// Owner approves. Overlapping pending requests are auto-declined.
+  /// Owner approves. The price locks, and overlapping pending requests are auto-declined.
   ///
   /// `POST /api/v1/bookings/{booking_id}/approve`
   Future<BookingOut> approve(
@@ -392,6 +392,8 @@ class BookingsApi {
   }
 
   /// Rate Cancellation
+  ///
+  /// The side that didn't cancel reads the note and rates the canceller.
   ///
   /// `POST /api/v1/bookings/{booking_id}/cancellation-rating`
   Future<BookingOut> rateCancellation(
@@ -458,6 +460,8 @@ class BookingsApi {
 
   /// Request Extension
   ///
+  /// Ask the owner for more time. Extra time costs the listing's rate.
+  ///
   /// `POST /api/v1/bookings/{booking_id}/extensions`
   Future<ExtensionOut> requestExtension(
     String bookingId,
@@ -474,6 +478,8 @@ class BookingsApi {
   }
 
   /// Approve Extension
+  ///
+  /// Moves the end time and the reminders; the renter then pays.
   ///
   /// `POST /api/v1/bookings/{booking_id}/extensions/{extension_id}/approve`
   Future<ExtensionOut> approveExtension(
@@ -507,10 +513,11 @@ class BookingsApi {
 
   /// Pay Extension
   ///
-  /// UPI now, or cash, which is added to the charges at return.
+  /// UPI now (the extension's payment carries the Checkout details), or cash,
+  /// which is added to the charges at return.
   ///
   /// `POST /api/v1/bookings/{booking_id}/extensions/{extension_id}/payment`
-  Future<PaymentOut> payExtension(
+  Future<ExtensionOut> payExtension(
     String bookingId,
     String extensionId,
     PaymentStartIn body, {
@@ -522,7 +529,7 @@ class BookingsApi {
       headers: {'Idempotency-Key': idempotencyKey},
       body: body.toJson(),
     );
-    return PaymentOut.fromJson(json as Map<String, Object?>);
+    return ExtensionOut.fromJson(json as Map<String, Object?>);
   }
 
   /// Pickup Otp
@@ -560,7 +567,7 @@ class BookingsApi {
   /// Pickup Payment
   ///
   /// Renter pays rent (or the sale price): UPI opens Razorpay Checkout; cash waits
-  /// for the owner to mark it received.
+  /// for the owner to mark it received (POST /payments/{id}/mark-cash-paid).
   ///
   /// `POST /api/v1/bookings/{booking_id}/pickup/payment`
   Future<PaymentOut> pickupPayment(
@@ -578,6 +585,8 @@ class BookingsApi {
   }
 
   /// Pickup Photos
+  ///
+  /// Each side adds its own pickup photos (upload with purpose "handover" first).
   ///
   /// `POST /api/v1/bookings/{booking_id}/pickup/photos`
   Future<BookingOut> pickupPhotos(String bookingId, PhotosIn body) async {
@@ -659,6 +668,8 @@ class BookingsApi {
 
   /// Return Photos
   ///
+  /// The renter's photos first, then the owner's inspection photos.
+  ///
   /// `POST /api/v1/bookings/{booking_id}/return/photos`
   Future<BookingOut> returnPhotos(String bookingId, PhotosIn body) async {
     final json = await _transport.send(
@@ -670,6 +681,8 @@ class BookingsApi {
   }
 
   /// Start Return
+  ///
+  /// The renter starts the return when the two meet.
   ///
   /// `POST /api/v1/bookings/{booking_id}/return/start`
   Future<BookingOut> startReturn(
@@ -710,6 +723,8 @@ class BookingsApi {
   }
 
   /// Withdraw
+  ///
+  /// The renter withdraws a pending request. It doesn't count as a cancellation.
   ///
   /// `POST /api/v1/bookings/{booking_id}/withdraw`
   Future<BookingOut> withdraw(
@@ -1031,6 +1046,68 @@ class PaymentsApi {
   PaymentsApi(this._transport);
 
   final ApiTransport _transport;
+
+  /// Late Fee Rule
+  ///
+  /// The platform rule every rent listing shows.
+  ///
+  /// `GET /api/v1/late-fee-rule`
+  Future<LateFeeRuleOut> lateFeeRule() async {
+    final json = await _transport.send('GET', '/api/v1/late-fee-rule');
+    return LateFeeRuleOut.fromJson(json as Map<String, Object?>);
+  }
+
+  /// Razorpay Webhook
+  ///
+  /// Signed with X-Razorpay-Signature; replays (same event ID) do nothing.
+  ///
+  /// `POST /api/v1/payments/webhooks/razorpay`
+  Future<WebhookAck> razorpayWebhook() async {
+    final json = await _transport.send(
+      'POST',
+      '/api/v1/payments/webhooks/razorpay',
+    );
+    return WebhookAck.fromJson(json as Map<String, Object?>);
+  }
+
+  /// Get Payment
+  ///
+  /// `GET /api/v1/payments/{payment_id}`
+  Future<PaymentOut> getPayment(String paymentId) async {
+    final json = await _transport.send(
+      'GET',
+      '/api/v1/payments/${Uri.encodeComponent(paymentId)}',
+    );
+    return PaymentOut.fromJson(json as Map<String, Object?>);
+  }
+
+  /// Mark Cash Paid
+  ///
+  /// The owner (payee) taps "Mark cash received".
+  ///
+  /// `POST /api/v1/payments/{payment_id}/mark-cash-paid`
+  Future<PaymentOut> markCashPaid(String paymentId) async {
+    final json = await _transport.send(
+      'POST',
+      '/api/v1/payments/${Uri.encodeComponent(paymentId)}/mark-cash-paid',
+    );
+    return PaymentOut.fromJson(json as Map<String, Object?>);
+  }
+
+  /// Verify Payment
+  ///
+  /// Send what Checkout returned. Verify and the webhook may arrive in either
+  /// order; whichever comes first captures the payment.
+  ///
+  /// `POST /api/v1/payments/{payment_id}/verify`
+  Future<PaymentOut> verifyPayment(String paymentId, VerifyIn body) async {
+    final json = await _transport.send(
+      'POST',
+      '/api/v1/payments/${Uri.encodeComponent(paymentId)}/verify',
+      body: body.toJson(),
+    );
+    return PaymentOut.fromJson(json as Map<String, Object?>);
+  }
 
   /// Get Payout Account
   ///

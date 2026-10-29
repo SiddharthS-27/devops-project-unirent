@@ -162,7 +162,10 @@ void seedListings(MockDb db) {
     ..payoutUpdatedAt = now.subtract(const Duration(days: 30))
     ..lenderScore = 86
     ..lenderRating = 4.7
-    ..completedTrades = 12;
+    ..completedTrades = 12
+    ..renterScore = 88
+    ..renterRating = 4.8
+    ..renterReviews = 9;
 
   MockAccount student(
     String n,
@@ -173,6 +176,9 @@ void seedListings(MockDb db) {
     double? rating,
     int trades = 0,
     int cancellations = 0,
+    int? renterScore,
+    double? renterRating,
+    int renterReviews = 0,
   }) {
     final account = db.addAccount(
       MockAccount(
@@ -187,7 +193,10 @@ void seedListings(MockDb db) {
         ..lenderScore = score
         ..lenderRating = rating
         ..completedTrades = trades
-        ..cancellationCount = cancellations,
+        ..cancellationCount = cancellations
+        ..renterScore = renterScore
+        ..renterRating = renterRating
+        ..renterReviews = renterReviews,
     );
     db.profiles[account.id] = MockProfile(
       data: ProfileIn(
@@ -213,6 +222,9 @@ void seedListings(MockDb db) {
     rating: 4.1,
     trades: 7,
     cancellations: 2,
+    renterScore: 58,
+    renterRating: 3.9,
+    renterReviews: 6,
   );
   final meera = student(
     '3',
@@ -228,6 +240,9 @@ void seedListings(MockDb db) {
     score: 92,
     rating: 4.9,
     trades: 21,
+    renterScore: 90,
+    renterRating: 4.9,
+    renterReviews: 15,
   )..payoutStatus = PayoutAccountOutStatus.activated;
 
   var n = 0;

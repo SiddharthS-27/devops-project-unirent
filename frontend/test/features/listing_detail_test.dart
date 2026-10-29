@@ -7,6 +7,7 @@ import 'package:unirent/api/mock/mock_listings.dart';
 import 'package:unirent/api/mock/mock_server.dart';
 import 'package:unirent/app/routes.dart';
 import 'package:unirent/features/listings/listing_detail_screen.dart';
+import 'package:unirent/features/listings/listing_format.dart';
 import 'package:unirent/features/listings/listing_providers.dart';
 
 import '../helpers/test_app.dart';
@@ -78,7 +79,8 @@ void main() {
 
     await app.tapText('Request to rent');
     expect(app.location, Routes.listingRequest(dslr));
-    expect(find.text('Booking requests are coming soon'), findsOneWidget);
+    expect(find.widgetWithText(AppBar, 'Request to rent'), findsOneWidget);
+    expect(find.text('Send request'), findsOneWidget);
   });
 
   testWidgets('a sale listing asks to buy and has no late fees', (
@@ -102,8 +104,8 @@ void main() {
   });
 
   testWidgets('owners can pause and resume their listing', (tester) async {
+    // Two seeded requests (Karan and Meera) are waiting on the bike.
     final server = MockServer();
-    server.db.listings[ashaBike]!.pendingRequestCount = 2;
     final app = await openListing(tester, ashaBike, server: server);
 
     expect(find.text('Your listing'), findsOneWidget);

@@ -317,20 +317,24 @@ void main() {
       expect(app.location, Routes.listings);
     });
 
-    testWidgets('booking screen opens from Bookings too', (tester) async {
+    testWidgets('booking screen opens from the Bookings tab', (tester) async {
       final app = await signedInAs(tester, 'asha@college.edu');
       await app.tap(find.widgetWithText(NavigationDestination, 'Bookings'));
-      await app.tapText('Open sample booking');
-      expect(find.text('Booking sample'), findsOneWidget);
+      await app.tapText('Lending & selling');
+      await app.tap(find.widgetWithText(Tab, 'Pending'));
+      await app.tap(find.text('Hercules 21-gear mountain bike').first);
+      expect(app.location, startsWith('/bookings/'));
+      expect(find.text('Approve or decline the request'), findsOneWidget);
     });
 
     testWidgets('unirent://bookings/{id} deep link opens the booking', (
       tester,
     ) async {
       final app = await signedInAs(tester, 'asha@college.edu');
-      await openDeepLink(tester, 'unirent://bookings/42');
-      expect(app.location, '/bookings/42');
-      expect(find.text('Booking 42'), findsOneWidget);
+      const id = '00000000-0000-4000-d000-000000000001'; // seeded request
+      await openDeepLink(tester, 'unirent://bookings/$id');
+      expect(app.location, '/bookings/$id');
+      expect(find.text('Approve or decline the request'), findsOneWidget);
     });
 
     testWidgets('sign out revokes tokens, push and returns to sign-in', (

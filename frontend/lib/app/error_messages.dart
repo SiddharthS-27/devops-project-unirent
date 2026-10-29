@@ -62,6 +62,46 @@ const _messages = {
   'EMPTY_SEARCH': 'Add a search term or a filter before saving.',
   'TOO_MANY_SAVED_SEARCHES':
       'You can save up to 20 searches. Delete one to save another.',
+  // Bookings
+  'OWN_LISTING': 'You can’t request your own listing.',
+  'REQUEST_EXISTS': 'You already have an open request for this item.',
+  'SLOT_TAKEN': 'Those times are already booked. Pick different times.',
+  'START_IN_PAST': 'Pick a start time in the future.',
+  'PERIOD_TOO_SHORT': 'Rent for at least an hour.',
+  'PERIOD_TOO_LONG': 'You can rent for at most 30 days.',
+  'PERIOD_REQUIRED': 'Pick a start and end time.',
+  'LISTING_UNAVAILABLE': 'This listing isn’t available right now.',
+  'BOOKING_STATE': 'This booking has moved on. Pull to refresh.',
+  'NOT_YOUR_STEP': 'That step is for the other person.',
+  'ALREADY_PAID':
+      'It’s already paid for. Finish the handover, or ask Help to sort it out.',
+  'ALREADY_RATED': 'You’ve already rated this cancellation.',
+  'NOT_CANCELLED': 'This booking wasn’t cancelled.',
+  // Handover and payments
+  'STEP_LOCKED': 'Finish the earlier steps first.',
+  'CODE_EXPIRED': 'That code expired. Ask for a new one.',
+  'PAYEE_NOT_PAYOUT_READY':
+      'The owner can’t receive UPI payments yet. Pay in cash instead.',
+  'PAYMENT_ALREADY_MADE': 'Your UPI payment went through. Refreshing…',
+  'ORDER_MISMATCH':
+      'We couldn’t confirm that payment. If money left your account, ask '
+      'Help.',
+  'INVALID_SIGNATURE':
+      'We couldn’t confirm that payment. If money left your account, ask '
+      'Help.',
+  'NOT_CASH': 'Only cash payments are confirmed by the owner.',
+  'IDEMPOTENCY_KEY_REUSED': 'Something went wrong. Please try again.',
+  // Extensions
+  'EXTENSION_PENDING': 'Wait for the owner to answer your last request.',
+  'EXTENSION_TOO_SHORT': 'Pick a time after the current end time.',
+  'EXTENSION_DECIDED': 'That request was already answered.',
+  'EXTENSION_NOT_APPROVED': 'The owner hasn’t approved that extra time.',
+  // Overdue and return
+  'ESCALATION_NOT_YET':
+      'You can escalate an hour after the item became overdue. Use Help '
+      'before that.',
+  'NOTHING_TO_PAY': 'Nothing is owed.',
+  'CHARGES_UNPAID': 'The renter hasn’t paid the charges yet.',
   // Payouts
   'PAYOUT_ACCOUNT_EXISTS': 'You’ve already linked a payout account.',
   'NO_PAYOUT_ACCOUNT': 'Link a payout account first.',
