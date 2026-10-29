@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://unirent.in/contracts/events/ExtensionDecided.schema.json",
+  "title": "ExtensionDecided",
+  "description": "The owner answered an extension request. Pushed to the renter.",
+  "x-topic": "bookings.events",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "type",
+    "version",
+    "occurred_at",
+    "producer",
+    "aggregate_id",
+    "payload"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Consumers skip ids they have processed"
+    },
+    "type": {
+      "const": "ExtensionDecided"
+    },
+    "version": {
+      "const": 1
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "producer": {
+      "const": "backend"
+    },
+    "aggregate_id": {
+      "type": "string",
+      "description": "Kafka message key; keeps one aggregate's events in order"
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "booking_id",
+        "listing_id",
+        "listing_title",
+        "kind",
+        "renter_id",
+        "owner_id",
+        "extension_id",
+        "decision"
+      ],
+      "properties": {
+        "booking_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "listing_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "listing_title": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "rent",
+            "sale"
+          ]
+        },
+        "renter_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "owner_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "pickup_point": {
+          "type": "string"
+        },
+        "start_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "end_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "extension_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "decision": {
+          "enum": [
+            "approved",
+            "declined"
+          ]
+        }
+      }
+    }
+  }
+}

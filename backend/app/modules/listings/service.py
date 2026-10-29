@@ -4,6 +4,7 @@ import uuid
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from unirent_payments import current_late_fee_rule as payments_late_fee_rule
 from unirent_payments import payout_ready
 from unirent_security import AccountContext, mask_serial, require_owner
 
@@ -12,6 +13,7 @@ from app.core.clock import now
 from app.core.errors import ApiError, not_found
 from app.core.outbox import emit
 from app.core.schemas import PhotoOut
+from app.modules.bookings.models import HOLDS_SLOT, Booking
 from app.modules.listings.models import Asset, AssetEvent, Listing, ListingPhoto
 from app.modules.listings.schemas import (
     AssetHistoryEntry,
@@ -30,22 +32,50 @@ from app.modules.profiles.service import profiles_for
 MAX_PHOTOS = 8
 
 
-# Hooks the bookings module fills in.
+LOCKING = ("approved", "active", "overdue", "returning", "in_appeal")
+
+
 async def has_locking_booking(session: AsyncSession, listing_id: uuid.UUID) -> bool:
     """True while a booking for this listing is approved or active: no edits then."""
-    return False
+    found = await session.scalar(
+        select(Booking.id)
+        .where(Booking.listing_id == listing_id, Booking.status.in_(LOCKING))
+        .limit(1)
+    )
+    return found is not None
 
 
 async def blocked_slots(session: AsyncSession, listing_id: uuid.UUID) -> list[BlockedSlot]:
-    return []
+    """Future slots held by approved or later rentals."""
+    rows = await session.execute(
+        select(Booking.start_at, Booking.end_at)
+        .where(
+            Booking.listing_id == listing_id,
+            Booking.kind == "rent",
+            Booking.status.in_(HOLDS_SLOT),
+            Booking.end_at > now(),
+        )
+        .order_by(Booking.start_at)
+    )
+    return [BlockedSlot(start_at=r.start_at, end_at=r.end_at) for r in rows]
 
 
 async def pending_request_count(session: AsyncSession, listing_id: uuid.UUID) -> int:
-    return 0
+    count = await session.scalar(
+        select(func.count()).where(Booking.listing_id == listing_id, Booking.status == "requested")
+    )
+    return count or 0
 
 
 async def current_late_fee_rule() -> LateFeeRuleOut | None:
-    return None
+    rule = await payments_late_fee_rule()
+    return LateFeeRuleOut(
+        id=rule.id,
+        grace_minutes=rule.grace_minutes,
+        base_fee_paise=rule.base_fee_paise,
+        hourly_percent_bp=rule.hourly_percent_bp,
+        effective_from=rule.effective_from,
+    )
 
 
 async def get_listing(

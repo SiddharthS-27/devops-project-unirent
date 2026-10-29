@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
+from unirent_payments.schemas import PaymentOut
 
 from app.core.schemas import PhotoOut
 from app.modules.listings.schemas import LateFeeRuleOut, ListingCard, ListingKind
@@ -24,11 +25,6 @@ BookingStatus = Literal[
 ]
 BookingGroup = Literal["pending", "upcoming", "active", "past", "cancelled"]
 BookingRole = Literal["renter", "owner"]
-PaymentMethod = Literal["upi", "cash"]
-PaymentStatus = Literal[
-    "created", "pending", "captured", "failed", "marked_paid", "refunded", "partly_refunded"
-]
-PaymentPurpose = Literal["rent", "extension", "return_charges", "sale"]
 
 
 class BookingCreate(BaseModel):
@@ -67,37 +63,7 @@ class PhotosIn(BaseModel):
 
 
 class PaymentStartIn(BaseModel):
-    method: PaymentMethod
-
-
-class PaymentItem(BaseModel):
-    label: str
-    amount_paise: int
-
-
-class RazorpayCheckout(BaseModel):
-    """Everything Razorpay Checkout needs to open."""
-
-    key_id: str
-    order_id: str
-    amount_paise: int
-    currency: str = "INR"
-    name: str
-    description: str
-    prefill_email: str | None = None
-    prefill_contact: str | None = None
-
-
-class PaymentOut(BaseModel):
-    id: uuid.UUID
-    purpose: PaymentPurpose
-    method: PaymentMethod
-    status: PaymentStatus
-    amount_paise: int
-    items: list[PaymentItem]
-    checkout: RazorpayCheckout | None = Field(description="UPI only, while pending")
-    created_at: datetime
-    captured_at: datetime | None
+    method: Literal["upi", "cash"]
 
 
 class OtpOut(BaseModel):

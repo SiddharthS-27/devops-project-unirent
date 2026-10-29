@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, Depends
 from unirent_payments.api import router as payments_router
+from unirent_payments.api import webhook_router as payments_webhook_router
 from unirent_security.api import admin_router as moderators_router
 from unirent_security.api import auth_router
 
@@ -21,8 +22,9 @@ from app.modules.staff.router import router as staff_router
 
 api_router = APIRouter(prefix="/api/v1")
 
-# Sign-in routes carry their own, stricter limits.
+# Sign-in routes carry their own, stricter limits; Razorpay's webhooks aren't per user.
 api_router.include_router(auth_router)
+api_router.include_router(payments_webhook_router)
 
 limited = APIRouter(dependencies=[Depends(default_rate_limit)])
 for router in (
