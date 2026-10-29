@@ -33,6 +33,9 @@ trap '"${compose[@]}" logs --no-color api > integration-api.log 2>&1 || true; "$
 "${compose[@]}" exec -T api python /src/infra/seed/seed.py
 failed=()
 for suite in "${suites[@]}"; do
+  # Each suite starts with fresh rate-limit budgets: staff login allows five
+  # attempts per account in 15 minutes, and every suite signs the admin in.
+  "${compose[@]}" exec -T redis sh -c "redis-cli --scan --pattern 'rl:*' | xargs -r redis-cli del" > /dev/null
   "${compose[@]}" --profile runner run --rm test-runner pytest -q "$suite" \
     --junitxml="/results/$suite.xml" -o junit_family=xunit2 || failed+=("$suite")
 done
