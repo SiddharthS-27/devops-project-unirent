@@ -17,13 +17,14 @@ from unirent_security import (
 from app.core import storage
 from app.core.clock import now
 from app.core.deps import SessionDep
-from app.core.errors import not_found, not_implemented
+from app.core.errors import not_found
 from app.core.outbox import emit
 from app.core.pagination import decode_offset, encode_offset
 from app.core.schemas import Page, PhotoOut
 from app.modules.bookings import views
 from app.modules.bookings.handover import photo_keys
 from app.modules.bookings.models import Booking
+from app.modules.help import support
 from app.modules.help.schemas import (
     SupportMessage,
     SupportMessageIn,
@@ -196,12 +197,13 @@ async def escalations(staff: StaffAccount, session: SessionDep):
 async def support_inbox(
     staff: StaffAccount, session: SessionDep, status: Literal["open", "closed"] = "open"
 ):
-    raise not_implemented()
+    """Chats handed off from the help bot, latest activity first."""
+    return await support.summaries(session, status=status)
 
 
 @router.get("/support/threads/{thread_id}", response_model=SupportThreadOut)
 async def support_thread(thread_id: uuid.UUID, staff: StaffAccount, session: SessionDep):
-    raise not_implemented()
+    return await support.thread_out(session, await support.get_thread(session, thread_id, staff))
 
 
 @router.post(
@@ -210,12 +212,17 @@ async def support_thread(thread_id: uuid.UUID, staff: StaffAccount, session: Ses
 async def support_reply(
     thread_id: uuid.UUID, body: SupportMessageIn, staff: StaffAccount, session: SessionDep
 ):
-    raise not_implemented()
+    """Answer in the same chat; the student gets a push."""
+    message = await support.post(session, thread_id, staff, body.body)
+    await session.commit()
+    return support.message_out(message)
 
 
 @router.post("/support/threads/{thread_id}/close", response_model=SupportThreadOut)
 async def close_thread(thread_id: uuid.UUID, staff: StaffAccount, session: SessionDep):
-    raise not_implemented()
+    thread = await support.close(session, thread_id, staff)
+    await session.commit()
+    return await support.thread_out(session, thread)
 
 
 async def _rows(session, account_ids: list[uuid.UUID]) -> list[StaffUserRow]:

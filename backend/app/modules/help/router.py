@@ -5,6 +5,7 @@ from unirent_security import CurrentAccount
 
 from app.core.deps import SessionDep
 from app.core.errors import not_implemented
+from app.modules.help import support
 from app.modules.help.schemas import (
     ChatIn,
     ChatReply,
@@ -33,17 +34,19 @@ async def chat(body: ChatIn, account: CurrentAccount, session: SessionDep):
 @router.post("/help/handoff", response_model=SupportThreadOut, status_code=201)
 async def handoff(body: HandoffIn, account: CurrentAccount, session: SessionDep):
     """Talk to a moderator: opens a support thread holding the chat transcript."""
-    raise not_implemented()
+    thread = await support.handoff(session, account, body)
+    await session.commit()
+    return await support.thread_out(session, thread)
 
 
 @router.get("/support/threads", response_model=list[SupportThreadSummary])
 async def my_threads(account: CurrentAccount, session: SessionDep):
-    raise not_implemented()
+    return await support.summaries(session, account_id=account.id)
 
 
 @router.get("/support/threads/{thread_id}", response_model=SupportThreadOut)
 async def my_thread(thread_id: uuid.UUID, account: CurrentAccount, session: SessionDep):
-    raise not_implemented()
+    return await support.thread_out(session, await support.get_thread(session, thread_id, account))
 
 
 @router.post(
@@ -52,4 +55,6 @@ async def my_thread(thread_id: uuid.UUID, account: CurrentAccount, session: Sess
 async def post_message(
     thread_id: uuid.UUID, body: SupportMessageIn, account: CurrentAccount, session: SessionDep
 ):
-    raise not_implemented()
+    message = await support.post(session, thread_id, account, body.body)
+    await session.commit()
+    return support.message_out(message)

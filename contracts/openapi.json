@@ -11270,6 +11270,7 @@
     },
     "/api/v1/staff/support/threads": {
       "get": {
+        "description": "Chats handed off from the help bot, latest activity first.",
         "operationId": "support_inbox_api_v1_staff_support_threads_get",
         "parameters": [
           {
@@ -11422,6 +11423,7 @@
     },
     "/api/v1/staff/support/threads/{thread_id}/messages": {
       "post": {
+        "description": "Answer in the same chat; the student gets a push.",
         "operationId": "support_reply_api_v1_staff_support_threads__thread_id__messages_post",
         "parameters": [
           {
