@@ -16,3 +16,18 @@ htmlcov/
 .vscode/
 *.iml
 .DS_Store
+*.egg-info/
+build/
+dist/
+coverage.xml
+.mypy_cache/
+
+# Keys and service configs that must stay local
+*.pem
+*.key
+google-services.json
+GoogleService-Info.plist
+key.properties
+
+# Node tooling (Locust reports, scripts)
+node_modules/
