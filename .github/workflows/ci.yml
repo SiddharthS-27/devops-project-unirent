@@ -137,6 +137,7 @@ jobs:
       PGPASSWORD: unirent
       PGDATABASE: unirent
       UNIRENT_DATABASE_URL: postgresql+asyncpg://unirent:unirent@localhost:5432/unirent
+      UNIRENT_WORKERS_DATABASE_URL: postgresql+asyncpg://unirent:unirent@localhost:5432/unirent
       UNIRENT_REDIS_URL: redis://localhost:6379/0
       UNIRENT_ENVIRONMENT: test
     steps:
