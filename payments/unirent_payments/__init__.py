@@ -11,10 +11,12 @@ from unirent_payments.payments import (
     payments_for_booking,
     start_payment,
 )
+from unirent_payments.refunds import issue_refund
 
 __all__ = [
     "Rule",
     "current_late_fee_rule",
+    "issue_refund",
     "late_fee",
     "PaymentView",
     "mark_cash_paid",

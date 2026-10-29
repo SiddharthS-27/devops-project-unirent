@@ -1,21 +1,39 @@
 """HTTP routes owned by the payments package. The backend mounts them under /api/v1."""
 
+import hmac
 import json
 import uuid
+from typing import Annotated
 
-from fastapi import APIRouter, Request
-from unirent_security import CurrentAccount, audit, require_owner
+from fastapi import APIRouter, Depends, Header, Query, Request
+from sqlalchemy import or_, select
+from unirent_security import AdminAccount, CurrentAccount, audit, require_owner
 from unirent_security.errors import ApiError
 
-from unirent_payments import late_fees, linked_accounts, payments, webhooks
+from unirent_payments import (
+    late_fees,
+    linked_accounts,
+    payments,
+    reconciliation,
+    refunds,
+    webhooks,
+)
+from unirent_payments.config import get_settings
 from unirent_payments.db import SessionDep
-from unirent_payments.models import LinkedAccount
+from unirent_payments.models import LinkedAccount, Payment, ReconciliationRun, Refund
 from unirent_payments.payments import PaymentView
 from unirent_payments.schemas import (
     LateFeeRuleOut,
+    MismatchOut,
+    PaymentHistoryItem,
+    PaymentHistoryPage,
     PaymentOut,
     PayoutAccountIn,
     PayoutAccountOut,
+    ReconciliationReport,
+    ReconciliationRunIn,
+    ReconciliationRunOut,
+    RefundOut,
     VerifyIn,
     WebhookAck,
 )
@@ -89,6 +107,56 @@ async def late_fee_rule(account: CurrentAccount) -> LateFeeRuleOut:
     return LateFeeRuleOut(**{k: getattr(rule, k) for k in LateFeeRuleOut.model_fields})
 
 
+@router.get("/payments/history", response_model=PaymentHistoryPage)
+async def payment_history(
+    account: CurrentAccount,
+    session: SessionDep,
+    cursor: str | None = None,
+    limit: Annotated[int, Query(ge=1, le=50)] = 20,
+):
+    """Every payment, cash mark and refund I was part of, newest first, with its booking."""
+    offset = int(cursor) if cursor and cursor.isdigit() else 0
+    rows = list(
+        await session.scalars(
+            select(Payment)
+            .where(
+                or_(Payment.payer_id == account.id, Payment.payee_id == account.id),
+                Payment.status != "created",
+            )
+            .order_by(Payment.created_at.desc(), Payment.id)
+            .offset(offset)
+            .limit(limit + 1)
+        )
+    )
+    page = rows[:limit]
+    refund_rows = await session.scalars(
+        select(Refund)
+        .where(Refund.payment_id.in_([p.id for p in page]))
+        .order_by(Refund.created_at)
+    )
+    by_payment: dict[uuid.UUID, list[RefundOut]] = {}
+    for refund in refund_rows:
+        by_payment.setdefault(refund.payment_id, []).append(
+            RefundOut.model_validate(refund, from_attributes=True)
+        )
+    items = []
+    for payment in page:
+        paid = payment.payer_id == account.id
+        base = payment_out(payments.view(payment, await payments.checkout_for(payment)))
+        items.append(
+            PaymentHistoryItem(
+                **base.model_dump(),
+                booking_id=payment.booking_ref,
+                direction="paid" if paid else "received",
+                counterparty_id=payment.payee_id if paid else payment.payer_id,
+                refunded_paise=payment.refunded_paise,
+                refunds=by_payment.get(payment.id, []),
+            )
+        )
+    next_cursor = str(offset + limit) if len(rows) > limit else None
+    return PaymentHistoryPage(items=items, next_cursor=next_cursor)
+
+
 @router.get("/payments/{payment_id}", response_model=PaymentOut)
 async def get_payment(payment_id: uuid.UUID, account: CurrentAccount, session: SessionDep):
     payment = await payments.get_payment(session, payment_id)
@@ -118,6 +186,67 @@ async def verify_payment(
 async def mark_cash_paid(payment_id: uuid.UUID, account: CurrentAccount):
     """The owner (payee) taps "Mark cash received"."""
     return payment_out(await payments.mark_cash_paid(payment_id, account.id))
+
+
+@router.post("/refunds/{refund_id}/mark-done", response_model=RefundOut)
+async def mark_cash_refunded(refund_id: uuid.UUID, account: CurrentAccount) -> RefundOut:
+    """The owner confirms a ruled cash refund was handed back."""
+    refund = await refunds.mark_cash_refunded(refund_id, account.id)
+    return RefundOut.model_validate(refund, from_attributes=True)
+
+
+async def _report(session, run) -> ReconciliationReport:
+    rows = await reconciliation.mismatches(session, run.id)
+    return ReconciliationReport(
+        **ReconciliationRunOut.model_validate(run, from_attributes=True).model_dump(),
+        mismatches=[MismatchOut.model_validate(m, from_attributes=True) for m in rows],
+    )
+
+
+@router.get("/admin/reconciliation/runs", response_model=list[ReconciliationRunOut])
+async def reconciliation_runs(admin: AdminAccount, session: SessionDep):
+    rows = await session.scalars(
+        select(ReconciliationRun).order_by(ReconciliationRun.started_at.desc()).limit(60)
+    )
+    return [ReconciliationRunOut.model_validate(r, from_attributes=True) for r in rows]
+
+
+@router.get("/admin/reconciliation/runs/{run_id}", response_model=ReconciliationReport)
+async def reconciliation_report(run_id: uuid.UUID, admin: AdminAccount, session: SessionDep):
+    run = await session.get(ReconciliationRun, run_id)
+    if run is None:
+        raise ApiError(404, "NOT_FOUND", "Reconciliation run not found")
+    return await _report(session, run)
+
+
+@router.post("/admin/reconciliation/run", response_model=ReconciliationReport)
+async def run_reconciliation_now(
+    body: ReconciliationRunIn, admin: AdminAccount, session: SessionDep
+):
+    """Ledger against Razorpay payments, transfers and refunds for one IST day."""
+    run = await reconciliation.run(body.day, triggered_by=str(admin.id))
+    await audit.record(admin, "admin.reconciliation_run", audit.target("reconciliation", run.id))
+    return await _report(session, run)
+
+
+async def _service_token(
+    service_token: Annotated[str | None, Header(alias="X-Service-Token")] = None,
+) -> None:
+    expected = get_settings().service_token
+    if not service_token or not hmac.compare_digest(service_token, expected):
+        raise ApiError(401, "SERVICE_TOKEN_REQUIRED", "Internal route")
+
+
+internal_router = APIRouter(
+    prefix="/internal", tags=["internal"], dependencies=[Depends(_service_token)]
+)
+
+
+@internal_router.post("/reconciliation/run", response_model=ReconciliationRunOut)
+async def nightly_reconciliation(body: ReconciliationRunIn | None = None):
+    """The workers' nightly trigger (02:00 IST): checks yesterday."""
+    run = await reconciliation.run(body.day if body else None)
+    return ReconciliationRunOut.model_validate(run, from_attributes=True)
 
 
 @webhook_router.post("/payments/webhooks/razorpay", response_model=WebhookAck)

@@ -21,6 +21,8 @@ class PaymentSettings(BaseSettings):
     razorpay_timeout_seconds: float = 10.0
 
     checkout_name: str = "UniRent"
+    # The workers send this on /internal routes (the same secret the backend checks).
+    service_token: str = "dev-service-token"
     idempotency_ttl_hours: int = 24
 
 

@@ -16,7 +16,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from unirent_security.errors import ApiError
 
-from unirent_payments import payments
+from unirent_payments import payments, refunds
 from unirent_payments.config import get_settings
 from unirent_payments.models import Payment, WebhookEvent
 
@@ -86,10 +86,15 @@ async def _transfer_processed(session: AsyncSession, entity: dict[str, Any]) -> 
         payment.transfer_status = entity.get("status", "processed")
 
 
+async def _refund_processed(session: AsyncSession, entity: dict[str, Any]) -> None:
+    await refunds.refund_processed(session, entity["id"])
+
+
 HANDLERS = {
     "payment.captured": ("payment", _payment_captured),
     "payment.failed": ("payment", _payment_failed),
     "transfer.processed": ("transfer", _transfer_processed),
+    "refund.processed": ("refund", _refund_processed),
 }
 
 

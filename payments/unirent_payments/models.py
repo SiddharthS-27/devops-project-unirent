@@ -1,8 +1,18 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import BigInteger, DateTime, Index, Integer, String, Text, UniqueConstraint, text
+from sqlalchemy import (
+    BigInteger,
+    Date,
+    DateTime,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -152,3 +162,50 @@ class LateFeeRule(Base):
     effective_from: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     set_by: Mapped[uuid.UUID | None] = mapped_column(UUID)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class Refund(Base):
+    """Money back to the payer after a ruling. UPI refunds go through Razorpay and
+    reverse the transfer from the owner's linked account; cash refunds are
+    handed back in person and marked done by the owner."""
+
+    __tablename__ = "refunds"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
+    payment_id: Mapped[uuid.UUID] = mapped_column(UUID, index=True)
+    amount_paise: Mapped[int] = mapped_column(BigInteger)
+    ruling_ref: Mapped[uuid.UUID | None] = mapped_column(UUID)
+    method: Mapped[str] = mapped_column(String(10))
+    # upi: pending, processed, failed. cash: cash_pending, cash_done.
+    status: Mapped[str] = mapped_column(String(20))
+    razorpay_refund_id: Mapped[str | None] = mapped_column(String(50), unique=True)
+    marked_by: Mapped[uuid.UUID | None] = mapped_column(UUID)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ReconciliationRun(Base):
+    __tablename__ = "reconciliation_runs"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
+    day: Mapped[date] = mapped_column(Date, index=True)  # the IST day checked
+    triggered_by: Mapped[str] = mapped_column(String(50))  # nightly or an admin's ID
+    status: Mapped[str] = mapped_column(String(20))  # running, done, failed
+    totals: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error: Mapped[str | None] = mapped_column(Text)
+
+
+class ReconciliationMismatch(Base):
+    __tablename__ = "reconciliation_mismatches"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    run_id: Mapped[uuid.UUID] = mapped_column(UUID, index=True)
+    kind: Mapped[str] = mapped_column(String(30))
+    reference: Mapped[str] = mapped_column(String(100))
+    payment_id: Mapped[uuid.UUID | None] = mapped_column(UUID)
+    ledger_amount_paise: Mapped[int | None] = mapped_column(BigInteger)
+    razorpay_amount_paise: Mapped[int | None] = mapped_column(BigInteger)
+    ledger_status: Mapped[str | None] = mapped_column(String(20))
+    razorpay_status: Mapped[str | None] = mapped_column(String(20))
