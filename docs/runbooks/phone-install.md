@@ -1,6 +1,6 @@
 # Install UniRent on an Android phone
 
-The phone connects to the server over HTTPS; it does not need to stay connected to the development laptop. UniRent is a Flutter Android app, so build and install its APK once (or download the APK artifact produced by CI).
+The phone connects to the server over HTTPS; it does not need to stay connected to the development laptop. UniRent is a Flutter Android app, so build and install its APK once (or download the APK artifact produced by CI). The server deployment uses Podman and `podman compose` with a compatible Compose provider; Docker is not required on the server.
 
 ## Server requirements
 
@@ -9,7 +9,14 @@ The phone connects to the server over HTTPS; it does not need to stay connected 
 - The Compose Caddy service must own ports 80 and 443. If another reverse proxy already owns them, configure that proxy to send `/photos/*` to MinIO port 9000 and all other paths to API port 8000, preserving the request host and URI for MinIO signatures. Keep both service ports private to the server.
 - Configure real Microsoft/Firebase/Razorpay credentials as described in `infra/env/staging.env.example`; mock sign-in is rejected by the staging API.
 
-Start/deploy the `staging` Compose profile using the existing deployment runbook. Check `https://unirent.siddharths.me/healthz` and `/readyz` before installing the app.
+On the server, clone the repository, copy `infra/env/staging.env.example` to `infra/env/.env`, fill in the secrets and Firebase credentials, then run:
+
+```sh
+chmod +x deploy.sh
+./deploy.sh
+```
+
+The script builds the API and worker images on the server with Podman, starts the staging stack, initializes the photos bucket, runs migrations, and waits for the HTTPS readiness endpoint. It creates the staging env file and stops on the first run if the file is missing; fill the required settings before running again. Ensure the domain points to the server and ports 80 and 443 are available to Caddy. Check `https://unirent.siddharths.me/healthz` and `/readyz` before installing the app.
 
 ## Build an APK
 

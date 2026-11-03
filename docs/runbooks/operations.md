@@ -1,6 +1,8 @@
 # Operations runbook
 
-Owner: Sasvat. Commands run on the staging host from `~/unirent` unless stated. `compose` means `docker compose -f infra/compose.yaml --env-file infra/env/.env --profile staging`.
+Owner: Sasvat. Commands run on the staging host from `~/unirent` unless stated. The staging host uses Podman with a Compose provider (`podman compose`). `compose` means `podman compose -f infra/compose.yaml --env-file infra/env/.env --profile staging`.
+
+Before the first deploy, install Podman and a Compose provider supported by `podman compose`, then authenticate Podman to GHCR as the account that runs the deployment (`podman login ghcr.io`). The server needs inbound TCP 80 and 443 available to Caddy; rootless Podman may need host-level low-port forwarding or a privileged service to bind those ports.
 
 ## Deploys
 

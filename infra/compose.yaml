@@ -22,7 +22,7 @@ services:
       WORKERS_DB_USER: ${WORKERS_DB_USER}
       WORKERS_DB_PASSWORD: ${WORKERS_DB_PASSWORD}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${HOST_BIND:-0.0.0.0}:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./postgres:/docker-entrypoint-initdb.d:ro
@@ -35,7 +35,7 @@ services:
   redis:
     image: redis:7
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "${HOST_BIND:-0.0.0.0}:${REDIS_PORT:-6379}:6379"
     volumes:
       - redis-data:/data
     healthcheck:
@@ -61,7 +61,7 @@ services:
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
     ports:
-      - "29092:29092"
+      - "${HOST_BIND:-0.0.0.0}:29092:29092"
     volumes:
       - kafka-data:/var/lib/kafka/data
     healthcheck:
@@ -77,8 +77,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "${HOST_BIND:-0.0.0.0}:9000:9000"
+      - "${HOST_BIND:-0.0.0.0}:9001:9001"
     volumes:
       - minio-data:/data
     healthcheck:
@@ -232,7 +232,7 @@ services:
       RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET}
       WEBHOOK_URL: http://api:8000/api/v1/payments/webhooks/razorpay
     ports:
-      - "${RAZORPAY_SIM_PORT:-8090}:8090"
+      - "${HOST_BIND:-0.0.0.0}:${RAZORPAY_SIM_PORT:-8090}:8090"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8090/healthz')"]
       interval: 5s
@@ -286,7 +286,7 @@ services:
       - ../monitoring/prometheus:/etc/prometheus:ro
       - prometheus-data:/prometheus
     ports:
-      - "${PROMETHEUS_PORT:-9090}:9090"
+      - "${HOST_BIND:-0.0.0.0}:${PROMETHEUS_PORT:-9090}:9090"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/ready"]
       interval: 10s
@@ -304,7 +304,7 @@ services:
       - ../monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana-data:/var/lib/grafana
     ports:
-      - "${GRAFANA_PORT:-3000}:3000"
+      - "${HOST_BIND:-0.0.0.0}:${GRAFANA_PORT:-3000}:3000"
     depends_on:
       prometheus:
         condition: service_healthy
@@ -318,7 +318,7 @@ services:
     volumes:
       - ../monitoring/alertmanager:/etc/alertmanager:ro
     ports:
-      - "${ALERTMANAGER_PORT:-9093}:9093"
+      - "${HOST_BIND:-0.0.0.0}:${ALERTMANAGER_PORT:-9093}:9093"
 
   loki:
     image: grafana/loki:3.3.2
@@ -385,7 +385,7 @@ services:
       KAFKA_CLUSTERS_0_NAME: unirent
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
     ports:
-      - "${KAFKA_UI_PORT:-8080}:8080"
+      - "${HOST_BIND:-0.0.0.0}:${KAFKA_UI_PORT:-8080}:8080"
     depends_on:
       kafka:
         condition: service_healthy

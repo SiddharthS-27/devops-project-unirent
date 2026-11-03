@@ -9,7 +9,7 @@ dir="${STAGING_DIR:-$HOME/unirent}"
 registry="${REGISTRY:-ghcr.io/sasvat007}"
 cd "$dir"
 
-compose() { docker compose -f infra/compose.yaml --env-file infra/env/.env --profile staging "$@"; }
+compose() { podman compose -f infra/compose.yaml --env-file infra/env/.env --profile staging "$@"; }
 current_tag() { grep -s '^API_IMAGE=' infra/env/.env | sed 's/.*://' || true; }
 
 previous="$(current_tag)"
