@@ -6,8 +6,8 @@ class ApiConfig {
   factory ApiConfig.fromEnvironment() {
     const baseUrl = String.fromEnvironment(
       'API_BASE_URL',
-      // The host machine as seen from the Android emulator.
-      defaultValue: 'http://10.0.2.2:8000',
+      // Override with --dart-define=API_BASE_URL=... for local development.
+      defaultValue: 'https://unirent.siddharths.me',
     );
     const mode = String.fromEnvironment('API_MODE', defaultValue: 'live');
     return const ApiConfig(

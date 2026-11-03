@@ -359,10 +359,10 @@ jobs:
       - name: Build the APK
         run: >
           flutter build apk --release
-          --dart-define=API_BASE_URL=${{ vars.STAGING_API_URL }}
-          --dart-define=AUTH_MODE=${{ vars.AUTH_MODE || 'mock' }}
-          --dart-define=PHONE_AUTH_MODE=${{ vars.PHONE_AUTH_MODE || 'mock' }}
-          --dart-define=RAZORPAY_MODE=${{ vars.RAZORPAY_MODE || 'sim' }}
+          --dart-define=API_BASE_URL=${{ vars.STAGING_API_URL || 'https://unirent.siddharths.me' }}
+          --dart-define=AUTH_MODE=${{ vars.AUTH_MODE || 'microsoft' }}
+          --dart-define=PHONE_AUTH_MODE=${{ vars.PHONE_AUTH_MODE || 'firebase' }}
+          --dart-define=RAZORPAY_MODE=${{ vars.RAZORPAY_MODE || 'checkout' }}
           --dart-define=RAZORPAY_SIM_URL=${{ vars.STAGING_SIM_URL }}
           --dart-define=MS_CLIENT_ID=${{ vars.MS_CLIENT_ID }}
           --dart-define=MS_TENANT_ID=${{ vars.MS_TENANT_ID }}

@@ -2,7 +2,14 @@
 # public HTTPS URL) and Grafana. Set STAGING_DOMAIN and GRAFANA_DOMAIN in .env.
 {$STAGING_DOMAIN} {
 	encode gzip
-	reverse_proxy api:8000
+	# MinIO presigned requests use /<bucket>/<object>; proxy them with the
+	# original Host and URI so the signature remains valid.
+	handle /photos/* {
+		reverse_proxy minio:9000
+	}
+	handle {
+		reverse_proxy api:8000
+	}
 }
 
 {$GRAFANA_DOMAIN} {
