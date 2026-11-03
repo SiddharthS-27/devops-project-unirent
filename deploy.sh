@@ -27,6 +27,23 @@ EOF
   exit 2
 fi
 
+# These deployment-specific values are fixed for this server and can safely
+# be populated when the user started from the general development env file.
+set_env_value() {
+  local key="$1" value="$2"
+  if grep -q "^${key}=" "$ENV_FILE"; then
+    sed -i "s|^${key}=.*|${key}=${value}|" "$ENV_FILE"
+  else
+    printf '%s=%s\n' "$key" "$value" >> "$ENV_FILE"
+  fi
+}
+set_env_value PROFILE staging
+set_env_value ENVIRONMENT staging
+set_env_value STAGING_DOMAIN "$DOMAIN"
+set_env_value STORAGE_PUBLIC_URL "https://$DOMAIN"
+set_env_value API_BIND 127.0.0.1
+set_env_value HOST_BIND 127.0.0.1
+
 required_vars=(
   POSTGRES_PASSWORD APP_DB_PASSWORD WORKERS_DB_PASSWORD
   MINIO_ROOT_PASSWORD SERVICE_TOKEN JWT_SECRET
@@ -53,9 +70,6 @@ if [[ "$(env_value STORAGE_PUBLIC_URL)" != "https://$DOMAIN" ]]; then
 fi
 if [[ "$(env_value PUSH_MODE)" == "fcm" && ! -f "$ROOT_DIR/infra/env/fcm.json" ]]; then
   fail "PUSH_MODE=fcm requires the Firebase service-account file at $ROOT_DIR/infra/env/fcm.json. Add it or set PUSH_MODE=log."
-fi
-if [[ "$(env_value HOST_BIND)" != "127.0.0.1" ]]; then
-  fail "Set HOST_BIND=127.0.0.1 in $ENV_FILE so databases, object storage and monitoring ports are not exposed publicly."
 fi
 
 compose() {
